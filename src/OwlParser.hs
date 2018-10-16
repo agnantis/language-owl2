@@ -22,10 +22,10 @@ lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
 iriParens :: Parser a -> Parser a
-iriParens = between (symbol "<") (symbol (">"))
+iriParens = between (symbol "<") (symbol ">")
 
 parens :: Parser a -> Parser a
-parens = between (symbol "(") (symbol (")"))
+parens = between (symbol "(") (symbol ")")
 
 keywords :: [String]
 keywords = ["integer", "decimal", "float", "string", "Datatype", "Class", "ObjectProperty", "DataProperty", "AnnotationProperty", "NamedInvividual"]
@@ -95,8 +95,23 @@ sign = do
   mSign <- optional $ "" <$ symbol "+" <|> symbol "-"
   return $ fromMaybe "" mSign
 
+-- | TODO currently IRI is defined as text inside <>
+-- No validation is being performed
+-- Check: http://www.rfc-editor.org/rfc/rfc3987.txt for BNF representation 
+--
+-- >>> parseTest fullIRI "<http://www.uom.gr/ai/TestOntology.owl#Child>"
+-- "http://www.uom.gr/ai/TestOntology.owl#Child"
+--
+-- >>> parseTest fullIRI "<http://www.uom.gr/ai/TestOntology.owl#Child"
+-- ...
+-- unexpected end of input
+-- expecting '>'
+-- >>> parseTest fullIRI "http://www.uom.gr/ai/TestOntology.owl#Child"
+-- ...
+-- unexpected 'h'
+-- expecting '<'
 fullIRI :: Parser String
-fullIRI = iriParens undefined
+fullIRI = iriParens $ takeWhileP Nothing (/= '>')
 
 prefixName :: Parser String
 prefixName = undefined
@@ -117,7 +132,7 @@ dataType :: Parser String
 dataType = dataTypeIRI <|> symbol "integer" <|> symbol "decimal" <|> symbol "float" <|> symbol "string"
 
 dataTypeIRI :: Parser String
-dataTypeIRI = iri
+dataTypeIRI = empty --iri
 
 objectPropertyIRI :: Parser String
 objectPropertyIRI = iri
@@ -138,14 +153,23 @@ nodeID :: Parser String
 nodeID = undefined
 
 literal :: Parser String
-literal = typedLiteral <|> stringLiteralNoLanguage <|> stringLiteralWithLanguage <|> integerLiteral <|> decimalLiteral <|> (fmap show floatingPointLiteral)
+literal = fmap show typedLiteral <|> stringLiteralNoLanguage <|> stringLiteralWithLanguage <|> fmap show integerLiteral <|> fmap show decimalLiteral <|> fmap show floatingPointLiteral
 
-typedLiteral :: Parser String
+data TypedLiteral = TypedL String String deriving Show
+
+--instance Show TypedLiteral where
+--  show (TypedL lxc dt) = concat ["\"", lxc, "\"^^", dt]
+ 
+-- | Parses a typed literal
+--
+-- >>> parseTest typedLiteral "\"32\"^^integer"
+-- TypedL "32" "integer"
+typedLiteral :: Parser TypedLiteral
 typedLiteral = do
   val <- lexicalValue 
   symbol "^^"
   dt <- dataType
-  return "<typedLiteral>"
+  return $ TypedL val dt
 
 
 stringLiteralNoLanguage :: Parser String
@@ -186,11 +210,13 @@ quotedString = do
 
 data FloatPoint = Float Double (Maybe Exponent)
 newtype Exponent = Exponent Integer
+newtype DecimalLiteral = DecimalL Double deriving (Show)
+newtype IntegerLiteral = IntegerL Integer deriving (Show)
 
 instance Show FloatPoint where
-  show (Float n me) = show n ++ (maybe "" show me)
+  show (Float n me) = concat [show n, maybe "" show me]
 instance Show Exponent where
-  show (Exponent i) = 'e':((if i > 0 then "+" else "") ++ show i)
+  show (Exponent i) = concat ["e", if i > 0 then "+" else "", show i]
 
 -- | It parses folating point numbers.
 -- Valid formats:
@@ -252,20 +278,36 @@ exponent = do
   symb <- symbol "e" <|> symbol "E"
   ms <- sign
   dgts <- digits
-  return . Exponent . read $ ms ++ dgts
+  return . Exponent . read . concat $ [ms, dgts]
 
-decimalLiteral :: Parser String
+-- | It parser decimal values
+--
+-- >>> parseTest decimalLiteral "10.345"
+-- DecimalL 10.345
+-- >>> parseTest decimalLiteral "-10.345"
+-- DecimalL (-10.345)
+-- >>> parseTest decimalLiteral "+10.345"
+-- DecimalL 10.345
+decimalLiteral :: Parser DecimalLiteral
 decimalLiteral = do
   mSign <- sign
   dig1 <- digits 
   dig2 <- symbol "." >> digits
-  return "<decimalLiteral>"
+  return . DecimalL . read . concat $ [mSign, dig1, ".", dig2] 
 
-integerLiteral :: Parser String
+-- | It parser integer values
+--
+-- >>> parseTest integerLiteral "10"
+-- IntegerL 10
+-- >>> parseTest integerLiteral "-10"
+-- IntegerL (-10)
+-- >>> parseTest integerLiteral"+10"
+-- IntegerL 10
+integerLiteral :: Parser IntegerLiteral
 integerLiteral = do
   mSign <- sign
   digs <- digits
-  return "<integerLiteral>"
+  return . IntegerL . read . concat $ [mSign, digs]
 
 entity :: Parser String
 entity = choice $ fmap (uncurry classParser) alts
@@ -273,7 +315,7 @@ entity = choice $ fmap (uncurry classParser) alts
         classParser s p = do
           smb <- symbol s
           name <- p
-          return $ "<" ++ s ++ ">"
+          return . concat $ ["<", s, ">"]
         alts :: [(String, Parser String)] 
         alts = [ ("Datatype", dataType)
                , ("Class", classIRI)
