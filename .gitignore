@@ -1,2 +1,5 @@
 .ghci
-dist
+dist/
+res/
+*.swp
+result

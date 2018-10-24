@@ -1,0 +1,3 @@
+# I prefer `concat` instead of `++` even for only two elements
+- ignore:
+        name: Use ++

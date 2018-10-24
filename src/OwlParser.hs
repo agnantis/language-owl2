@@ -113,8 +113,29 @@ sign = do
 fullIRI :: Parser String
 fullIRI = iriParens $ takeWhileP Nothing (/= '>')
 
-prefixName :: Parser String
-prefixName = undefined
+rws :: [String]
+rws = []
+
+identifier :: Parser String
+identifier = (lexeme . try) (p >>= check)
+  where
+    p       = (:) <$> letterChar <*> many alphaNumChar
+    check x = if x `elem` rws
+                then fail $ "keyword " ++ show x ++ " cannot be an identifier"
+                else return x
+
+type IRI = String
+-- | It parses prefix names. Format: 'Prefix: <name>: <IRI>
+-- >>> parseTest prefixName "Prefix: owl: <http://www.w3.org/2002/07/owl#>"
+-- ("owl","http://www.w3.org/2002/07/owl#")
+--
+prefixName :: Parser (String, IRI)
+prefixName = do
+  string "Prefix:"
+  sc
+  prefix <- identifier <* symbol ":"
+  iri <- fullIRI
+  return (prefix, iri)
 
 abbreviatedIRI :: Parser String
 abbreviatedIRI = undefined
