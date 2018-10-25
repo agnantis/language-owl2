@@ -106,25 +106,48 @@ sign = do
 -- ...
 -- unexpected end of input
 -- expecting '>'
+--
 -- >>> parseTest fullIRI "http://www.uom.gr/ai/TestOntology.owl#Child"
 -- ...
 -- unexpected 'h'
 -- expecting '<'
-fullIRI :: Parser String
+fullIRI :: Parser IRI
 fullIRI = iriParens $ takeWhileP Nothing (/= '>')
 
+-- | Reserved keywords
 rws :: [String]
-rws = []
+rws = ["Ontology", "ObjectProperty", "Class", "Prefix"]
 
+-- | It parses arbitrary alpharithmetics provived that it does not belong to
+-- the list of reserved keywords
+--
+-- >>> parseTest identifier "label"
+-- "label"
+--
+-- >>> parseTest identifier "label3With"
+-- "label3With"
+--
+-- >>> parseTest identifier "label_3_With"
+-- "label_3_With"
+--
+-- >>> parseTest identifier "1label"
+-- ...
+-- unexpected '1'
+-- expecting letter
+--
+-- >>> parseTest identifier "Ontology"
+-- ...
+-- keyword "Ontology" cannot be an identifier
 identifier :: Parser String
 identifier = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> letterChar <*> many alphaNumChar
+    p       = (:) <$> letterChar <*> many (alphaNumChar <|> char '_')
     check x = if x `elem` rws
-                then fail $ "keyword " ++ show x ++ " cannot be an identifier"
+                then fail $ concat ["keyword ", show x, " cannot be an identifier"]
                 else return x
 
 type IRI = String
+type Prefix = String
 -- | It parses prefix names. Format: 'Prefix: <name>: <IRI>
 -- >>> parseTest prefixName "Prefix: owl: <http://www.w3.org/2002/07/owl#>"
 -- ("owl","http://www.w3.org/2002/07/owl#")
@@ -137,23 +160,43 @@ prefixName = do
   iri <- fullIRI
   return (prefix, iri)
 
-abbreviatedIRI :: Parser String
-abbreviatedIRI = undefined
+-- | It parses abbreviated IRIs. Format: 'prefix:term'
+-- >>> parseTest abbreviatedIRI "owl:user1"
+-- ("owl","user1")
+--
+abbreviatedIRI :: Parser (Prefix, String)
+abbreviatedIRI = (,) <$> (identifier <* symbol ":") <*> identifier
 
+-- | It parses simple IRIs; a finite sequence of characters matching the PN_LOCAL
+-- production of [SPARQL] and not matching any of the keyword terminals of the syntax 
+--
+-- TODO: Simplified to a simple identifier parser
 simpleIRI :: Parser String
-simpleIRI = undefined
+simpleIRI = identifier
 
+-- | It parses any of the three different formats of IRIs
 iri :: Parser String
-iri = fullIRI <|> abbreviatedIRI <|> simpleIRI
+iri = fullIRI <|> (concatAbbrIRI <$> abbreviatedIRI) <|> simpleIRI
+  where
+    concatAbbrIRI (x, y) = concat [x, ":", y]
 
-classIRI :: Parser String
+-- | It parses class IRIs
+classIRI :: Parser IRI
 classIRI = iri
 
+-- | It parses datatypes
+--
+-- >>> parseTest dataType "<http://example.iri>"
+-- "http://example.iri"
+--
+-- >>> parseTest dataType "integer"
+-- "integer"
+--
 dataType :: Parser String
-dataType = dataTypeIRI <|> symbol "integer" <|> symbol "decimal" <|> symbol "float" <|> symbol "string"
+dataType = try dataTypeIRI <|> symbol "integer" <|> symbol "decimal" <|> symbol "float" <|> symbol "string"
 
 dataTypeIRI :: Parser String
-dataTypeIRI = empty --iri
+dataTypeIRI = iri
 
 objectPropertyIRI :: Parser String
 objectPropertyIRI = iri
@@ -170,11 +213,26 @@ individual = individualIRI <|> nodeID
 individualIRI :: Parser String
 individualIRI = iri
 
+-- | It parses blank nodes
+--
+-- >>> parseTest nodeID "_:blank"
+-- "_:blank"
+--
+-- >>> parseTest nodeID ":blank"
+-- ...
+-- unexpected ":b"
+-- expecting "_:"
+--
+-- >>> parseTest nodeID "blanknode"
+-- ...
+-- unexpected "bl"
+-- expecting "_:"
+--
 nodeID :: Parser String
-nodeID = undefined
+nodeID = (++) <$> symbol "_:" <*> identifier 
 
 literal :: Parser String
-literal = fmap show typedLiteral <|> stringLiteralNoLanguage <|> stringLiteralWithLanguage <|> fmap show integerLiteral <|> fmap show decimalLiteral <|> fmap show floatingPointLiteral
+literal = show <$> typedLiteral <|> stringLiteralNoLanguage <|> stringLiteralWithLanguage <|> show <$> integerLiteral <|> show <$> decimalLiteral <|> show <$> floatingPointLiteral
 
 data TypedLiteral = TypedL String String deriving Show
 
@@ -186,11 +244,7 @@ data TypedLiteral = TypedL String String deriving Show
 -- >>> parseTest typedLiteral "\"32\"^^integer"
 -- TypedL "32" "integer"
 typedLiteral :: Parser TypedLiteral
-typedLiteral = do
-  val <- lexicalValue 
-  symbol "^^"
-  dt <- dataType
-  return $ TypedL val dt
+typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" >>  dataType)
 
 
 stringLiteralNoLanguage :: Parser String
