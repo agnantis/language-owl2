@@ -528,3 +528,61 @@ annotatedList p =
   let annotationList = (,) <$> fmap (fromMaybe []) (optional annotations) <*> p
   in  nonEmptyList annotationList
 
+--------------------------------------------
+---- Properties and datatype epressions ----
+--------------------------------------------
+
+
+objectPropertyExpression :: Parser String
+objectPropertyExpression = objectPropertyIRI <|> inverseObjectProperty
+
+inverseObjectProperty :: Parser String
+inverseObjectProperty = symbol "inverse" >> objectPropertyIRI
+
+dataPropertyExpression :: Parser String
+dataPropertyExpression = dataPropertyIRI
+
+dataRange :: Parser [String]
+dataRange =
+  let multipleDataConjuctions =
+        (:) <$> dataConjuction <*> some ( symbol "or" *> dataConjuction)
+  in  (concat <$> multipleDataConjuctions) <|> dataConjuction
+
+
+dataConjuction :: Parser [String]
+dataConjuction =
+  let multipleDataPrimary =
+        (:) <$> dataPrimary <*> some ( symbol "and" *> dataPrimary)
+  in  (concat <$> multipleDataPrimary) <|> dataPrimary
+
+dataPrimary :: Parser [String]
+dataPrimary = do
+  not <- optional $ symbol "not" -- TODO: TBI
+  dataAtomic
+
+dataAtomic :: Parser [String]
+dataAtomic =
+  (pure <$> dataType)
+    <|> (symbol "{" *> nonEmptyList literal <* symbol "}")
+    <|> datatypeRestriction
+    <|> (symbol "(" *> dataRange <* symbol ")")
+
+datatypeRestriction :: Parser [String]
+datatypeRestriction = dataType *> symbol "[" *> nonEmptyList (facet >> restrictionValue) <* symbol "]"
+
+facet :: Parser String
+facet = choice $ fmap
+  symbol
+  [ "length"
+  , "maxLength"
+  , "minLength"
+  , "pattern"
+  , "langRange"
+  , "<="
+  , "<"
+  , ">="
+  , ">"
+  ]
+
+restrictionValue :: Parser String
+restrictionValue = literal
