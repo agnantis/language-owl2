@@ -1,6 +1,9 @@
+{-# LANGUAGE LambdaCase #-}
+
 module OwlParser where
 
 import           Prelude                           hiding ( exponent )
+import           Data.List                                ( intercalate )
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Void
 import           Text.Megaparsec
@@ -14,34 +17,41 @@ type IRI = String
 type Prefix = String
 
 data TypedLiteral = TypedL String String deriving Show
-data FloatPoint = Float Double (Maybe Exponent)
+data FloatPoint = FloatP Double (Maybe Exponent)
+data LiteralWithLang = LiteralWithLang String LangTag deriving Show
 
 newtype Exponent = Exponent Integer
-newtype DecimalLiteral = DecimalL Double deriving (Show)
-newtype IntegerLiteral = IntegerL Integer deriving (Show)
+newtype DecimalLiteral = DecimalL Double deriving Show
+newtype IntegerLiteral = IntegerL Integer deriving Show
+newtype NodeID = NodeID String deriving Show
 
 instance Show FloatPoint where
-  show (Float n me) = concat [show n, maybe "" show me]
+  show (FloatP n me) = concat [show n, maybe "" show me]
 instance Show Exponent where
   show (Exponent i) = concat ["e", if i > 0 then "+" else "", show i]
 
 -- | Parses white space and line comments
 --
--- parsec (sc >> satisfy (const true)) "    some indented text"
+-- parsec (sc *> satisfy (const true)) "    some indented text"
 -- "some individual text"
 sc :: Parser ()
 sc = L.space space1 (L.skipLineComment "#") empty
-
 
 -- | Parses the actual lexeme and then any remaining space
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
 iriParens :: Parser a -> Parser a
-iriParens = between (char '<') (char '>')
+iriParens = enclosed '<'
 
 parens :: Parser a -> Parser a
-parens = between (char '(') (char ')')
+parens = enclosed '('
+
+enclosed :: Char -> Parser a -> Parser a
+enclosed c = between (char c) (char (cChar c))
+
+enclosedS :: Char -> Parser a -> Parser a
+enclosedS c = between (symbol [c]) (symbol [cChar c])
 
 -- | Reserved keywords
 allKeywords :: [String]
@@ -50,6 +60,19 @@ allKeywords =
 
 datatypeKeywords :: [String]
 datatypeKeywords = ["integer", "decimal", "float", "string"]
+
+-- c for complement
+cChar :: Char -> Char
+cChar = \case
+  '{' -> '}'
+  '}' -> '{'
+  '<' -> '>'
+  '>' -> '<'
+  '(' -> ')'
+  ')' -> '('
+  '[' -> ']'
+  ']' -> '['
+  c   -> c
 
 entityKeywords :: [String]
 entityKeywords =
@@ -243,7 +266,7 @@ annotationPropertyIRI :: Parser String
 annotationPropertyIRI = iri
 
 individual :: Parser String
-individual = individualIRI <|> nodeID
+individual = individualIRI <|> (show <$> nodeID)
 
 individualIRI :: Parser String
 individualIRI = iri
@@ -251,7 +274,7 @@ individualIRI = iri
 -- | It parses blank nodes
 --
 -- >>> parseTest nodeID "_:blank"
--- "_:blank"
+-- NodeID "blank"
 --
 -- >>> parseTest nodeID ":blank"
 -- ...
@@ -263,15 +286,15 @@ individualIRI = iri
 -- unexpected "bl"
 -- expecting "_:"
 --
-nodeID :: Parser String
-nodeID = (++) <$> symbol "_:" <*> identifier
+nodeID :: Parser NodeID
+nodeID = NodeID <$> (symbol "_:" *> identifier)
 
 literal :: Parser String
 literal =
   show
     <$> typedLiteral
     <|> stringLiteralNoLanguage
-    <|> fmap (\(v, l) -> concat [v, "@", l]) stringLiteralWithLanguage
+    <|> (show <$> stringLiteralWithLanguage)
     <|> (show <$> integerLiteral)
     <|> (show <$> decimalLiteral)
     <|> (show <$> floatingPointLiteral)
@@ -281,7 +304,7 @@ literal =
 -- >>> parseTest typedLiteral "\"32\"^^integer"
 -- TypedL "32" "integer"
 typedLiteral :: Parser TypedLiteral
-typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" >> dataType)
+typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" *> dataType)
 
 -- | It parses a string value with no language tag
 --
@@ -295,13 +318,10 @@ stringLiteralNoLanguage = quotedString
 -- | It parses a string value with language tag
 --
 -- >>> parseTest stringLiteralWithLanguage "\"hello there\"@en"
--- ("hello there","en")
+-- LiteralWithLang "hello there" "en"
 --
-stringLiteralWithLanguage :: Parser (String, LangTag)
-stringLiteralWithLanguage = do
-  qString <- quotedString
-  lTag    <- languageTag
-  return (qString, lTag)
+stringLiteralWithLanguage :: Parser LiteralWithLang
+stringLiteralWithLanguage = LiteralWithLang <$> quotedString <*> languageTag
 
 -- | It parse a language tag
 --
@@ -313,8 +333,8 @@ stringLiteralWithLanguage = do
 -- expecting '@'
 --
 -- TODO: check for valid lang tags
-languageTag :: Parser String
-languageTag = char '@' >> identifier -- (U+40) followed a nonempty sequence of characters matching the langtag production from [BCP 47]
+languageTag :: Parser LangTag
+languageTag = char '@' *> identifier -- (U+40) followed a nonempty sequence of characters matching the langtag production from [BCP 47]
 
 lexicalValue :: Parser String
 lexicalValue = quotedString
@@ -365,7 +385,7 @@ floatingPointLiteral = do
   dgts <- dig1 <|> dig2
   mExp <- optional exponent
   symbol "f" <|> symbol "F"
-  return $ Float (read (sgn ++ dgts)) mExp
+  return $ FloatP (read (sgn ++ dgts)) mExp
  where
   dig1 = do
     dg'  <- digits
@@ -454,34 +474,43 @@ entity = choice $ fmap (uncurry classParser) alts
 -- Ontology and Annotations --
 ------------------------------
 
-annotations :: Parser [String]
-annotations = symbol "Annotations:" >> undefined
+type ImportIRI = IRI
+type Frame = String
+data OntologyIRI = OntologyIRI IRI (Maybe IRI) deriving Show
+data Ontology = Ontology (Maybe OntologyIRI) [ImportIRI] [Annotation] [Frame] deriving Show
 
-annotation :: Parser (String, String)
-annotation = (,) <$> annotationPropertyIRI <*> annotationTarget
+data Annotation = Annotation IRI String deriving Show
+data PrefixEntry = PrefixE Prefix IRI deriving Show
+data OntologyDocument = OntologyD [PrefixEntry] Ontology deriving Show
+
+annotations :: Parser [Annotation]
+annotations = symbol "Annotations:" *> some annotation -- TODO: annotatedList annotation
+
+annotation :: Parser Annotation
+annotation = Annotation <$> annotationPropertyIRI <*> annotationTarget
 
 annotationTarget :: Parser String
-annotationTarget = nodeID <|> iri <|> literal
+annotationTarget = (show <$> nodeID) <|> iri <|> literal
 
-ontologyDocument :: Parser String
-ontologyDocument = many prefixDeclaration >> ontology -- TODO: prefix is being ignored
+ontologyDocument :: Parser OntologyDocument
+ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
 
 -- | It parses prefix names. Format: 'Prefix: <name>: <IRI>
 -- >>> parseTest prefixDeclaration "Prefix: owl: <http://www.w3.org/2002/07/owl#>"
--- ("owl","http://www.w3.org/2002/07/owl#")
+-- PrefixE "owl" "http://www.w3.org/2002/07/owl#"
 --
-prefixDeclaration :: Parser (String, IRI)
+prefixDeclaration :: Parser PrefixEntry
 prefixDeclaration =
-  symbol "Prefix:" >> (,) <$> (prefixName <* symbol ":") <*> fullIRI
+  PrefixE <$> (symbol "Prefix:" *> (prefixName <* symbol ":")) <*> fullIRI
 
-ontology :: Parser String
+ontology :: Parser Ontology
 ontology = do
   symbol "Ontology:"
-  ontoIRI <- optional $ (,) <$> ontologyIRI <*> optional versionIRI -- Maybe (iri, Maybe iri)
+  ontoIRI <- optional $ OntologyIRI <$> ontologyIRI <*> optional versionIRI -- Maybe (iri, Maybe iri)
   imports <- many importStmt
-  annots  <- many annotations
+  annots  <- annotations
   frames  <- many frame
-  return "TBA: <ontology>"
+  return $ Ontology ontoIRI imports annots frames
 
 ontologyIRI :: Parser IRI
 ontologyIRI = iri
@@ -489,86 +518,59 @@ ontologyIRI = iri
 versionIRI :: Parser IRI
 versionIRI = iri
 
-importStmt :: Parser IRI
+importStmt :: Parser ImportIRI
 importStmt = symbol "Import:" >> iri
 
 frame :: Parser String
 frame = undefined
 
--- | It parses non empty lists
---
--- >>> parseTest (nonEmptyList languageTag) "@en, @el, @test"
--- ["en","el","test"]
---
--- >>> parseTest (nonEmptyList languageTag) ""
--- ...
--- unexpected end of input
--- expecting '@'
---
-nonEmptyList :: Parser p -> Parser [p]
-nonEmptyList p = (:) <$> p <*> many (symbol "," >> p)
 
--- | It parses lists with at least two elements
---
--- >>> parseTest (listOfAtLeast2 languageTag) "@en, @el, @test"
--- ["en","el","test"]
---
--- >>> parseTest (listOfAtLeast2 languageTag) "@en"
--- ...
--- unexpected end of input
--- ...
---
-listOfAtLeast2 :: Parser p -> Parser [p]
-listOfAtLeast2 p = (:) <$> p <*> some (symbol "," >> p)
+------------------------------------------
+--- Properties and datatype epressions ---
+------------------------------------------
+data ObjectProperty = ObjectP IRI | InverseObjectP IRI deriving Show
+newtype DataProperty = DataP IRI deriving Show
+-- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic deriving Show
 
--- | It parses non empty annotated lists
---
-annotatedList :: Parser p -> Parser [([String], p)]
-annotatedList p =
-  let annotationList = (,) <$> fmap (fromMaybe []) (optional annotations) <*> p
-  in  nonEmptyList annotationList
+objectPropertyExpression :: Parser ObjectProperty
+objectPropertyExpression = (ObjectP <$> objectPropertyIRI) <|> inverseObjectProperty
 
---------------------------------------------
----- Properties and datatype epressions ----
---------------------------------------------
+inverseObjectProperty :: Parser ObjectProperty
+inverseObjectProperty = symbol "inverse" *> (InverseObjectP <$> objectPropertyIRI)
 
+dataPropertyExpression :: Parser DataProperty
+dataPropertyExpression = DataP <$> dataPropertyIRI
 
-objectPropertyExpression :: Parser String
-objectPropertyExpression = objectPropertyIRI <|> inverseObjectProperty
+dataRange :: Parser String
+dataRange = intercalate " or " <$> singleOrMany "or" dataConjuction
 
-inverseObjectProperty :: Parser String
-inverseObjectProperty = symbol "inverse" >> objectPropertyIRI
+dataConjuction :: Parser String
+dataConjuction = intercalate " and " <$> singleOrMany "and" dataPrimary
 
-dataPropertyExpression :: Parser String
-dataPropertyExpression = dataPropertyIRI
-
-dataRange :: Parser [String]
-dataRange =
-  let multipleDataConjuctions =
-        (:) <$> dataConjuction <*> some ( symbol "or" *> dataConjuction)
-  in  (concat <$> multipleDataConjuctions) <|> dataConjuction
-
-
-dataConjuction :: Parser [String]
-dataConjuction =
-  let multipleDataPrimary =
-        (:) <$> dataPrimary <*> some ( symbol "and" *> dataPrimary)
-  in  (concat <$> multipleDataPrimary) <|> dataPrimary
-
-dataPrimary :: Parser [String]
+dataPrimary :: Parser String
 dataPrimary = do
-  not <- optional $ symbol "not" -- TODO: TBI
-  dataAtomic
+  not <- optional $ symbol "not"
+  let v = case not of
+        Just _  -> "not "
+        Nothing -> ""
+  atom <- dataAtomic
+  return $ v ++ atom
 
-dataAtomic :: Parser [String]
+dataAtomic :: Parser String
 dataAtomic =
-  (pure <$> dataType)
-    <|> (symbol "{" *> nonEmptyList literal <* symbol "}")
+  dataType
+    <|> show <$> enclosedS '{' (nonEmptyList literal)
     <|> datatypeRestriction
-    <|> (symbol "(" *> dataRange <* symbol ")")
+    <|> enclosedS '(' dataRange
 
-datatypeRestriction :: Parser [String]
-datatypeRestriction = dataType *> symbol "[" *> nonEmptyList (facet >> restrictionValue) <* symbol "]"
+datatypeRestriction :: Parser String
+datatypeRestriction = do
+  dt <- dataType
+  symbol "["
+  rvList <- nonEmptyList ((,) <$> facet <*> restrictionValue)
+  symbol "]"
+  return $ unwords
+    ["datatypeRestriction: {", show dt, ", [", unwords (show <$> rvList), "]"]
 
 facet :: Parser String
 facet = choice $ fmap
@@ -586,3 +588,85 @@ facet = choice $ fmap
 
 restrictionValue :: Parser String
 restrictionValue = literal
+
+predifinedPrefixex :: [PrefixEntry]
+predifinedPrefixex =
+  [ PrefixE "rdf"  "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  , PrefixE "rdfs" "http://www.w3.org/2000/01/rdf-schema#"
+  , PrefixE "xsd"  "http://www.w3.org/2001/XMLSchema#"
+  , PrefixE "owl"  "http://www.w3.org/2002/07/owl#"
+  ]
+
+
+---------------------
+---  Descriptions ---
+---------------------
+
+description :: Parser [String]
+description = singleOrMany "or" conjunction
+
+conjunction :: Parser String
+conjunction = undefined
+
+
+primary :: Parser String
+primary = undefined
+
+restriction :: Parser String
+restriction = undefined
+
+-- | It parses a class IRI or a list of individual IRIs
+--
+-- >>> parseTest atomic "<class.iri>"
+-- ["class.iri"]
+--
+-- >>> parseTest atomic "{ <class.iri#ind1>, <class.iri#ind2> }"
+-- ["class.iri#ind1","class.iri#ind2"]
+--
+atomic :: Parser [String]
+atomic =
+  (pure <$> classIRI) <|> enclosedS '{' (nonEmptyList individual)
+
+-----------------------
+--- Generic parsers ---
+-----------------------
+
+singleOrMany :: String -> Parser p -> Parser [p]
+singleOrMany sep p =
+  let multipleP =
+        (:) <$> p <*> some (symbol sep *> p)
+  in multipleP <|> (pure <$> p)
+
+-- | It parses non empty lists
+--
+-- >>> parseTest (nonEmptyList languageTag) "@en, @el, @test"
+-- ["en","el","test"]
+--
+-- >>> parseTest (nonEmptyList languageTag) ""
+-- ...
+-- unexpected end of input
+-- expecting '@'
+--
+nonEmptyList :: Parser p -> Parser [p]
+nonEmptyList p = (:) <$> p <*> many (symbol "," *> p <* sc)
+
+-- | It parses lists with at least two elements
+--
+-- >>> parseTest (listOfAtLeast2 languageTag) "@en, @el, @test"
+-- ["en","el","test"]
+--
+-- >>> parseTest (listOfAtLeast2 languageTag) "@en"
+-- ...
+-- unexpected end of input
+-- ...
+--
+listOfAtLeast2 :: Parser p -> Parser [p]
+listOfAtLeast2 p = (:) <$> p <*> some (symbol "," >> p)
+
+-- | It parses non empty annotated lists
+--
+annotatedList :: Parser p -> Parser [([Annotation], p)]
+annotatedList p =
+  let annotationList = (,) <$> fmap (fromMaybe []) (optional annotations) <*> p
+  in  nonEmptyList annotationList
+

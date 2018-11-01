@@ -21,7 +21,7 @@ library
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.11 && <4.12
-                     , megaparsec
+                     , megaparsec >= 7.0
                      , parser-combinators
                      , iri
   hs-source-dirs:      src
