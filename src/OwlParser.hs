@@ -533,10 +533,12 @@ newtype DataProperty = DataP IRI deriving Show
 -- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic deriving Show
 
 objectPropertyExpression :: Parser ObjectProperty
-objectPropertyExpression = (ObjectP <$> objectPropertyIRI) <|> inverseObjectProperty
+objectPropertyExpression =
+  (ObjectP <$> objectPropertyIRI) <|> inverseObjectProperty
 
 inverseObjectProperty :: Parser ObjectProperty
-inverseObjectProperty = symbol "inverse" *> (InverseObjectP <$> objectPropertyIRI)
+inverseObjectProperty =
+  symbol "inverse" *> (InverseObjectP <$> objectPropertyIRI)
 
 dataPropertyExpression :: Parser DataProperty
 dataPropertyExpression = DataP <$> dataPropertyIRI
@@ -548,18 +550,16 @@ dataConjuction :: Parser String
 dataConjuction = intercalate " and " <$> singleOrMany "and" dataPrimary
 
 dataPrimary :: Parser String
-dataPrimary = do
-  not <- optional $ symbol "not"
-  let v = case not of
-        Just _  -> "not "
-        Nothing -> ""
-  atom <- dataAtomic
-  return $ v ++ atom
+dataPrimary =
+  let neg  = (fromMaybe "") <$> optionalNegation
+      seqs = sequence [neg, dataAtomic]
+  in  show <$> seqs
 
 dataAtomic :: Parser String
 dataAtomic =
   dataType
-    <|> show <$> enclosedS '{' (nonEmptyList literal)
+    <|> show
+    <$> enclosedS '{' (nonEmptyList literal)
     <|> datatypeRestriction
     <|> enclosedS '(' dataRange
 
@@ -606,11 +606,29 @@ description :: Parser [String]
 description = singleOrMany "or" conjunction
 
 conjunction :: Parser String
-conjunction = undefined
-
+conjunction = restrictions <|> primaries <|> primary
+ where
+  restrictions = do
+    clsIRI <- classIRI
+    symbol "that"
+    neg  <- optionalNegation
+    rst  <- restriction
+    rsts <- many $ do
+      symbol "and"
+      neg' <- optionalNegation
+      rst' <- restriction
+      return . unwords $ [fromMaybe "" neg', rst']
+    return . unwords $ [show clsIRI, fromMaybe "" neg, rst] ++ rsts
+  primaries =
+    let prims = symbol "and" *> primary
+        list  = (:) <$> primary <*> some prims
+    in  show <$> list
 
 primary :: Parser String
-primary = undefined
+primary = do
+  neg  <- optionalNegation
+  rOrA <- restriction <|> (show <$> atomic)
+  return . unwords $ [fromMaybe "" neg, rOrA]
 
 restriction :: Parser String
 restriction = undefined
@@ -624,18 +642,19 @@ restriction = undefined
 -- ["class.iri#ind1","class.iri#ind2"]
 --
 atomic :: Parser [String]
-atomic =
-  (pure <$> classIRI) <|> enclosedS '{' (nonEmptyList individual)
+atomic = (pure <$> classIRI) <|> enclosedS '{' (nonEmptyList individual)
 
 -----------------------
 --- Generic parsers ---
 -----------------------
 
+optionalNegation :: Parser (Maybe String)
+optionalNegation = optional . symbol $ "not"
+
 singleOrMany :: String -> Parser p -> Parser [p]
 singleOrMany sep p =
-  let multipleP =
-        (:) <$> p <*> some (symbol sep *> p)
-  in multipleP <|> (pure <$> p)
+  let multipleP = (:) <$> p <*> some (symbol sep *> p)
+  in  multipleP <|> (pure <$> p)
 
 -- | It parses non empty lists
 --
