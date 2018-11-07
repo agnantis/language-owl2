@@ -3,6 +3,7 @@
 module OwlParser where
 
 import           Prelude                           hiding ( exponent )
+import           Data.Functor                             ( ($>) )
 import           Data.List                                ( intercalate )
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Void
@@ -55,8 +56,7 @@ enclosedS c = between (symbol [c]) (symbol [cChar c])
 
 -- | Reserved keywords
 allKeywords :: [String]
-allKeywords =
-  concat [datatypeKeywords, entityKeywords, ontologyKeywords, propertyKeywords]
+allKeywords = concat [datatypeKeywords, entityKeywords, ontologyKeywords, propertyKeywords]
 
 datatypeKeywords :: [String]
 datatypeKeywords = ["integer", "decimal", "float", "string"]
@@ -76,13 +76,7 @@ cChar = \case
 
 entityKeywords :: [String]
 entityKeywords =
-  [ "Datatype"
-  , "Class"
-  , "ObjectProperty"
-  , "DataProperty"
-  , "AnnotationProperty"
-  , "NamedInvividual"
-  ]
+  ["Datatype", "Class", "ObjectProperty", "DataProperty", "AnnotationProperty", "NamedInvividual"]
 
 ontologyKeywords :: [String]
 ontologyKeywords = ["Annotations", "Prefix", "Ontology", "Import"]
@@ -205,9 +199,8 @@ identifier :: Parser String
 identifier = (lexeme . try) (p >>= check)
  where
   p = (:) <$> letterChar <*> many (alphaNumChar <|> char '_')
-  check x = if x `elem` allKeywords
-    then fail $ concat ["keyword ", show x, " cannot be an identifier"]
-    else return x
+  check x =
+    if x `elem` allKeywords then fail $ concat ["keyword ", show x, " cannot be an identifier"] else return x
 
 -- | It parses prefix names
 --
@@ -246,12 +239,7 @@ classIRI = iri
 -- "integer"
 --
 dataType :: Parser String
-dataType =
-  try dataTypeIRI
-    <|> symbol "integer"
-    <|> symbol "decimal"
-    <|> symbol "float"
-    <|> symbol "string"
+dataType = try dataTypeIRI <|> symbol "integer" <|> symbol "decimal" <|> symbol "float" <|> symbol "string"
 
 dataTypeIRI :: Parser String
 dataTypeIRI = iri
@@ -500,8 +488,7 @@ ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
 -- PrefixE "owl" "http://www.w3.org/2002/07/owl#"
 --
 prefixDeclaration :: Parser PrefixEntry
-prefixDeclaration =
-  PrefixE <$> (symbol "Prefix:" *> (prefixName <* symbol ":")) <*> fullIRI
+prefixDeclaration = PrefixE <$> (symbol "Prefix:" *> (prefixName <* symbol ":")) <*> fullIRI
 
 ontology :: Parser Ontology
 ontology = do
@@ -525,20 +512,18 @@ frame :: Parser String
 frame = undefined
 
 
-------------------------------------------
---- Properties and datatype epressions ---
-------------------------------------------
+-------------------------------------------
+--- Properties and datatype expressions ---
+-------------------------------------------
 data ObjectProperty = ObjectP IRI | InverseObjectP IRI deriving Show
 newtype DataProperty = DataP IRI deriving Show
 -- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic deriving Show
 
 objectPropertyExpression :: Parser ObjectProperty
-objectPropertyExpression =
-  (ObjectP <$> objectPropertyIRI) <|> inverseObjectProperty
+objectPropertyExpression = (ObjectP <$> objectPropertyIRI) <|> inverseObjectProperty
 
 inverseObjectProperty :: Parser ObjectProperty
-inverseObjectProperty =
-  symbol "inverse" *> (InverseObjectP <$> objectPropertyIRI)
+inverseObjectProperty = symbol "inverse" *> (InverseObjectP <$> objectPropertyIRI)
 
 dataPropertyExpression :: Parser DataProperty
 dataPropertyExpression = DataP <$> dataPropertyIRI
@@ -551,7 +536,7 @@ dataConjuction = intercalate " and " <$> singleOrMany "and" dataPrimary
 
 dataPrimary :: Parser String
 dataPrimary =
-  let neg  = (fromMaybe "") <$> optionalNegation
+  let neg  = fromMaybe "" <$> optionalNegation
       seqs = sequence [neg, dataAtomic]
   in  show <$> seqs
 
@@ -569,22 +554,11 @@ datatypeRestriction = do
   symbol "["
   rvList <- nonEmptyList ((,) <$> facet <*> restrictionValue)
   symbol "]"
-  return $ unwords
-    ["datatypeRestriction: {", show dt, ", [", unwords (show <$> rvList), "]"]
+  return $ unwords ["datatypeRestriction: {", show dt, ", [", unwords (show <$> rvList), "]"]
 
 facet :: Parser String
-facet = choice $ fmap
-  symbol
-  [ "length"
-  , "maxLength"
-  , "minLength"
-  , "pattern"
-  , "langRange"
-  , "<="
-  , "<"
-  , ">="
-  , ">"
-  ]
+facet =
+  choice $ fmap symbol ["length", "maxLength", "minLength", "pattern", "langRange", "<=", "<", ">=", ">"]
 
 restrictionValue :: Parser String
 restrictionValue = literal
@@ -631,7 +605,27 @@ primary = do
   return . unwords $ [fromMaybe "" neg, rOrA]
 
 restriction :: Parser String
-restriction = undefined
+restriction = choice $ objectExprParsers <> dataExprParsers
+ where
+  objExprs =
+    [ ("some"   , primary)
+    , ("only"   , primary)
+    , ("Self"   , pure "")
+    , ("min", show <$> nonNegativeInteger <* optional primary)
+    , ("max", show <$> nonNegativeInteger <* optional primary)
+    , ("exaclty", show <$> nonNegativeInteger <* optional primary)
+    ]
+  dataExprs =
+    [ ("some"   , dataPrimary)
+    , ("only"   , dataPrimary)
+    , ("value"  , literal)
+    , ("min", show <$> nonNegativeInteger <* optional dataPrimary)
+    , ("max", show <$> nonNegativeInteger <* optional dataPrimary)
+    , ("exaclty", show <$> nonNegativeInteger <* optional dataPrimary)
+    ]
+  -- TODO: now, i keep only the last parser!
+  objectExprParsers = (\(smb, p) -> objectPropertyExpression *> symbol smb *> p) <$> objExprs
+  dataExprParsers   = (\(smb, p) -> dataPropertyExpression *> symbol smb *> p) <$> dataExprs
 
 -- | It parses a class IRI or a list of individual IRIs
 --
@@ -642,7 +636,77 @@ restriction = undefined
 -- ["class.iri#ind1","class.iri#ind2"]
 --
 atomic :: Parser [String]
-atomic = (pure <$> classIRI) <|> enclosedS '{' (nonEmptyList individual)
+atomic = pure <$> classIRI <|> enclosedS '{' (nonEmptyList individual)
+
+
+--------------------------------
+--- Frames and Miscellaneous ---
+--------------------------------
+
+dataFrame :: Parser String
+dataFrame = do
+  dttp    <- symbol "Datatype:" *> dataType
+  annots  <- many $ symbol "Annotations:" *> annotatedList annotation
+  equiv   <- optional $ symbol "EquivalentTo:" *> annotations <* dataRange
+  annots' <- many $ symbol "Annotations:" *> annotatedList annotation
+  pure "<dataframe>"
+
+classFrame :: Parser String
+classFrame = do
+  clsIRI <- symbol "Class:" *> classIRI
+  blob   <- (unwords <$> many fstChoice) <|> sndChoice
+  pure "<classFrame>"
+ where
+  fstChoice =
+    (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
+      <|> (symbol "SubClassOf:" *> annotatedList description $> "<annotations>")
+      <|> (symbol "EquivalentTo:" *> annotatedList description $> "<annotations>")
+      <|> (symbol "DisjointWith:" *> annotatedList description $> "<annotations>")
+      <|> (symbol "DisjointUnionOf:" *> annotations *> listOfAtLeast2 description $> "<annotations>")
+  sndChoice = do
+    symbol "HasKey:"
+    annots <- annotations
+    mExpr  <-
+      nonEmptyList
+      $   (objectPropertyExpression $> "<objectPropertyExpression>")
+      <|> (dataPropertyExpression $> "<dataPropertyExpression>")
+    pure "<sndChoice>"
+
+objectPropertyFrame :: Parser String
+objectPropertyFrame = undefined
+
+objectPropertyCharacteristic :: Parser String
+objectPropertyCharacteristic = undefined
+
+dataPropertyFrame :: Parser String
+dataPropertyFrame = undefined
+
+annotationPropertyFrame :: Parser String
+annotationPropertyFrame = undefined
+
+individualFrame :: Parser String
+individualFrame = undefined
+
+fact :: Parser String
+fact = do
+  neg  <- optionalNegation
+  fact <- objectPropertyFact <|> dataPropertyFact
+  return . unwords $ [fromMaybe "" neg, fact]
+
+objectPropertyFact :: Parser String
+objectPropertyFact = do
+  objProp <- objectPropertyIRI
+  indv    <- individual
+  return . unwords $ [objProp, indv]
+
+dataPropertyFact :: Parser String
+dataPropertyFact = do
+  dataProp <- dataPropertyIRI
+  ltr      <- literal
+  return . unwords $ [dataProp, ltr]
+
+misc :: Parser String
+misc = undefined
 
 -----------------------
 --- Generic parsers ---
@@ -652,9 +716,7 @@ optionalNegation :: Parser (Maybe String)
 optionalNegation = optional . symbol $ "not"
 
 singleOrMany :: String -> Parser p -> Parser [p]
-singleOrMany sep p =
-  let multipleP = (:) <$> p <*> some (symbol sep *> p)
-  in  multipleP <|> (pure <$> p)
+singleOrMany sep p = let multipleP = (:) <$> p <*> some (symbol sep *> p) in multipleP <|> (pure <$> p)
 
 -- | It parses non empty lists
 --
