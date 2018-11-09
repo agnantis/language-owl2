@@ -509,12 +509,20 @@ importStmt :: Parser ImportIRI
 importStmt = symbol "Import:" >> iri
 
 frame :: Parser String
-frame = undefined
+frame =
+  datatypeFrame
+    <|> classFrame
+    <|> objectPropertyFrame
+    <|> dataPropertyFrame
+    <|> annotationPropertyFrame
+    <|> individualFrame
+    <|> misc
 
 
 -------------------------------------------
 --- Properties and datatype expressions ---
 -------------------------------------------
+
 data ObjectProperty = ObjectP IRI | InverseObjectP IRI deriving Show
 newtype DataProperty = DataP IRI deriving Show
 -- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic deriving Show
@@ -643,26 +651,26 @@ atomic = pure <$> classIRI <|> enclosedS '{' (nonEmptyList individual)
 --- Frames and Miscellaneous ---
 --------------------------------
 
-dataFrame :: Parser String
-dataFrame = do
+datatypeFrame :: Parser String
+datatypeFrame = do
   dttp    <- symbol "Datatype:" *> dataType
   annots  <- many $ symbol "Annotations:" *> annotatedList annotation
   equiv   <- optional $ symbol "EquivalentTo:" *> annotations <* dataRange
   annots' <- many $ symbol "Annotations:" *> annotatedList annotation
-  pure "<dataframe>"
+  pure "<data-frame>"
 
 classFrame :: Parser String
 classFrame = do
   clsIRI <- symbol "Class:" *> classIRI
   blob   <- (unwords <$> many fstChoice) <|> sndChoice
-  pure "<classFrame>"
+  pure "<class-frame>"
  where
   fstChoice =
     (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
-      <|> (symbol "SubClassOf:" *> annotatedList description $> "<annotations>")
-      <|> (symbol "EquivalentTo:" *> annotatedList description $> "<annotations>")
-      <|> (symbol "DisjointWith:" *> annotatedList description $> "<annotations>")
-      <|> (symbol "DisjointUnionOf:" *> annotations *> listOfAtLeast2 description $> "<annotations>")
+      <|> (symbol "SubClassOf:" *> annotatedList description $> "<subclass-description>")
+      <|> (symbol "EquivalentTo:" *> annotatedList description $> "<equivalent-to-description>")
+      <|> (symbol "DisjointWith:" *> annotatedList description $> "<disjoint-with-descriptnio>")
+      <|> (symbol "DisjointUnionOf:" *> annotations *> listOfAtLeast2 description $> "<disjoin-union-description>")
   sndChoice = do
     symbol "HasKey:"
     annots <- annotations
@@ -673,19 +681,96 @@ classFrame = do
     pure "<sndChoice>"
 
 objectPropertyFrame :: Parser String
-objectPropertyFrame = undefined
+objectPropertyFrame = do
+  objPropIRI <- symbol "ObjectProperty:" *> objectPropertyIRI
+  blob       <- unwords <$> many altr
+  pure "<object-property-frame>"
+ where
+  altr =
+    (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
+      <|> (symbol "Domain:" *> annotatedList description $> "<domain-description>")
+      <|> (symbol "Range:" *> annotatedList description $> "<range-description>")
+      <|> (  symbol "Characteristics:"
+          *> annotatedList objectPropertyCharacteristic
+          $> "<characteristics-props>"
+          )
+      <|> (symbol "SubPropertyOf:" *> annotatedList objectPropertyExpression $> "<sub-property-of-expr>")
+      <|> (symbol "EquivalentTo:" *> annotatedList objectPropertyExpression $> "<equivalent-to-expr>")
+      <|> (symbol "DisjoinWith:" *> annotatedList objectPropertyExpression $> "<disjoin-with-expr>")
+      <|> (symbol "InverseOf:" *> annotatedList objectPropertyExpression $> "<inverse-of-expr>")
+      <|> (  symbol "SubPropertyChain:"
+          *> annotations
+          *> objectPropertyExpression
+          *> nonEmptyList (symbol "o" *> objectPropertyExpression)
+          $> "<disjoin-union-description>"
+          )
 
+
+-- | It parses one of the permitted object property characteristics
+--
+-- >>> parseTest objectPropertyCharacteristic "InverseFunctional"
+-- "InverseFunctional"
+--
+-- >>> parseTest objectPropertyCharacteristic "Functionalandmore"
+-- "Functional"
+--
+-- >>> parseTest objectPropertyCharacteristic "Random"
+-- ...
+-- unexpected "Random"
+-- ...
+--
 objectPropertyCharacteristic :: Parser String
-objectPropertyCharacteristic = undefined
+objectPropertyCharacteristic =
+  let charNames =
+        [ "Functional"
+        , "InverseFunctional"
+        , "Reflexive"
+        , "Irreflexive"
+        , "Symmetric"
+        , "Asymmetric"
+        , "Transitive"
+        ]
+  in  choice $ symbol <$> charNames
 
 dataPropertyFrame :: Parser String
-dataPropertyFrame = undefined
+dataPropertyFrame = do
+  dataPropIRI <- symbol "ObjectProperty:" *> dataPropertyIRI
+  blob        <- unwords <$> many altr
+  pure "<data-property-frame>"
+ where
+  altr =
+    (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
+      <|> (symbol "Domain:" *> annotatedList description $> "<domain-description>")
+      <|> (symbol "Range:" *> annotatedList description $> "<range-description>")
+      <|> (symbol "Characteristics:" *> annotations *> symbol "Functional" $> "<characteristics-props>")
+      <|> (symbol "SubPropertyOf:" *> annotatedList dataPropertyExpression $> "<sub-property-of-expr>")
+      <|> (symbol "EquivalentTo:" *> annotatedList dataPropertyExpression $> "<equivalent-to-expr>")
+      <|> (symbol "DisjoinWith:" *> annotatedList dataPropertyExpression $> "<disjoin-with-expr>")
 
 annotationPropertyFrame :: Parser String
-annotationPropertyFrame = undefined
+annotationPropertyFrame = do
+  annPropIRI <- symbol "AnnotationProperty:" *> annotationPropertyIRI
+  blob       <- unwords <$> many altr
+  pure "<annotation-property-frame>"
+ where
+  altr =
+    (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
+      <|> (symbol "Domain:" *> annotatedList iri $> "<domain-description>")
+      <|> (symbol "Range:" *> annotatedList iri $> "<range-description>")
+      <|> (symbol "SubPropertyOf:" *> annotatedList annotationPropertyIRI $> "<sub-property-of-expr>")
 
 individualFrame :: Parser String
-individualFrame = undefined
+individualFrame = do
+  indi <- symbol "Indivvidual:" *> individual
+  blob <- unwords <$> many altr
+  pure "<annotation-property-frame>"
+ where
+  altr =
+    (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
+      <|> (symbol "Types:" *> annotatedList description $> "<types-description>")
+      <|> (symbol "Facts:" *> annotatedList fact $> "<facts-description>")
+      <|> (symbol "SameAs:" *> annotatedList individual $> "<same-as-individual>")
+      <|> (symbol "DifferentFrom:" *> annotatedList individual $> "<different-from-individual>")
 
 fact :: Parser String
 fact = do
@@ -706,7 +791,35 @@ dataPropertyFact = do
   return . unwords $ [dataProp, ltr]
 
 misc :: Parser String
-misc = undefined
+misc =
+  (symbol "EquivalentClasses:" *> annotations *> listOfAtLeast2 description $> "<equivalent-classes>")
+    <|> (symbol "DisjointClasses:" *> annotations *> listOfAtLeast2 description $> "<disjoint-classes>")
+    <|> (  symbol "EquivalentProperties:"
+        *> annotations
+        *> listOfAtLeast2 objectPropertyIRI
+        $> "<equivalent-object-property>"
+        )
+    <|> (  symbol "DisjointProperties:"
+        *> annotations
+        *> listOfAtLeast2 objectPropertyIRI
+        $> "<disjoint-object-property>"
+        )
+    <|> (  symbol "EquivalentProperties:"
+        *> annotations
+        *> listOfAtLeast2 dataPropertyIRI
+        $> "<equivalent-object-property>"
+        )
+    <|> (  symbol "DisjointProperties:"
+        *> annotations
+        *> listOfAtLeast2 dataPropertyIRI
+        $> "<disjoint-object-property>"
+        )
+    <|> (symbol "SameIndividuals:" *> annotations *> listOfAtLeast2 individual $> "<same-individual>")
+    <|> (  symbol "DifferentIndividuals:"
+        *> annotations
+        *> listOfAtLeast2 individual
+        $> "<different-individual>"
+        )
 
 -----------------------
 --- Generic parsers ---
