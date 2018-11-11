@@ -99,8 +99,9 @@ propertyKeywords =
 
 -- | Parses the symbol and then any remaining space
 --
--- >>> parseTest (symbol "a symbol") "a symbol  "
--- "a symbol"
+-- >>> parseTest (symbol "a symbol" *> symbol "and a second") "a symbol    and a second"
+-- "and a second"
+--
 symbol :: String -> Parser String
 symbol = L.symbol sc
 
@@ -156,25 +157,6 @@ sign = do
   mSign <- optional $ "" <$ symbol "+" <|> symbol "-"
   return $ fromMaybe "" mSign
 
--- | TODO currently IRI is defined as text inside <>
--- No validation is being performed
--- Check: http://www.rfc-editor.org/rfc/rfc3987.txt for BNF representation 
---
--- >>> parseTest fullIRI "<http://www.uom.gr/ai/TestOntology.owl#Child>"
--- "http://www.uom.gr/ai/TestOntology.owl#Child"
---
--- >>> parseTest fullIRI "<http://www.uom.gr/ai/TestOntology.owl#Child"
--- ...
--- unexpected end of input
--- expecting '>'
---
--- >>> parseTest fullIRI "http://www.uom.gr/ai/TestOntology.owl#Child"
--- ...
--- unexpected 'h'
--- expecting '<'
-fullIRI :: Parser IRI
-fullIRI = iriParens $ takeWhileP Nothing (/= '>')
-
 -- | It parses arbitrary alpharithmetics provived that it does not belong to
 -- the list of reserved keywords
 --
@@ -196,7 +178,12 @@ fullIRI = iriParens $ takeWhileP Nothing (/= '>')
 -- ...
 -- keyword "Ontology" cannot be an identifier
 identifier :: Parser String
-identifier = (lexeme . try) (p >>= check)
+identifier = lexeme identifier_
+ 
+-- | It parses arbitrary alpharithmetics provived that it does not belong to
+-- the list of reserved keywords. It does not parse any space after the identifier
+identifier_ :: Parser String
+identifier_ = try (p >>= check)
  where
   p = (:) <$> letterChar <*> many (alphaNumChar <|> char '_')
   check x =
@@ -204,26 +191,67 @@ identifier = (lexeme . try) (p >>= check)
 
 -- | It parses prefix names
 --
+-- >>> parseTest prefixName "owl:"
+-- "owl"
+--
+-- >>> parseTest prefixName ":"
+-- ""
+--
+-- >>> parseTest prefixName "owl    :"
+-- ...
+-- unexpected space
+-- ...
+--
 prefixName :: Parser String
-prefixName = identifier
+prefixName = (identifier_ <|> pure "") <* string ":"
+
+-- | TODO currently IRI is defined as text inside <>
+-- No validation is being performed
+-- Check: http://www.rfc-editor.org/rfc/rfc3987.txt for BNF representation 
+--
+-- >>> parseTest fullIRI "<http://www.uom.gr/ai/TestOntology.owl#Child>"
+-- "http://www.uom.gr/ai/TestOntology.owl#Child"
+--
+-- >>> parseTest fullIRI "<http://www.uom.gr/ai/TestOntology.owl#Child"
+-- ...
+-- unexpected end of input
+-- expecting '>'
+--
+-- >>> parseTest fullIRI "http://www.uom.gr/ai/TestOntology.owl#Child"
+-- ...
+-- unexpected 'h'
+-- expecting '<'
+fullIRI :: Parser IRI
+fullIRI = lexeme . iriParens $ takeWhileP Nothing (/= '>')
 
 -- | It parses abbreviated IRIs. Format: 'prefix:term'
 -- >>> parseTest abbreviatedIRI "owl:user1"
 -- ("owl","user1")
 --
+-- >>> parseTest abbreviatedIRI "owl:   user1"
+-- ...
+-- unexpected space
+-- ...
+--
 abbreviatedIRI :: Parser (Prefix, String)
-abbreviatedIRI = (,) <$> (identifier <* symbol ":") <*> identifier
+abbreviatedIRI = (,) <$> prefixName <*> identifier
 
 -- | It parses simple IRIs; a finite sequence of characters matching the PN_LOCAL
 -- production of [SPARQL] and not matching any of the keyword terminals of the syntax 
 --
 -- TODO: Simplified to a simple identifier parser
+-- >>> parseTest simpleIRI "John"
+-- "John"
+--
 simpleIRI :: Parser String
 simpleIRI = identifier
 
 -- | It parses any of the three different formats of IRIs
+-- >>> parseTest iri "John"
+-- "John"
+--
 iri :: Parser String
-iri = fullIRI <|> (concatAbbrIRI <$> abbreviatedIRI) <|> simpleIRI
+iri = fullIRI <|> (concatAbbrIRI <$> try abbreviatedIRI) <|> simpleIRI
   where concatAbbrIRI (x, y) = concat [x, ":", y]
 
 -- | It parses class IRIs
@@ -277,15 +305,25 @@ individualIRI = iri
 nodeID :: Parser NodeID
 nodeID = NodeID <$> (symbol "_:" *> identifier)
 
+-- | It parses literals
+--
+-- >>> parseTest literal "\"32\"^^integer"
+-- "TypedL \"32\" \"integer\""
+--
+-- >>> parseTest literal "\"stringLiteralNoLanguage\""
+-- "stringLiteralNoLanguage"
+--
+-- >>> parseTest literal "\"stringLiteralWithLang\"@en"
+-- "LiteralWithLang \"stringLiteralWithLang\" \"en\""
+--
 literal :: Parser String
-literal =
-  show
-    <$> typedLiteral
-    <|> stringLiteralNoLanguage
-    <|> (show <$> stringLiteralWithLanguage)
-    <|> (show <$> integerLiteral)
-    <|> (show <$> decimalLiteral)
-    <|> (show <$> floatingPointLiteral)
+literal = lexeme $ 
+  (show <$> try typedLiteral)
+    <|> (show <$> try stringLiteralWithLanguage)
+    <|> (try stringLiteralNoLanguage)
+    <|> (show <$> try integerLiteral)
+    <|> (show <$> try decimalLiteral)
+    <|> (show <$> try floatingPointLiteral)
 
 -- | It parses a typed literal
 --
@@ -322,7 +360,7 @@ stringLiteralWithLanguage = LiteralWithLang <$> quotedString <*> languageTag
 --
 -- TODO: check for valid lang tags
 languageTag :: Parser LangTag
-languageTag = char '@' *> identifier -- (U+40) followed a nonempty sequence of characters matching the langtag production from [BCP 47]
+languageTag = char '@' *> identifier_ -- (U+40) followed a nonempty sequence of characters matching the langtag production from [BCP 47]
 
 lexicalValue :: Parser String
 lexicalValue = quotedString
@@ -465,30 +503,66 @@ entity = choice $ fmap (uncurry classParser) alts
 type ImportIRI = IRI
 type Frame = String
 data OntologyIRI = OntologyIRI IRI (Maybe IRI) deriving Show
-data Ontology = Ontology (Maybe OntologyIRI) [ImportIRI] [Annotation] [Frame] deriving Show
+data Ontology = Ontology (Maybe OntologyIRI) [ImportIRI] (AnnotatedList Annotation) [Frame] deriving Show
 
 data Annotation = Annotation IRI String deriving Show
 data PrefixEntry = PrefixE Prefix IRI deriving Show
 data OntologyDocument = OntologyD [PrefixEntry] Ontology deriving Show
+type AnnotatedList a = [([Annotation], a)]
 
-annotations :: Parser [Annotation]
-annotations = symbol "Annotations:" *> some annotation -- TODO: annotatedList annotation
+-- | It parses annotations
+--
+-- >>> input = unlines ["Annotations: creator \"John\",","Annotations: rdfs:comment \"Creation Year\" ", "creationYear 2008,", "mainClass Person"]
+-- >>> parseTest annotations input
+-- [Annotation "<iri>" "<annotations>"]
+--
+annotations :: Parser (AnnotatedList Annotation)
+annotations = symbol "Annotations:" *> annotatedList annotation -- $> [Annotation "<iri>" "<annotations>"]
 
+-- annotatedList :: Parser p -> Parser [([Annotation], p)]
+-- annotatedList :: Parser p -> Parser (AnnotatedList (AnnotatedList p))
+-- annotatedList p =
+--   let annotationList = (,) <$> fmap (fromMaybe []) (optional annotations) <*> p
+--   in  nonEmptyList annotationList
+
+
+-- | It parses a single annotation
+--
+-- >>> parseTest annotation ":creator \"john\""
+-- Annotation ":creator" "john"
+--
 annotation :: Parser Annotation
 annotation = Annotation <$> annotationPropertyIRI <*> annotationTarget
 
+-- | It parser node ids, iris or literals
+--
+-- >>> parseTest annotationTarget "\"john\""
+-- "john"
+--
+-- >>> parseTest annotationTarget "John"
+-- "John"
+--
+-- >>> parseTest annotationTarget "_:node"
+-- "NodeID \"node\""
+--
+-- >>> parseTest annotationTarget "<http://some.iri>"
+-- "http://some.iri"
+--
 annotationTarget :: Parser String
-annotationTarget = (show <$> nodeID) <|> iri <|> literal
+annotationTarget = (show <$> try nodeID) <|> (try iri) <|> (try literal)
 
 ontologyDocument :: Parser OntologyDocument
 ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
 
 -- | It parses prefix names. Format: 'Prefix: <name>: <IRI>
--- >>> parseTest prefixDeclaration "Prefix: owl: <http://www.w3.org/2002/07/owl#>"
--- PrefixE "owl" "http://www.w3.org/2002/07/owl#"
+-- >>> parseTest prefixDeclaration "Prefix: g: <http://ex.com/owl2/families#>"
+-- PrefixE "g" "http://ex.com/owl2/families#"
+--
+-- >>> parseTest prefixDeclaration "Prefix: : <http://ex.com/owl/families#>"
+-- PrefixE "" "http://ex.com/owl/families#"
 --
 prefixDeclaration :: Parser PrefixEntry
-prefixDeclaration = PrefixE <$> (symbol "Prefix:" *> (prefixName <* symbol ":")) <*> fullIRI
+prefixDeclaration = PrefixE <$> (symbol "Prefix:" *> lexeme prefixName) <*> fullIRI
 
 ontology :: Parser Ontology
 ontology = do
@@ -505,8 +579,13 @@ ontologyIRI = iri
 versionIRI :: Parser IRI
 versionIRI = iri
 
+-- | It parses import statements
+--
+-- >>> parseTest importStmt "Import: <http://ex.com/owl2/families.owl>"
+-- "http://ex.com/owl2/families.owl"
+--
 importStmt :: Parser ImportIRI
-importStmt = symbol "Import:" >> iri
+importStmt = symbol "Import:" *> iri
 
 frame :: Parser String
 frame =
@@ -859,7 +938,8 @@ listOfAtLeast2 p = (:) <$> p <*> some (symbol "," >> p)
 
 -- | It parses non empty annotated lists
 --
-annotatedList :: Parser p -> Parser [([Annotation], p)]
+-- annotatedList :: Parser p -> Parser [([Annotation], p)]
+annotatedList :: Parser p -> Parser (AnnotatedList (AnnotatedList p))
 annotatedList p =
   let annotationList = (,) <$> fmap (fromMaybe []) (optional annotations) <*> p
   in  nonEmptyList annotationList
