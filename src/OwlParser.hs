@@ -179,7 +179,7 @@ sign = do
 -- keyword "Ontology" cannot be an identifier
 identifier :: Parser String
 identifier = lexeme identifier_
- 
+
 -- | It parses arbitrary alpharithmetics provived that it does not belong to
 -- the list of reserved keywords. It does not parse any space after the identifier
 identifier_ :: Parser String
@@ -317,8 +317,9 @@ nodeID = NodeID <$> (symbol "_:" *> identifier)
 -- "LiteralWithLang \"stringLiteralWithLang\" \"en\""
 --
 literal :: Parser String
-literal = lexeme $ 
-  (show <$> try typedLiteral)
+literal =
+  lexeme
+    $   (show <$> try typedLiteral)
     <|> (show <$> try stringLiteralWithLanguage)
     <|> (try stringLiteralNoLanguage)
     <|> (show <$> try integerLiteral)
@@ -505,31 +506,45 @@ type Frame = String
 data OntologyIRI = OntologyIRI IRI (Maybe IRI) deriving Show
 data Ontology = Ontology (Maybe OntologyIRI) [ImportIRI] (AnnotatedList Annotation) [Frame] deriving Show
 
-data Annotation = Annotation IRI String deriving Show
+data Annotation = Annotation IRI String
 data PrefixEntry = PrefixE Prefix IRI deriving Show
 data OntologyDocument = OntologyD [PrefixEntry] Ontology deriving Show
-type AnnotatedList a = [([Annotation], a)]
+newtype AnnotatedList a = AnnList [(AnnotatedList Annotation, a)]
+
+instance Show Annotation where
+  show (Annotation i s) = unwords [i, show s]
+
+instance (Show a) => Show (AnnotatedList a) where
+  show (AnnList []) = ""
+  show (AnnList xs) = intercalate ",\n" (go <$> xs)
+   where
+    go ((AnnList []), x) = show x
+    go (al, x) = unwords ["Annotations:", show al, "\n ", show x]
 
 -- | It parses annotations
 --
--- >>> input = unlines ["Annotations: creator \"John\",","Annotations: rdfs:comment \"Creation Year\" ", "creationYear 2008,", "mainClass Person"]
--- >>> parseTest annotations input
--- [Annotation "<iri>" "<annotations>"]
+-- >>> :{
+-- let input :: [String]
+--     input =
+--      [ "Annotations: creator \"John\","
+--      , "             Annotations: rdfs:comment \"Creation Year\" creationYear 2008,"
+--      , "             mainClass Person"
+--      ]
+-- :}
+--
+-- >>> parseTest annotations (unlines input)
+-- creator "John",
+-- Annotations: rdfs:comment "Creation Year"
+--   creationYear "IntegerL 2008",
+-- mainClass "Person"
 --
 annotations :: Parser (AnnotatedList Annotation)
-annotations = symbol "Annotations:" *> annotatedList annotation -- $> [Annotation "<iri>" "<annotations>"]
-
--- annotatedList :: Parser p -> Parser [([Annotation], p)]
--- annotatedList :: Parser p -> Parser (AnnotatedList (AnnotatedList p))
--- annotatedList p =
---   let annotationList = (,) <$> fmap (fromMaybe []) (optional annotations) <*> p
---   in  nonEmptyList annotationList
-
+annotations = symbol "Annotations:" *> annotatedList annotation
 
 -- | It parses a single annotation
 --
 -- >>> parseTest annotation ":creator \"john\""
--- Annotation ":creator" "john"
+-- :creator "john"
 --
 annotation :: Parser Annotation
 annotation = Annotation <$> annotationPropertyIRI <*> annotationTarget
@@ -749,7 +764,11 @@ classFrame = do
       <|> (symbol "SubClassOf:" *> annotatedList description $> "<subclass-description>")
       <|> (symbol "EquivalentTo:" *> annotatedList description $> "<equivalent-to-description>")
       <|> (symbol "DisjointWith:" *> annotatedList description $> "<disjoint-with-descriptnio>")
-      <|> (symbol "DisjointUnionOf:" *> annotations *> listOfAtLeast2 description $> "<disjoin-union-description>")
+      <|> (  symbol "DisjointUnionOf:"
+          *> annotations
+          *> listOfAtLeast2 description
+          $> "<disjoin-union-description>"
+          )
   sndChoice = do
     symbol "HasKey:"
     annots <- annotations
@@ -938,9 +957,8 @@ listOfAtLeast2 p = (:) <$> p <*> some (symbol "," >> p)
 
 -- | It parses non empty annotated lists
 --
--- annotatedList :: Parser p -> Parser [([Annotation], p)]
-annotatedList :: Parser p -> Parser (AnnotatedList (AnnotatedList p))
+annotatedList :: Parser p -> Parser (AnnotatedList p)
 annotatedList p =
-  let annotationList = (,) <$> fmap (fromMaybe []) (optional annotations) <*> p
-  in  nonEmptyList annotationList
+  let annotationList = (,) <$> fmap (fromMaybe (AnnList [])) (optional annotations) <*> p
+  in  AnnList <$> nonEmptyList annotationList
 
