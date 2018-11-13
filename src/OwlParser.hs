@@ -260,17 +260,17 @@ classIRI = iri
 
 -- | It parses datatypes
 --
--- >>> parseTest dataType "<http://example.iri>"
+-- >>> parseTest datatype "<http://example.iri>"
 -- "http://example.iri"
 --
--- >>> parseTest dataType "integer"
+-- >>> parseTest datatype "integer"
 -- "integer"
 --
-dataType :: Parser String
-dataType = try dataTypeIRI <|> symbol "integer" <|> symbol "decimal" <|> symbol "float" <|> symbol "string"
+datatype :: Parser String
+datatype = try datatypeIRI <|> symbol "integer" <|> symbol "decimal" <|> symbol "float" <|> symbol "string"
 
-dataTypeIRI :: Parser String
-dataTypeIRI = iri
+datatypeIRI :: Parser String
+datatypeIRI = iri
 
 objectPropertyIRI :: Parser String
 objectPropertyIRI = iri
@@ -331,7 +331,7 @@ literal =
 -- >>> parseTest typedLiteral "\"32\"^^integer"
 -- TypedL "32" "integer"
 typedLiteral :: Parser TypedLiteral
-typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" *> dataType)
+typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" *> datatype)
 
 -- | It parses a string value with no language tag
 --
@@ -488,7 +488,7 @@ entity = choice $ fmap (uncurry classParser) alts
     return . concat $ ["<", s, ">"]
   alts :: [(String, Parser String)]
   alts =
-    [ ("Datatype"          , dataType)
+    [ ("Datatype"          , datatype)
     , ("Class"             , classIRI)
     , ("ObjectProperty"    , objectPropertyIRI)
     , ("DataProperty"      , dataPropertyIRI)
@@ -621,21 +621,47 @@ data ObjectProperty = ObjectP IRI | InverseObjectP IRI deriving Show
 newtype DataProperty = DataP IRI deriving Show
 -- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic deriving Show
 
+-- | It parses an object property expression
+--
+-- >>> parseTest objectPropertyExpression "<http://object-property-iri.com>"
+-- ObjectP "http://object-property-iri.com"
+--
+-- >>> parseTest objectPropertyExpression "inverse <http://object-property-iri.com>"
+-- InverseObjectP "http://object-property-iri.com"
+-- 
 objectPropertyExpression :: Parser ObjectProperty
 objectPropertyExpression = (ObjectP <$> objectPropertyIRI) <|> inverseObjectProperty
 
+-- | It parses an inverse object property expression
+--
+-- >>> parseTest inverseObjectProperty "inverse <http://object-property-iri.com>"
+-- InverseObjectP "http://object-property-iri.com"
+-- 
 inverseObjectProperty :: Parser ObjectProperty
 inverseObjectProperty = symbol "inverse" *> (InverseObjectP <$> objectPropertyIRI)
 
+-- | It parses a data property expression
+--
+-- >>> parseTest dataPropertyExpression "<http://object-property-iri.com>"
+-- DataP "http://object-property-iri.com"
+--
 dataPropertyExpression :: Parser DataProperty
 dataPropertyExpression = DataP <$> dataPropertyIRI
 
+-- | It parses a data range
+--
+--
 dataRange :: Parser String
 dataRange = intercalate " or " <$> singleOrMany "or" dataConjuction
 
 dataConjuction :: Parser String
 dataConjuction = intercalate " and " <$> singleOrMany "and" dataPrimary
 
+-- | It parses a data primary
+--
+-- d>>> parseTest dataPrimary ""
+--
+--
 dataPrimary :: Parser String
 dataPrimary =
   let neg  = fromMaybe "" <$> optionalNegation
@@ -644,19 +670,32 @@ dataPrimary =
 
 dataAtomic :: Parser String
 dataAtomic =
-  dataType
-    <|> show
-    <$> enclosedS '{' (nonEmptyList literal)
+  datatype
+    <|> unwords <$> enclosedS '{' literalList
     <|> datatypeRestriction
     <|> enclosedS '(' dataRange
 
+-- | It parsers a non empty list of literal
+--
+-- >>> parseTest literalList "\"kostas\", 32, \"true\""
+-- ["kostas","IntegerL 32","true"]
+--
+literalList :: Parser [String]
+literalList = nonEmptyList literal
+
+-- | It parses datatype restrictions
+--
+-- >>> parseTest datatypeRestriction "integer[> 0, maxLength 2]"
+-- "integer > IntegerL 0 AND integer maxLength IntegerL 2"
+--
 datatypeRestriction :: Parser String
 datatypeRestriction = do
-  dt <- dataType
+  dt <- datatype
   symbol "["
   rvList <- nonEmptyList ((,) <$> facet <*> restrictionValue)
   symbol "]"
-  return $ unwords ["datatypeRestriction: {", show dt, ", [", unwords (show <$> rvList), "]"]
+  let res = fmap (\(f, v) -> unwords [dt, f, v]) rvList
+  return $ intercalate " AND " res 
 
 facet :: Parser String
 facet =
@@ -706,6 +745,9 @@ primary = do
   rOrA <- restriction <|> (show <$> atomic)
   return . unwords $ [fromMaybe "" neg, rOrA]
 
+-- | It parses one of the many differnt type of restrictions on object or data properties
+--
+-- 
 restriction :: Parser String
 restriction = choice $ objectExprParsers <> dataExprParsers
  where
@@ -747,7 +789,7 @@ atomic = pure <$> classIRI <|> enclosedS '{' (nonEmptyList individual)
 
 datatypeFrame :: Parser String
 datatypeFrame = do
-  dttp    <- symbol "Datatype:" *> dataType
+  dttp    <- symbol "Datatype:" *> datatype
   annots  <- many $ symbol "Annotations:" *> annotatedList annotation
   equiv   <- optional $ symbol "EquivalentTo:" *> annotations <* dataRange
   annots' <- many $ symbol "Annotations:" *> annotatedList annotation

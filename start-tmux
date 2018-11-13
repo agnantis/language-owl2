@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+echo "Initializing environment for 'owl-parser' project..."
+
+SESSION=`basename $PWD`
+
+tmux -2 new-session -d -s $SESSION
+tmux send-keys "nix-shell" C-m
+tmux send-keys "vim src/OwlParser.hs" C-m
+tmux split-window -h
+tmux resize-pane -R 10
+tmux send-keys "nix-shell" C-m
+tmux send-keys "ghcid --command='cabal repl'" C-m
+tmux split-window -v
+sleep 5
+tmux send-keys "nix-shell" C-m
+tmux send-keys "cabal repl" C-m
+tmux split-window -v
+tmux send-keys "nix-shell" C-m
+tmux send-keys "hlint src/"
+tmux split-window -v
+tmux send-keys "nix-shell" C-m
+tmux send-keys "doctest src/"
+
+tmux select-pane -t:.0
+tmux split-window -v
+tmux send-keys "vim res/example.owl" C-m
+tmux resize-pane -D 8
+tmux -2 attach -t $SESSION
+tmux rename-window -t $SESSION:1 IDE
