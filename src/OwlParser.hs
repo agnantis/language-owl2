@@ -183,11 +183,18 @@ identifier = lexeme identifier_
 -- | It parses arbitrary alpharithmetics provived that it does not belong to
 -- the list of reserved keywords. It does not parse any space after the identifier
 identifier_ :: Parser String
-identifier_ = try (p >>= check)
+identifier_ = try (anyIdentifier_ >>= check)
  where
-  p = (:) <$> letterChar <*> many (alphaNumChar <|> char '_')
   check x =
     if x `elem` allKeywords then fail $ concat ["keyword ", show x, " cannot be an identifier"] else return x
+
+-- | It parses arbitrary alpharithmetics. It does not parse any space after the identifier
+anyIdentifier_ :: Parser String
+anyIdentifier_ = try p where p = (:) <$> letterChar <*> many (alphaNumChar <|> char '_')
+
+-- | It parses arbitrary alpharithmetics. It parses any space after the identifier
+anyIdentifier :: Parser String
+anyIdentifier = lexeme anyIdentifier_
 
 -- | It parses prefix names
 --
@@ -225,8 +232,8 @@ fullIRI :: Parser IRI
 fullIRI = lexeme . iriParens $ takeWhileP Nothing (/= '>')
 
 -- | It parses abbreviated IRIs. Format: 'prefix:term'
--- >>> parseTest abbreviatedIRI "owl:user1"
--- ("owl","user1")
+-- >>> parseTest abbreviatedIRI "xsd:string"
+-- ("xsd","string")
 --
 -- >>> parseTest abbreviatedIRI "owl:   user1"
 -- ...
@@ -234,7 +241,7 @@ fullIRI = lexeme . iriParens $ takeWhileP Nothing (/= '>')
 -- ...
 --
 abbreviatedIRI :: Parser (Prefix, String)
-abbreviatedIRI = (,) <$> prefixName <*> identifier
+abbreviatedIRI = (,) <$> prefixName <*> anyIdentifier
 
 -- | It parses simple IRIs; a finite sequence of characters matching the PN_LOCAL
 -- production of [SPARQL] and not matching any of the keyword terminals of the syntax 
@@ -265,6 +272,9 @@ classIRI = iri
 --
 -- >>> parseTest datatype "integer"
 -- "integer"
+--
+-- >>> parseTest datatype "xsd:string"
+-- "xsd:string"
 --
 datatype :: Parser String
 datatype = try datatypeIRI <|> symbol "integer" <|> symbol "decimal" <|> symbol "float" <|> symbol "string"
@@ -330,6 +340,10 @@ literal =
 --
 -- >>> parseTest typedLiteral "\"32\"^^integer"
 -- TypedL "32" "integer"
+--
+-- >>> parseTest typedLiteral "\"Jack\"^^xsd:string"
+-- TypedL "Jack" "xsd:string"
+--
 typedLiteral :: Parser TypedLiteral
 typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" *> datatype)
 
@@ -650,29 +664,41 @@ dataPropertyExpression = DataP <$> dataPropertyIRI
 
 -- | It parses a data range
 --
+-- >>> parseTest dataRange "integer[>10] and integer[<20] or integer[>100]"
+-- "integer > IntegerL 10 and integer < IntegerL 20 or integer > IntegerL 100"
 --
 dataRange :: Parser String
-dataRange = intercalate " or " <$> singleOrMany "or" dataConjuction
+dataRange = intercalate " or " <$> singleOrMany "or" dataConjunction
 
-dataConjuction :: Parser String
-dataConjuction = intercalate " and " <$> singleOrMany "and" dataPrimary
+-- | It parses a data conjunction (i.e. 'and')
+--
+-- >>> parseTest dataConjunction "integer[<10] and integer[>0]"
+-- "integer < IntegerL 10 and integer > IntegerL 0"
+--
+dataConjunction :: Parser String
+dataConjunction = intercalate " and " <$> singleOrMany "and" dataPrimary
 
 -- | It parses a data primary
 --
--- d>>> parseTest dataPrimary ""
---
+-- >>> parseTest dataPrimary "integer[<0]"
+-- "integer < IntegerL 0"
 --
 dataPrimary :: Parser String
-dataPrimary =
-  let neg  = fromMaybe "" <$> optionalNegation
-      seqs = sequence [neg, dataAtomic]
-  in  show <$> seqs
+dataPrimary = do
+  neg <- optionalNegation
+  da  <- dataAtomic
+  pure $ concat [fromMaybe "" neg, da]
 
+-- | It parses an atomic data
+--
+-- >>> parseTest dataAtomic  "integer[<0]"
+-- "integer < IntegerL 0"
+--
 dataAtomic :: Parser String
 dataAtomic =
-  datatype
+  try datatypeRestriction
+    <|> try datatype
     <|> unwords <$> enclosedS '{' literalList
-    <|> datatypeRestriction
     <|> enclosedS '(' dataRange
 
 -- | It parsers a non empty list of literal
@@ -687,6 +713,9 @@ literalList = nonEmptyList literal
 --
 -- >>> parseTest datatypeRestriction "integer[> 0, maxLength 2]"
 -- "integer > IntegerL 0 AND integer maxLength IntegerL 2"
+--
+-- >>> parseTest datatypeRestriction "integer[< 0]"
+-- "integer < IntegerL 0"
 --
 datatypeRestriction :: Parser String
 datatypeRestriction = do
@@ -717,11 +746,36 @@ predifinedPrefixex =
 ---  Descriptions ---
 ---------------------
 
+-- | It parses a description
+--
+-- >>> parseTest (description >> eof) "Man"
+-- ()
+--
+-- >>> parseTest (description >> eof) "Man or Woman"
+-- ()
+--
+-- >>> parseTest (description >> eof) "hasFirstName value \"John\" or Man"
+-- ()
+--
+-- >>> parseTest (description >> eof) "hasFirstName value \"John\" or hasFirstName value \"Jack\"^^xsd:string"
+-- ()
+--
 description :: Parser [String]
 description = singleOrMany "or" conjunction
 
+-- | It parses a conjunction
+--
+-- >>> parseTest conjunction "Person and Man"
+-- "Person Man"
+--
+-- >>> parseTest conjunction "Person"
+-- "Person"
+--
+-- >>> parseTest (conjunction >> eof) "owl:Thing that hasFirstName exactly 1"
+-- ()
+--
 conjunction :: Parser String
-conjunction = restrictions <|> primaries <|> primary
+conjunction = try restrictions <|> try (unwords <$> singleOrMany "and" primary)
  where
   restrictions = do
     clsIRI <- classIRI
@@ -732,24 +786,36 @@ conjunction = restrictions <|> primaries <|> primary
       symbol "and"
       neg' <- optionalNegation
       rst' <- restriction
-      return . unwords $ [fromMaybe "" neg', rst']
-    return . unwords $ [show clsIRI, fromMaybe "" neg, rst] ++ rsts
-  primaries =
-    let prims = symbol "and" *> primary
-        list  = (:) <$> primary <*> some prims
-    in  show <$> list
+      pure . unwords . filter (not.null) $ [fromMaybe "" neg', rst']
+    pure. unwords . filter (not.null) $ [clsIRI, fromMaybe "" neg, rst] ++ rsts
 
+-- | It parses a primary
+--
+-- >>> parseTest primary "not Person"
+-- "not Person"
+--
+-- >>> parseTest primary "not hasFirstName value \"John\""
+-- "not John"
+--
 primary :: Parser String
 primary = do
   neg  <- optionalNegation
-  rOrA <- restriction <|> (show <$> atomic)
-  return . unwords $ [fromMaybe "" neg, rOrA]
+  rOrA <- try restriction <|> (try (unwords <$> atomic))
+  pure . unwords . filter (not.null) $ [fromMaybe "" neg, rOrA]
 
 -- | It parses one of the many differnt type of restrictions on object or data properties
 --
--- 
+-- >>> parseTest (restriction >>eof) "hasFirstName value \"John\""
+-- ()
+--
+-- >>> parseTest (restriction >> eof) "hasFirstName exactly 1"
+-- ()
+--
+-- >>> parseTest (restriction >> eof) "hasFirstName only string[minLength 1]"
+-- ()
+--
 restriction :: Parser String
-restriction = choice $ objectExprParsers <> dataExprParsers
+restriction = lexeme . choice $ try <$> objectExprParsers <> dataExprParsers
  where
   objExprs =
     [ ("some"   , primary)
@@ -757,7 +823,7 @@ restriction = choice $ objectExprParsers <> dataExprParsers
     , ("Self"   , pure "")
     , ("min", show <$> nonNegativeInteger <* optional primary)
     , ("max", show <$> nonNegativeInteger <* optional primary)
-    , ("exaclty", show <$> nonNegativeInteger <* optional primary)
+    , ("exactly", show <$> nonNegativeInteger <* optional primary)
     ]
   dataExprs =
     [ ("some"   , dataPrimary)
@@ -765,7 +831,7 @@ restriction = choice $ objectExprParsers <> dataExprParsers
     , ("value"  , literal)
     , ("min", show <$> nonNegativeInteger <* optional dataPrimary)
     , ("max", show <$> nonNegativeInteger <* optional dataPrimary)
-    , ("exaclty", show <$> nonNegativeInteger <* optional dataPrimary)
+    , ("exactly", show <$> nonNegativeInteger <* optional dataPrimary)
     ]
   -- TODO: now, i keep only the last parser!
   objectExprParsers = (\(smb, p) -> objectPropertyExpression *> symbol smb *> p) <$> objExprs
@@ -775,6 +841,9 @@ restriction = choice $ objectExprParsers <> dataExprParsers
 --
 -- >>> parseTest atomic "<class.iri>"
 -- ["class.iri"]
+--
+-- >>> parseTest atomic "Person"
+-- ["Person"]
 --
 -- >>> parseTest atomic "{ <class.iri#ind1>, <class.iri#ind2> }"
 -- ["class.iri#ind1","class.iri#ind2"]
@@ -787,18 +856,57 @@ atomic = pure <$> classIRI <|> enclosedS '{' (nonEmptyList individual)
 --- Frames and Miscellaneous ---
 --------------------------------
 
+
+-- | It parses a datatype frame
+--
+-- >>> :{
+-- let input :: [String]
+--     input =
+--       [ 
+--         "Datatype: NegInt"
+--       , "Annotations: rdfs:comment \"General domain\", creator John"
+--       , "EquivalentTo: Annotations: rdf:comment \"General Domain\" integer[< 0]"
+--       ]
+-- :}
+--
+-- >>> parseTest (datatypeFrame >> eof) (unlines input)
+-- ()
+--
 datatypeFrame :: Parser String
 datatypeFrame = do
   dttp    <- symbol "Datatype:" *> datatype
   annots  <- many $ symbol "Annotations:" *> annotatedList annotation
-  equiv   <- optional $ symbol "EquivalentTo:" *> annotations <* dataRange
+  equiv   <- optional $ symbol "EquivalentTo:" *> annotations <* dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
   annots' <- many $ symbol "Annotations:" *> annotatedList annotation
   pure "<data-frame>"
 
+-- | It parses a class frame
+--
+-- >>> :{
+-- let input :: [String]
+--     input =
+--       [ 
+--         "Class: Person"
+--       , "Annotations: rdfs:comment \"General domain\", creator John"
+--       , "  SubClassOf: owl:Thing that hasFirstName exactly 1 and hasFirstName only string[minLength 1]"
+--       , "  SubClassOf: hasAge exactly 1 and hasAge only not NegInt"
+--       , "  SubClassOf: hasGender exactly 1 and hasGender only {female , male}"
+--       , "  SubClassOf: hasSSN max 1, hasSSN min 1"
+--       , "  SubClassOf: not hates Self"
+--       , "  EquivalentTo: g:People"
+--       , "  DisjointWith: g:Rock , g:Mineral"
+--       , "  DisjointUnionOf: Child, Adult"
+--       , "  HasKey: hasSSN"
+--       ]
+-- :}
+--
+-- >>> parseTest (classFrame >> eof) (unlines input)
+-- ()
+--
 classFrame :: Parser String
 classFrame = do
   clsIRI <- symbol "Class:" *> classIRI
-  blob   <- (unwords <$> many fstChoice) <|> sndChoice
+  blob   <- (unwords <$> many fstChoice) <* optional sndChoice -- TODO-check: in specs `sndChoice` aka `HasKey` is an alternative to the others
   pure "<class-frame>"
  where
   fstChoice =
@@ -807,24 +915,50 @@ classFrame = do
       <|> (symbol "EquivalentTo:" *> annotatedList description $> "<equivalent-to-description>")
       <|> (symbol "DisjointWith:" *> annotatedList description $> "<disjoint-with-descriptnio>")
       <|> (  symbol "DisjointUnionOf:"
-          *> annotations
+          *> optional annotations -- TODO-check: in spec `annotations` are not optional
           *> listOfAtLeast2 description
           $> "<disjoin-union-description>"
           )
   sndChoice = do
     symbol "HasKey:"
-    annots <- annotations
+    annots <- optional annotations -- TODO-check: in spec `annotations` are not optional
     mExpr  <-
       nonEmptyList
       $   (objectPropertyExpression $> "<objectPropertyExpression>")
       <|> (dataPropertyExpression $> "<dataPropertyExpression>")
     pure "<sndChoice>"
 
+-- | It parses an object property
+--
+-- >>> :{
+-- let input :: [String]
+--     input =
+--       [ 
+--         "ObjectProperty: hasWife"
+--       , "  Annotations: rdfs:comment \"haswife object property\""
+--       , "  Characteristics: Functional, InverseFunctional, Reflexive, Irreflexive, Asymmetric, Transitive"
+--       , "  Domain: Annotations: rdfs:comment \"General domain\","
+--       , "                       creator John "
+--       , "            Person, "
+--       , "          Annotations: rdfs:comment \"More specific domain\""
+--       , "            Man"
+--       , "  Range: Person, Woman"
+--       , "  SubPropertyOf: hasSpouse, loves"
+--       , "  EquivalentTo: isMarriedTo"
+--       , "  DisjointWith: hates"
+--       , "  InverseOf: hasSpouse, inverse hasSpouse"
+--       , "  SubPropertyChain: Annotations: rdfs:comment \"property chain\" hasChild o hasParent"
+--       ]
+-- :}
+--
+-- >>> parseTest objectPropertyFrame (unlines input)
+-- "hasWife:9"
+--
 objectPropertyFrame :: Parser String
 objectPropertyFrame = do
   objPropIRI <- symbol "ObjectProperty:" *> objectPropertyIRI
-  blob       <- unwords <$> many altr
-  pure "<object-property-frame>"
+  blob       <- length <$> many altr
+  pure $ concat [objPropIRI, ":", show blob] 
  where
   altr =
     (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
@@ -836,10 +970,10 @@ objectPropertyFrame = do
           )
       <|> (symbol "SubPropertyOf:" *> annotatedList objectPropertyExpression $> "<sub-property-of-expr>")
       <|> (symbol "EquivalentTo:" *> annotatedList objectPropertyExpression $> "<equivalent-to-expr>")
-      <|> (symbol "DisjoinWith:" *> annotatedList objectPropertyExpression $> "<disjoin-with-expr>")
+      <|> (symbol "DisjointWith:" *> annotatedList objectPropertyExpression $> "<disjoin-with-expr>")
       <|> (symbol "InverseOf:" *> annotatedList objectPropertyExpression $> "<inverse-of-expr>")
       <|> (  symbol "SubPropertyChain:"
-          *> annotations
+          *> annotations -- TODO: is it really required?
           *> objectPropertyExpression
           *> nonEmptyList (symbol "o" *> objectPropertyExpression)
           $> "<disjoin-union-description>"
@@ -872,26 +1006,65 @@ objectPropertyCharacteristic =
         ]
   in  choice $ symbol <$> charNames
 
+
+-- | It parses an data property
+--
+-- >>> :{
+-- let input :: [String]
+--     input =
+--       [ 
+--         "DataProperty: hasAge"
+--       , "Annotations: rdfs:comment \"General domain\", creator John"
+--       , "Characteristics: Functional"
+--       , "Domain: Person , Woman"
+--       , "Range: integer"
+--       , "SubPropertyOf: hasVerifiedAge , hasSomeAge"
+--       , "EquivalentTo: hasAgeInYears"
+--       , "DisjointWith: hasSSN"
+--       ]
+-- :}
+--
+-- >>> parseTest dataPropertyFrame (unlines input)
+-- "hasAge:7"
+--
 dataPropertyFrame :: Parser String
 dataPropertyFrame = do
-  dataPropIRI <- symbol "ObjectProperty:" *> dataPropertyIRI
-  blob        <- unwords <$> many altr
-  pure "<data-property-frame>"
+  dataPropIRI <- symbol "DataProperty:" *> dataPropertyIRI
+  blob        <- length <$> many altr
+  return $ concat[dataPropIRI, ":", show blob]
  where
   altr =
     (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
       <|> (symbol "Domain:" *> annotatedList description $> "<domain-description>")
-      <|> (symbol "Range:" *> annotatedList description $> "<range-description>")
-      <|> (symbol "Characteristics:" *> annotations *> symbol "Functional" $> "<characteristics-props>")
+      <|> (symbol "Range:" *> annotatedList dataRange $> "<range-description>")
+      <|> (symbol "Characteristics:" *> (optional annotations) *> symbol "Functional" $> "<characteristics-props>")
       <|> (symbol "SubPropertyOf:" *> annotatedList dataPropertyExpression $> "<sub-property-of-expr>")
       <|> (symbol "EquivalentTo:" *> annotatedList dataPropertyExpression $> "<equivalent-to-expr>")
-      <|> (symbol "DisjoinWith:" *> annotatedList dataPropertyExpression $> "<disjoin-with-expr>")
+      <|> (symbol "DisjointWith:" *> annotatedList dataPropertyExpression $> "<disjoin-with-expr>")
 
+
+-- | It parses an annotation property
+--
+-- >>> :{
+-- let input :: [String]
+--     input =
+--       [ 
+--         "AnnotationProperty: creator"
+--       , "Annotations: rdfs:comment \"General domain\", creator John"
+--       , "Domain: Person , Woman"
+--       , "Range: <integer>" -- FIX www: range cannot be a datatype -> it's IRI
+--       , "SubPropertyOf: hasVerifiedAge , hasSomeAge"
+--       ]
+-- :}
+--
+-- >>> parseTest annotationPropertyFrame (unlines input)
+-- "creator:4"
+--
 annotationPropertyFrame :: Parser String
 annotationPropertyFrame = do
   annPropIRI <- symbol "AnnotationProperty:" *> annotationPropertyIRI
-  blob       <- unwords <$> many altr
-  pure "<annotation-property-frame>"
+  blob       <- length<$> many altr
+  pure $ concat [annPropIRI, ":", show blob]
  where
   altr =
     (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
@@ -899,11 +1072,34 @@ annotationPropertyFrame = do
       <|> (symbol "Range:" *> annotatedList iri $> "<range-description>")
       <|> (symbol "SubPropertyOf:" *> annotatedList annotationPropertyIRI $> "<sub-property-of-expr>")
 
+-- | It parses an individual frame
+--
+-- >>> :{
+-- let input :: [String]
+--     input =
+--       [ 
+--        "Individual: John"
+--       , "  Annotations: rdfs:creator \"John\""
+--       , "  Types: Person, hasFirstName value \"John\" or hasFirstName value \"Jack\"^^xsd:string"
+--       , "  Facts: hasWife Mary, not hasChild Susan, hasAge 33, hasChild _:child1"
+--       , "  DifferentFrom: Susan"
+--       , "  SameAs: Jack , Bob"
+--       ]
+--     input2 :: [String]
+--     input2 = "Individual: _:child1":(tail input)
+-- :}
+--
+-- >>> parseTest individualFrame (unlines input)
+-- "John:5"
+--
+-- >>> parseTest individualFrame (unlines input2)
+-- "NodeID \"child1\":5"
+--
 individualFrame :: Parser String
 individualFrame = do
-  indi <- symbol "Indivvidual:" *> individual
-  blob <- unwords <$> many altr
-  pure "<annotation-property-frame>"
+  indi <- symbol "Individual:" *> individual
+  blob <- length <$> many altr
+  pure $ concat [indi, ":", show blob]
  where
   altr =
     (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
@@ -915,7 +1111,7 @@ individualFrame = do
 fact :: Parser String
 fact = do
   neg  <- optionalNegation
-  fact <- objectPropertyFact <|> dataPropertyFact
+  fact <- (try objectPropertyFact) <|> (try dataPropertyFact)
   return . unwords $ [fromMaybe "" neg, fact]
 
 objectPropertyFact :: Parser String
@@ -930,36 +1126,67 @@ dataPropertyFact = do
   ltr      <- literal
   return . unwords $ [dataProp, ltr]
 
+-- | It parses an class miscelaneous properties
+--
+-- >>> :{
+-- let input :: [String]
+--     input =
+--       [ 
+--         "DisjointClasses: g:Rock, g:Scissor, g:Paper"
+--       , "EquivalentProperties: hates, loathes, despises"
+--       , "DisjointProperties: hates, loves, indifferent"
+--       , "EquivalentProperties: favoriteNumber, g:favouriteNumber, g:favouriteInteger"
+--       , "DisjointProperties: favoriteInteger, favouriteReal"
+--       , "SameIndividual: John, Jack, Joe, Jim"
+--       , "DifferentIndividuals: John, Susan, Mary, Jill"
+--       ]
+-- :}
+--
+-- >>> parseTest (many misc >> eof) (unlines input)
+-- ()
+--
 misc :: Parser String
 misc =
-  (symbol "EquivalentClasses:" *> annotations *> listOfAtLeast2 description $> "<equivalent-classes>")
-    <|> (symbol "DisjointClasses:" *> annotations *> listOfAtLeast2 description $> "<disjoint-classes>")
-    <|> (  symbol "EquivalentProperties:"
-        *> annotations
-        *> listOfAtLeast2 objectPropertyIRI
-        $> "<equivalent-object-property>"
-        )
-    <|> (  symbol "DisjointProperties:"
-        *> annotations
-        *> listOfAtLeast2 objectPropertyIRI
-        $> "<disjoint-object-property>"
-        )
-    <|> (  symbol "EquivalentProperties:"
-        *> annotations
-        *> listOfAtLeast2 dataPropertyIRI
-        $> "<equivalent-object-property>"
-        )
-    <|> (  symbol "DisjointProperties:"
-        *> annotations
-        *> listOfAtLeast2 dataPropertyIRI
-        $> "<disjoint-object-property>"
-        )
-    <|> (symbol "SameIndividuals:" *> annotations *> listOfAtLeast2 individual $> "<same-individual>")
-    <|> (  symbol "DifferentIndividuals:"
-        *> annotations
-        *> listOfAtLeast2 individual
-        $> "<different-individual>"
-        )
+  (  symbol "EquivalentClasses:"
+  *> optional annotations -- TODO-check
+  *> listOfAtLeast2 description
+  $> "<equivalent-classes>"
+  )
+  <|> (  symbol "DisjointClasses:"
+      *> optional annotations -- TODO-check
+      *> listOfAtLeast2 description
+      $> "<disjoint-classes>"
+      )
+  <|> (  symbol "EquivalentProperties:"
+      *> optional annotations -- TODO-check
+      *> listOfAtLeast2 objectPropertyIRI
+      $> "<equivalent-object-property>"
+      )
+  <|> (  symbol "DisjointProperties:"
+      *> optional annotations -- TODO-check
+      *> listOfAtLeast2 objectPropertyIRI
+      $> "<disjoint-object-property>"
+      )
+  <|> (  symbol "EquivalentProperties:"
+      *> optional annotations -- TODO-check
+      *> listOfAtLeast2 dataPropertyIRI
+      $> "<equivalent-object-property>"
+      )
+  <|> (  symbol "DisjointProperties:"
+      *> optional annotations -- TODO-check
+      *> listOfAtLeast2 dataPropertyIRI
+      $> "<disjoint-object-property>"
+      )
+  <|> (  symbol "SameIndividual:"
+      *> optional annotations -- TODO-check
+      *> listOfAtLeast2 individual
+      $> "<same-individual>"
+      )
+  <|> (  symbol "DifferentIndividuals:"
+      *> optional annotations -- TODO-check
+      *> listOfAtLeast2 individual
+      $> "<different-individual>"
+      )
 
 -----------------------
 --- Generic parsers ---
@@ -968,8 +1195,18 @@ misc =
 optionalNegation :: Parser (Maybe String)
 optionalNegation = optional . symbol $ "not"
 
+-- | It parser one or more elements parsed by the input parser p and separated by the input string
+--
+-- >>> parseTest (singleOrMany "," . string $ "test") "test"
+-- ["test"]
+--
+-- >>> parseTest (singleOrMany "or" . lexeme . string $ "test") "test or test or test"
+-- ["test","test","test"]
+--
 singleOrMany :: String -> Parser p -> Parser [p]
-singleOrMany sep p = let multipleP = (:) <$> p <*> some (symbol sep *> p) in multipleP <|> (pure <$> p)
+singleOrMany sep p =
+  let multipleP = (:) <$> p <*> some (symbol sep *> p) 
+  in  (try multipleP) <|> (pure <$> p)
 
 -- | It parses non empty lists
 --
@@ -998,6 +1235,9 @@ listOfAtLeast2 :: Parser p -> Parser [p]
 listOfAtLeast2 p = (:) <$> p <*> some (symbol "," >> p)
 
 -- | It parses non empty annotated lists
+--
+-- >>> parseTest (annotatedList description) "Man, Person"
+-- ...
 --
 annotatedList :: Parser p -> Parser (AnnotatedList p)
 annotatedList p =
