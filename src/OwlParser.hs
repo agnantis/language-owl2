@@ -11,11 +11,20 @@ import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer    as L
 
+---------------
 ---- TYPES ----
+---------------
+
 type Parser = Parsec Void String
 type LangTag = String
 type IRI = String
-type Prefix = String
+type ImportIRI = IRI
+type AnnotationPropertyIRI = IRI
+type VersionIRI = IRI
+type OntologyIRI = IRI
+type FullIRI = IRI
+type DatatypeIRI = IRI
+type Frame = String
 
 data TypedLiteral = TypedL String String deriving Show
 data FloatPoint = FloatP Double (Maybe Exponent)
@@ -25,6 +34,94 @@ newtype Exponent = Exponent Integer
 newtype DecimalLiteral = DecimalL Double deriving Show
 newtype IntegerLiteral = IntegerL Integer deriving Show
 newtype NodeID = NodeID String deriving Show
+
+-------
+data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving Show
+data PrefixDeclaration = PrefixD PrefixName FullIRI deriving Show
+type PrefixName = String
+data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportIRI] [AnnotatedList Annotation] [Frame] deriving Show
+data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving Show
+newtype AnnotatedList a = AnnList [(AnnotatedList Annotation, a)]
+type Annotations = AnnotatedList Annotation
+type Descriptions = AnnotatedList Description
+data Annotation = Annotation AnnotationPropertyIRI String
+data FrameF = DatatypeFrame
+            | ClassFrame
+            | ObjectPropertyFrame
+            | DataPropertyFrame
+            | AnnotationPropertyFrame
+            | IndividualFrame
+            | Misc
+            deriving Show
+
+data DatatypeFrame = DatatypeF Datatype Annotations (Maybe AnnotDataRange)
+data AnnotDataRange = AnnotDataRange Annotations DataRange
+data Datatype = DatatypeIRI
+              | IntegerDT
+              | DecimalDT
+              | FloatDT
+              | StringDT deriving Show
+type DataRange = [DataConjunction] -- TODO: NonEmptyList
+type DataConjunction = [DataPrimary] -- TODO: NonEmptyList
+data DataPrimary = DataPrimary Bool DataAtomic
+data DataAtomic = DatatypeDA Datatype
+                | LiteralList [Literal] -- TODO: NonEmptyList    
+data ClassFrame = ClassF IRI [ClassElement] Key
+data ClassElement = AnnotationCE Annotations
+                  | SubClassOfCE Descriptions
+                  | EquivalentToCE Descriptions
+                  | DisjointToCE Descriptions
+                  | DisjointunionOfCE Descriptions -- TODO: a two element list at least
+data Key = KeyAnn [DataPropertyExpression] [ObjectPropertyExpression]
+newtype DataPropertyExpression = Dpe IRI
+data WithNegation a = Positive a | Negative a
+type ObjectPropertyExpression = WithNegation IRI
+type Description = [Conjunction] -- TODO: NonEmptyList
+data Conjunction = ClassConj IRI [WithNegation Restriction] | PrimConj [Primary] -- TODO: NonEmptyList x2
+data Primary = PrimaryR (WithNegation Restriction) | PrimaryA (WithNegation Atomic) 
+data Restriction = OPRestriction ObjectPropertyRestriction | DPRestriction DataPropertyRestriction
+data ObjectPropertyRestrictionType = OPSome Primary
+                                   | OPOnly Primary
+                                   | OPValue Individual
+                                   | OPSelf
+                                   | OPMin Int (Maybe Primary) -- TODO: Int -> Nat
+                                   | OPMax Int (Maybe Primary) -- TODO: Int -> Nat
+                                   | OPExactly Int (Maybe Primary) -- TODO: Int -> Nat
+data DataPropertyRestrictionType = DPSome DataPrimary
+                                 | DPOnly DataPrimary
+                                 | DPValue Literal
+                                 | DPMin Int (Maybe DataPrimary) -- TODO: Int -> Nat
+                                 | DPMax Int (Maybe DataPrimary) -- TODO: Int -> Nat
+                                 | DPExactly Int (Maybe DataPrimary) -- TODO: Int -> Nat
+data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRestrictionType
+data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType
+data Individual -- TODO: continue from here
+data Atomic
+data ObjectPropertyFrame
+data DataPropertyFrame
+data AnnotationPropertyFrame
+data IndividualFrame
+data Misc
+data Literal = TypedLiteralC TypedLiteral
+             | StringLiteralNoLang String
+             | StringLiteralLang LiteralWithLang
+             | IntegerLiteralC IntegerLiteral
+             | DecimalLiteralC DecimalLiteral
+             | FloatingLiteralC FloatPoint
+
+-------------------------
+---- CLASS INSTANCES ----
+-------------------------
+
+instance Show Annotation where
+  show (Annotation i s) = unwords [i, show s]
+
+instance (Show a) => Show (AnnotatedList a) where
+  show (AnnList []) = ""
+  show (AnnList xs) = intercalate ",\n" (go <$> xs)
+   where
+    go ((AnnList []), x) = show x
+    go (al, x) = unwords ["Annotations:", show al, "\n ", show x]
 
 instance Show FloatPoint where
   show (FloatP n me) = concat [show n, maybe "" show me]
@@ -240,7 +337,7 @@ fullIRI = lexeme . iriParens $ takeWhileP Nothing (/= '>')
 -- unexpected space
 -- ...
 --
-abbreviatedIRI :: Parser (Prefix, String)
+abbreviatedIRI :: Parser (PrefixName, String)
 abbreviatedIRI = (,) <$> prefixName <*> anyIdentifier
 
 -- | It parses simple IRIs; a finite sequence of characters matching the PN_LOCAL
@@ -515,26 +612,6 @@ entity = choice $ fmap (uncurry classParser) alts
 -- Ontology and Annotations --
 ------------------------------
 
-type ImportIRI = IRI
-type Frame = String
-data OntologyIRI = OntologyIRI IRI (Maybe IRI) deriving Show
-data Ontology = Ontology (Maybe OntologyIRI) [ImportIRI] (AnnotatedList Annotation) [Frame] deriving Show
-
-data Annotation = Annotation IRI String
-data PrefixEntry = PrefixE Prefix IRI deriving Show
-data OntologyDocument = OntologyD [PrefixEntry] Ontology deriving Show
-newtype AnnotatedList a = AnnList [(AnnotatedList Annotation, a)]
-
-instance Show Annotation where
-  show (Annotation i s) = unwords [i, show s]
-
-instance (Show a) => Show (AnnotatedList a) where
-  show (AnnList []) = ""
-  show (AnnList xs) = intercalate ",\n" (go <$> xs)
-   where
-    go ((AnnList []), x) = show x
-    go (al, x) = unwords ["Annotations:", show al, "\n ", show x]
-
 -- | It parses annotations
 --
 -- >>> :{
@@ -585,22 +662,22 @@ ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
 
 -- | It parses prefix names. Format: 'Prefix: <name>: <IRI>
 -- >>> parseTest prefixDeclaration "Prefix: g: <http://ex.com/owl2/families#>"
--- PrefixE "g" "http://ex.com/owl2/families#"
+-- PrefixD "g" "http://ex.com/owl2/families#"
 --
 -- >>> parseTest prefixDeclaration "Prefix: : <http://ex.com/owl/families#>"
--- PrefixE "" "http://ex.com/owl/families#"
+-- PrefixD "" "http://ex.com/owl/families#"
 --
-prefixDeclaration :: Parser PrefixEntry
-prefixDeclaration = PrefixE <$> (symbol "Prefix:" *> lexeme prefixName) <*> fullIRI
+prefixDeclaration :: Parser PrefixDeclaration
+prefixDeclaration = PrefixD <$> (symbol "Prefix:" *> lexeme prefixName) <*> fullIRI
 
 ontology :: Parser Ontology
 ontology = do
   symbol "Ontology:"
-  ontoIRI <- optional $ OntologyIRI <$> ontologyIRI <*> optional versionIRI -- Maybe (iri, Maybe iri)
+  ontoIRI <- optional $ OntologyVersionIRI <$> ontologyIRI <*> optional versionIRI -- Maybe (iri, Maybe iri)
   imports <- many importStmt
   annots  <- annotations
   frames  <- many frame
-  return $ Ontology ontoIRI imports annots frames
+  return $ Ontology ontoIRI imports [annots] frames
 
 ontologyIRI :: Parser IRI
 ontologyIRI = iri
@@ -733,12 +810,12 @@ facet =
 restrictionValue :: Parser String
 restrictionValue = literal
 
-predifinedPrefixex :: [PrefixEntry]
+predifinedPrefixex :: [PrefixDeclaration]
 predifinedPrefixex =
-  [ PrefixE "rdf"  "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-  , PrefixE "rdfs" "http://www.w3.org/2000/01/rdf-schema#"
-  , PrefixE "xsd"  "http://www.w3.org/2001/XMLSchema#"
-  , PrefixE "owl"  "http://www.w3.org/2002/07/owl#"
+  [ PrefixD "rdf"  "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  , PrefixD "rdfs" "http://www.w3.org/2000/01/rdf-schema#"
+  , PrefixD "xsd"  "http://www.w3.org/2001/XMLSchema#"
+  , PrefixD "owl"  "http://www.w3.org/2002/07/owl#"
   ]
 
 
