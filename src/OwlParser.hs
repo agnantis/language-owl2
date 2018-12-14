@@ -1,10 +1,13 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveFunctor #-}
 
 module OwlParser where
 
 import           Prelude                           hiding ( exponent )
 import           Data.Functor                             ( ($>) )
 import           Data.List                                ( intercalate )
+import           Data.List.NonEmpty                       ( NonEmpty(..) )
+-- import qualified Data.List.NonEmpty            as NEL
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Void
 import           Text.Megaparsec
@@ -14,6 +17,19 @@ import qualified Text.Megaparsec.Char.Lexer    as L
 ---------------
 ---- TYPES ----
 ---------------
+
+-- TODO: Should I include a NonEmpty? I do not think so
+data AtLeast2List a = (a, a) :# [a] deriving ( Eq, Ord, Show, Read, Functor)
+
+atLeast2List :: a -> a -> [a] -> AtLeast2List a
+atLeast2List x y = (:#) (x, y)
+
+toList :: AtLeast2List a -> [a]
+toList ~((x, y) :# xs) = x : y : xs
+
+toNonEmptyList :: AtLeast2List a -> NonEmpty a
+toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
+
 
 type Parser = Parsec Void String
 type LangTag = String
@@ -39,7 +55,6 @@ newtype DecimalLiteral = DecimalL Double deriving Show
 newtype IntegerLiteral = IntegerL Integer deriving Show
 newtype NodeID = NodeID String deriving Show
 
--------
 data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving Show
 data PrefixDeclaration = PrefixD PrefixName FullIRI deriving Show
 type PrefixName = String
@@ -57,7 +72,6 @@ data FrameF = DatatypeFrame
             | IndividualFrame
             | Misc
             deriving Show
-
 data DatatypeFrame = DatatypeF Datatype Annotations (Maybe AnnotDataRange)
 data AnnotDataRange = AnnotDataRange Annotations DataRange
 data Datatype = DatatypeIRI
@@ -65,24 +79,24 @@ data Datatype = DatatypeIRI
               | DecimalDT
               | FloatDT
               | StringDT deriving Show
-type DataRange = [DataConjunction] -- TODO: NonEmptyList
-type DataConjunction = [DataPrimary] -- TODO: NonEmptyList
+type DataRange = NonEmpty DataConjunction
+type DataConjunction = NonEmpty DataPrimary
 data DataPrimary = DataPrimary Bool DataAtomic
 data DataAtomic = DatatypeDA Datatype
-                | LiteralList [Literal] -- TODO: NonEmptyList    
+                | LiteralList (NonEmpty Literal)
 data ClassFrame = ClassF IRI [ClassElement] Key
 data ClassElement = AnnotationCE Annotations
                   | SubClassOfCE Descriptions
                   | EquivalentToCE Descriptions
                   | DisjointToCE Descriptions
-                  | DisjointunionOfCE Descriptions -- TODO: a two element list at least
+                  | DisjointUnionOfCE Annotations (AtLeast2List Description)
 data Key = KeyAnn Annotations [DataPropertyExpression] [ObjectPropertyExpression]
 newtype DataPropertyExpression = Dpe IRI
 data WithNegation a = Positive a | Negative a
 type ObjectPropertyExpression = WithNegation IRI
-type Description = [Conjunction] -- TODO: NonEmptyList
-data Conjunction = ClassConj IRI [WithNegation Restriction] | PrimConj [Primary] -- TODO: NonEmptyList x2
-data Primary = PrimaryR (WithNegation Restriction) | PrimaryA (WithNegation Atomic) 
+type Description = NonEmpty Conjunction
+data Conjunction = ClassConj IRI (NonEmpty (WithNegation Restriction)) | PrimConj (NonEmpty Primary)
+data Primary = PrimaryR (WithNegation Restriction) | PrimaryA (WithNegation Atomic)
 data Restriction = OPRestriction ObjectPropertyRestriction | DPRestriction DataPropertyRestriction
 data ObjectPropertyRestrictionType = OPSome Primary
                                    | OPOnly Primary
@@ -101,7 +115,6 @@ data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRest
 data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType
 data Individual = IRIIndividual IndividualIRI | NodeIndividual NodeID
 data Atomic = AtomicClass ClassIRI | AtomicIndividuals [Individual] | AtomicDescription Description
-
 data ObjectPropertyFrame = ObjectPropertyF ObjectPropertyIRI [ObjectPropertyElement]
 data ObjectPropertyElement = AnnotationOPE Annotations
                            | DomainOPE Descriptions
@@ -111,7 +124,7 @@ data ObjectPropertyElement = AnnotationOPE Annotations
                            | EquivalentToOPE (AnnotatedList ObjectPropertyExpression)
                            | DisjointWithOPE (AnnotatedList ObjectPropertyExpression)
                            | InverseOfOPE (AnnotatedList ObjectPropertyExpression)
-                           | SubPropertyChainOPE Annotations [ObjectPropertyExpression] -- TODO: at least 2 elements
+                           | SubPropertyChainOPE Annotations (AtLeast2List ObjectPropertyExpression)
 data ObjectPropertyCharacteristics = FUNCTIONAL
                                    | INVERSEFUNCTIONAL
                                    | REFLEXIVE
@@ -143,15 +156,14 @@ type Fact = WithNegation FactElement
 data FactElement = ObjectPropertyFE ObjectPropertyFact | DataPropertyFE DataPropertyFact
 data ObjectPropertyFact = ObjectPropertyFact ObjectPropertyIRI Individual
 data DataPropertyFact = FataPropertyFact DataPropertyIRI Literal
-data Misc = EquivalentClasses Annotations [Description] -- TODO: at least 2 elements
-          | DisjointClasses Annotations [Description] -- TODO: at least 2 elements
-          | EquivalentObjectProperties Annotations [ObjectProperty] -- TODO: at least 2 elements
-          | DisjointObjectProperties Annotations [ObjectProperty] -- TODO: at least 2 elements
-          | EquivalentDataProperties Annotations [DataProperty] -- TODO: at least 2 elements
-          | DisjointDataProperties Annotations [DataProperty] -- TODO: at least 2 elements
-          | SameIndividual Annotations [Individual] -- TODO: at least 2 elements
-          | DifferentIndividual Annotations [Individual] -- TODO: at least 2 elements
-
+data Misc = EquivalentClasses Annotations (AtLeast2List Description)
+          | DisjointClasses Annotations (AtLeast2List Description)
+          | EquivalentObjectProperties Annotations (AtLeast2List ObjectProperty)
+          | DisjointObjectProperties Annotations (AtLeast2List ObjectProperty)
+          | EquivalentDataProperties Annotations (AtLeast2List DataProperty)
+          | DisjointDataProperties Annotations (AtLeast2List DataProperty)
+          | SameIndividual Annotations (AtLeast2List Individual)
+          | DifferentIndividual Annotations (AtLeast2List Individual)
 data Literal = TypedLiteralC TypedLiteral
              | StringLiteralNoLang String
              | StringLiteralLang LiteralWithLang
@@ -825,7 +837,8 @@ dataAtomic :: Parser String
 dataAtomic =
   try datatypeRestriction
     <|> try datatype
-    <|> unwords <$> enclosedS '{' literalList
+    <|> unwords
+    <$> enclosedS '{' literalList
     <|> enclosedS '(' dataRange
 
 -- | It parsers a non empty list of literal
@@ -851,7 +864,7 @@ datatypeRestriction = do
   rvList <- nonEmptyList ((,) <$> facet <*> restrictionValue)
   symbol "]"
   let res = fmap (\(f, v) -> unwords [dt, f, v]) rvList
-  return $ intercalate " AND " res 
+  return $ intercalate " AND " res
 
 facet :: Parser String
 facet =
@@ -913,8 +926,8 @@ conjunction = try restrictions <|> try (unwords <$> singleOrMany "and" primary)
       symbol "and"
       neg' <- optionalNegation
       rst' <- restriction
-      pure . unwords . filter (not.null) $ [fromMaybe "" neg', rst']
-    pure. unwords . filter (not.null) $ [clsIRI, fromMaybe "" neg, rst] ++ rsts
+      pure . unwords . filter (not . null) $ [fromMaybe "" neg', rst']
+    pure . unwords . filter (not . null) $ [clsIRI, fromMaybe "" neg, rst] ++ rsts
 
 -- | It parses a primary
 --
@@ -928,7 +941,7 @@ primary :: Parser String
 primary = do
   neg  <- optionalNegation
   rOrA <- try restriction <|> (try (unwords <$> atomic))
-  pure . unwords . filter (not.null) $ [fromMaybe "" neg, rOrA]
+  pure . unwords . filter (not . null) $ [fromMaybe "" neg, rOrA]
 
 -- | It parses one of the many differnt type of restrictions on object or data properties
 --
@@ -1085,7 +1098,7 @@ objectPropertyFrame :: Parser String
 objectPropertyFrame = do
   objPropIRI <- symbol "ObjectProperty:" *> objectPropertyIRI
   blob       <- length <$> many altr
-  pure $ concat [objPropIRI, ":", show blob] 
+  pure $ concat [objPropIRI, ":", show blob]
  where
   altr =
     (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
@@ -1158,13 +1171,17 @@ dataPropertyFrame :: Parser String
 dataPropertyFrame = do
   dataPropIRI <- symbol "DataProperty:" *> dataPropertyIRI
   blob        <- length <$> many altr
-  return $ concat[dataPropIRI, ":", show blob]
+  return $ concat [dataPropIRI, ":", show blob]
  where
   altr =
     (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
       <|> (symbol "Domain:" *> annotatedList description $> "<domain-description>")
       <|> (symbol "Range:" *> annotatedList dataRange $> "<range-description>")
-      <|> (symbol "Characteristics:" *> (optional annotations) *> symbol "Functional" $> "<characteristics-props>")
+      <|> (  symbol "Characteristics:"
+          *> (optional annotations)
+          *> symbol "Functional"
+          $> "<characteristics-props>"
+          )
       <|> (symbol "SubPropertyOf:" *> annotatedList dataPropertyExpression $> "<sub-property-of-expr>")
       <|> (symbol "EquivalentTo:" *> annotatedList dataPropertyExpression $> "<equivalent-to-expr>")
       <|> (symbol "DisjointWith:" *> annotatedList dataPropertyExpression $> "<disjoin-with-expr>")
@@ -1190,7 +1207,7 @@ dataPropertyFrame = do
 annotationPropertyFrame :: Parser String
 annotationPropertyFrame = do
   annPropIRI <- symbol "AnnotationProperty:" *> annotationPropertyIRI
-  blob       <- length<$> many altr
+  blob       <- length <$> many altr
   pure $ concat [annPropIRI, ":", show blob]
  where
   altr =
@@ -1275,45 +1292,45 @@ dataPropertyFact = do
 misc :: Parser String
 misc =
   (  symbol "EquivalentClasses:"
-  *> optional annotations -- TODO-check
-  *> listOfAtLeast2 description
-  $> "<equivalent-classes>"
-  )
-  <|> (  symbol "DisjointClasses:"
-      *> optional annotations -- TODO-check
-      *> listOfAtLeast2 description
-      $> "<disjoint-classes>"
-      )
-  <|> (  symbol "EquivalentProperties:"
-      *> optional annotations -- TODO-check
-      *> listOfAtLeast2 objectPropertyIRI
-      $> "<equivalent-object-property>"
-      )
-  <|> (  symbol "DisjointProperties:"
-      *> optional annotations -- TODO-check
-      *> listOfAtLeast2 objectPropertyIRI
-      $> "<disjoint-object-property>"
-      )
-  <|> (  symbol "EquivalentProperties:"
-      *> optional annotations -- TODO-check
-      *> listOfAtLeast2 dataPropertyIRI
-      $> "<equivalent-object-property>"
-      )
-  <|> (  symbol "DisjointProperties:"
-      *> optional annotations -- TODO-check
-      *> listOfAtLeast2 dataPropertyIRI
-      $> "<disjoint-object-property>"
-      )
-  <|> (  symbol "SameIndividual:"
-      *> optional annotations -- TODO-check
-      *> listOfAtLeast2 individual
-      $> "<same-individual>"
-      )
-  <|> (  symbol "DifferentIndividuals:"
-      *> optional annotations -- TODO-check
-      *> listOfAtLeast2 individual
-      $> "<different-individual>"
-      )
+    *> optional annotations -- TODO-check
+    *> listOfAtLeast2 description
+    $> "<equivalent-classes>"
+    )
+    <|> (  symbol "DisjointClasses:"
+        *> optional annotations -- TODO-check
+        *> listOfAtLeast2 description
+        $> "<disjoint-classes>"
+        )
+    <|> (  symbol "EquivalentProperties:"
+        *> optional annotations -- TODO-check
+        *> listOfAtLeast2 objectPropertyIRI
+        $> "<equivalent-object-property>"
+        )
+    <|> (  symbol "DisjointProperties:"
+        *> optional annotations -- TODO-check
+        *> listOfAtLeast2 objectPropertyIRI
+        $> "<disjoint-object-property>"
+        )
+    <|> (  symbol "EquivalentProperties:"
+        *> optional annotations -- TODO-check
+        *> listOfAtLeast2 dataPropertyIRI
+        $> "<equivalent-object-property>"
+        )
+    <|> (  symbol "DisjointProperties:"
+        *> optional annotations -- TODO-check
+        *> listOfAtLeast2 dataPropertyIRI
+        $> "<disjoint-object-property>"
+        )
+    <|> (  symbol "SameIndividual:"
+        *> optional annotations -- TODO-check
+        *> listOfAtLeast2 individual
+        $> "<same-individual>"
+        )
+    <|> (  symbol "DifferentIndividuals:"
+        *> optional annotations -- TODO-check
+        *> listOfAtLeast2 individual
+        $> "<different-individual>"
+        )
 
 -----------------------
 --- Generic parsers ---
@@ -1332,8 +1349,7 @@ optionalNegation = optional . symbol $ "not"
 --
 singleOrMany :: String -> Parser p -> Parser [p]
 singleOrMany sep p =
-  let multipleP = (:) <$> p <*> some (symbol sep *> p) 
-  in  (try multipleP) <|> (pure <$> p)
+  let multipleP = (:) <$> p <*> some (symbol sep *> p) in (try multipleP) <|> (pure <$> p)
 
 -- | It parses non empty lists
 --
