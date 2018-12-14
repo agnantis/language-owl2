@@ -24,3 +24,4 @@ This a work in progress and by no means complete
     - `dataPropertyFrame` -> `Characteristics:`
     - `misc` -> all cases
 - Based on the grammar, a `classFrame` is defined by either a `HasKey` _construct_ or by many _sub-constructs_ of a list of 5 different _sub-constructs_. However, in the example, there is the `Class: Person` which contains both `HasKey` and the other _sub-constructs_ as well. This means that the `HasKey` in the grammar should not be an _alternative_ (i.e. `|`) but it should be an optional (i.e. `[...]`) 
+- The list of alternatives in the `annotationPropertyFrame` is probably wrong: The closing '}' should include all alternatives and not only the _annotations_ 

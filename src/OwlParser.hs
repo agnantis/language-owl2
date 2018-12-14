@@ -24,6 +24,10 @@ type VersionIRI = IRI
 type OntologyIRI = IRI
 type FullIRI = IRI
 type DatatypeIRI = IRI
+type ClassIRI = IRI
+type ObjectPropertyIRI = IRI
+type DataPropertyIRI = IRI
+type IndividualIRI = IRI
 type Frame = String
 
 data TypedLiteral = TypedL String String deriving Show
@@ -72,7 +76,7 @@ data ClassElement = AnnotationCE Annotations
                   | EquivalentToCE Descriptions
                   | DisjointToCE Descriptions
                   | DisjointunionOfCE Descriptions -- TODO: a two element list at least
-data Key = KeyAnn [DataPropertyExpression] [ObjectPropertyExpression]
+data Key = KeyAnn Annotations [DataPropertyExpression] [ObjectPropertyExpression]
 newtype DataPropertyExpression = Dpe IRI
 data WithNegation a = Positive a | Negative a
 type ObjectPropertyExpression = WithNegation IRI
@@ -95,13 +99,59 @@ data DataPropertyRestrictionType = DPSome DataPrimary
                                  | DPExactly Int (Maybe DataPrimary) -- TODO: Int -> Nat
 data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRestrictionType
 data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType
-data Individual -- TODO: continue from here
-data Atomic
-data ObjectPropertyFrame
-data DataPropertyFrame
-data AnnotationPropertyFrame
-data IndividualFrame
-data Misc
+data Individual = IRIIndividual IndividualIRI | NodeIndividual NodeID
+data Atomic = AtomicClass ClassIRI | AtomicIndividuals [Individual] | AtomicDescription Description
+
+data ObjectPropertyFrame = ObjectPropertyF ObjectPropertyIRI [ObjectPropertyElement]
+data ObjectPropertyElement = AnnotationOPE Annotations
+                           | DomainOPE Descriptions
+                           | RangeOPE Descriptions
+                           | CharacteristicsOPE (AnnotatedList ObjectPropertyCharacteristics)
+                           | SubPropertyOfOPE (AnnotatedList ObjectPropertyExpression)
+                           | EquivalentToOPE (AnnotatedList ObjectPropertyExpression)
+                           | DisjointWithOPE (AnnotatedList ObjectPropertyExpression)
+                           | InverseOfOPE (AnnotatedList ObjectPropertyExpression)
+                           | SubPropertyChainOPE Annotations [ObjectPropertyExpression] -- TODO: at least 2 elements
+data ObjectPropertyCharacteristics = FUNCTIONAL
+                                   | INVERSEFUNCTIONAL
+                                   | REFLEXIVE
+                                   | IRREFLEXIVE
+                                   | SYMMETRIC
+                                   | ASYMMETRIC
+                                   | TRANSITIVE
+data DataPropertyFrame = DataPropertyF DataPropertyIRI [DataPropertyElement]
+data DataPropertyElement = AnnotationDPE Annotations
+                         | DomainDPE Descriptions
+                         | RangeDPE (AnnotatedList DataRange)
+                         | CharacteristicsDPE Annotations DataPropertyCharacteristics
+                         | SubPropertyOfDPE (AnnotatedList DataPropertyExpression)
+                         | EquivalentToDPE (AnnotatedList DataPropertyExpression)
+                         | DisjointWithDPE (AnnotatedList DataPropertyExpression)
+data DataPropertyCharacteristics = FUNCTIONAL_DPE
+data AnnotationPropertyFrame = AnnotationPropertyF AnnotationPropertyIRI [AnnotationPropertyElement]
+data AnnotationPropertyElement = AnnotationAPE Annotations
+                               | DomainAPE (AnnotatedList IRI)
+                               | RangeAPE (AnnotatedList IRI)
+                               | SubPropertyOfAPE (AnnotatedList AnnotationPropertyIRI)
+data IndividualFrame = IndividualF Individual [IndividualElement]
+data IndividualElement = AnnotationIE Annotations
+                       | TypeIE Descriptions
+                       | FactIE (AnnotatedList Fact)
+                       | SameAsIE (AnnotatedList Individual)
+                       | DifferentFromIE (AnnotatedList Individual)
+type Fact = WithNegation FactElement
+data FactElement = ObjectPropertyFE ObjectPropertyFact | DataPropertyFE DataPropertyFact
+data ObjectPropertyFact = ObjectPropertyFact ObjectPropertyIRI Individual
+data DataPropertyFact = FataPropertyFact DataPropertyIRI Literal
+data Misc = EquivalentClasses Annotations [Description] -- TODO: at least 2 elements
+          | DisjointClasses Annotations [Description] -- TODO: at least 2 elements
+          | EquivalentObjectProperties Annotations [ObjectProperty] -- TODO: at least 2 elements
+          | DisjointObjectProperties Annotations [ObjectProperty] -- TODO: at least 2 elements
+          | EquivalentDataProperties Annotations [DataProperty] -- TODO: at least 2 elements
+          | DisjointDataProperties Annotations [DataProperty] -- TODO: at least 2 elements
+          | SameIndividual Annotations [Individual] -- TODO: at least 2 elements
+          | DifferentIndividual Annotations [Individual] -- TODO: at least 2 elements
+
 data Literal = TypedLiteralC TypedLiteral
              | StringLiteralNoLang String
              | StringLiteralLang LiteralWithLang
@@ -1188,7 +1238,7 @@ individualFrame = do
 fact :: Parser String
 fact = do
   neg  <- optionalNegation
-  fact <- (try objectPropertyFact) <|> (try dataPropertyFact)
+  fact <- try objectPropertyFact <|> try dataPropertyFact
   return . unwords $ [fromMaybe "" neg, fact]
 
 objectPropertyFact :: Parser String
