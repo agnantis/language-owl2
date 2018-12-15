@@ -1,195 +1,23 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DeriveFunctor #-}
 
 module OwlParser where
 
 import           Prelude                           hiding ( exponent )
 import           Data.Functor                             ( ($>) )
 import           Data.List                                ( intercalate )
-import           Data.List.NonEmpty                       ( NonEmpty(..) )
 -- import qualified Data.List.NonEmpty            as NEL
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Void
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer    as L
+import           Types
 
----------------
----- TYPES ----
----------------
-
--- TODO: Should I include a NonEmpty? I do not think so
-data AtLeast2List a = (a, a) :# [a] deriving ( Eq, Ord, Show, Read, Functor)
-
-atLeast2List :: a -> a -> [a] -> AtLeast2List a
-atLeast2List x y = (:#) (x, y)
-
-toList :: AtLeast2List a -> [a]
-toList ~((x, y) :# xs) = x : y : xs
-
-toNonEmptyList :: AtLeast2List a -> NonEmpty a
-toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
-
+--------------------------
+-- Parser related types --
+--------------------------
 
 type Parser = Parsec Void String
-type LangTag = String
-type IRI = String
-type ImportIRI = IRI
-type AnnotationPropertyIRI = IRI
-type VersionIRI = IRI
-type OntologyIRI = IRI
-type FullIRI = IRI
-type DatatypeIRI = IRI
-type ClassIRI = IRI
-type ObjectPropertyIRI = IRI
-type DataPropertyIRI = IRI
-type IndividualIRI = IRI
-type Frame = String
-
-data TypedLiteral = TypedL String String deriving Show
-data FloatPoint = FloatP Double (Maybe Exponent)
-data LiteralWithLang = LiteralWithLang String LangTag deriving Show
-
-newtype Exponent = Exponent Integer
-newtype DecimalLiteral = DecimalL Double deriving Show
-newtype IntegerLiteral = IntegerL Integer deriving Show
-newtype NodeID = NodeID String deriving Show
-
-data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving Show
-data PrefixDeclaration = PrefixD PrefixName FullIRI deriving Show
-type PrefixName = String
-data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportIRI] [AnnotatedList Annotation] [Frame] deriving Show
-data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving Show
-newtype AnnotatedList a = AnnList [(AnnotatedList Annotation, a)]
-type Annotations = AnnotatedList Annotation
-type Descriptions = AnnotatedList Description
-data Annotation = Annotation AnnotationPropertyIRI String
-data FrameF = DatatypeFrame
-            | ClassFrame
-            | ObjectPropertyFrame
-            | DataPropertyFrame
-            | AnnotationPropertyFrame
-            | IndividualFrame
-            | Misc
-            deriving Show
-data DatatypeFrame = DatatypeF Datatype Annotations (Maybe AnnotDataRange)
-data AnnotDataRange = AnnotDataRange Annotations DataRange
-data Datatype = DatatypeIRI
-              | IntegerDT
-              | DecimalDT
-              | FloatDT
-              | StringDT deriving Show
-type DataRange = NonEmpty DataConjunction
-type DataConjunction = NonEmpty DataPrimary
-data DataPrimary = DataPrimary Bool DataAtomic
-data DataAtomic = DatatypeDA Datatype
-                | LiteralList (NonEmpty Literal)
-data ClassFrame = ClassF IRI [ClassElement] Key
-data ClassElement = AnnotationCE Annotations
-                  | SubClassOfCE Descriptions
-                  | EquivalentToCE Descriptions
-                  | DisjointToCE Descriptions
-                  | DisjointUnionOfCE Annotations (AtLeast2List Description)
-data Key = KeyAnn Annotations [DataPropertyExpression] [ObjectPropertyExpression]
-newtype DataPropertyExpression = Dpe IRI
-data WithNegation a = Positive a | Negative a
-type ObjectPropertyExpression = WithNegation IRI
-type Description = NonEmpty Conjunction
-data Conjunction = ClassConj IRI (NonEmpty (WithNegation Restriction)) | PrimConj (NonEmpty Primary)
-data Primary = PrimaryR (WithNegation Restriction) | PrimaryA (WithNegation Atomic)
-data Restriction = OPRestriction ObjectPropertyRestriction | DPRestriction DataPropertyRestriction
-data ObjectPropertyRestrictionType = OPSome Primary
-                                   | OPOnly Primary
-                                   | OPValue Individual
-                                   | OPSelf
-                                   | OPMin Int (Maybe Primary) -- TODO: Int -> Nat
-                                   | OPMax Int (Maybe Primary) -- TODO: Int -> Nat
-                                   | OPExactly Int (Maybe Primary) -- TODO: Int -> Nat
-data DataPropertyRestrictionType = DPSome DataPrimary
-                                 | DPOnly DataPrimary
-                                 | DPValue Literal
-                                 | DPMin Int (Maybe DataPrimary) -- TODO: Int -> Nat
-                                 | DPMax Int (Maybe DataPrimary) -- TODO: Int -> Nat
-                                 | DPExactly Int (Maybe DataPrimary) -- TODO: Int -> Nat
-data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRestrictionType
-data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType
-data Individual = IRIIndividual IndividualIRI | NodeIndividual NodeID
-data Atomic = AtomicClass ClassIRI | AtomicIndividuals [Individual] | AtomicDescription Description
-data ObjectPropertyFrame = ObjectPropertyF ObjectPropertyIRI [ObjectPropertyElement]
-data ObjectPropertyElement = AnnotationOPE Annotations
-                           | DomainOPE Descriptions
-                           | RangeOPE Descriptions
-                           | CharacteristicsOPE (AnnotatedList ObjectPropertyCharacteristics)
-                           | SubPropertyOfOPE (AnnotatedList ObjectPropertyExpression)
-                           | EquivalentToOPE (AnnotatedList ObjectPropertyExpression)
-                           | DisjointWithOPE (AnnotatedList ObjectPropertyExpression)
-                           | InverseOfOPE (AnnotatedList ObjectPropertyExpression)
-                           | SubPropertyChainOPE Annotations (AtLeast2List ObjectPropertyExpression)
-data ObjectPropertyCharacteristics = FUNCTIONAL
-                                   | INVERSEFUNCTIONAL
-                                   | REFLEXIVE
-                                   | IRREFLEXIVE
-                                   | SYMMETRIC
-                                   | ASYMMETRIC
-                                   | TRANSITIVE
-data DataPropertyFrame = DataPropertyF DataPropertyIRI [DataPropertyElement]
-data DataPropertyElement = AnnotationDPE Annotations
-                         | DomainDPE Descriptions
-                         | RangeDPE (AnnotatedList DataRange)
-                         | CharacteristicsDPE Annotations DataPropertyCharacteristics
-                         | SubPropertyOfDPE (AnnotatedList DataPropertyExpression)
-                         | EquivalentToDPE (AnnotatedList DataPropertyExpression)
-                         | DisjointWithDPE (AnnotatedList DataPropertyExpression)
-data DataPropertyCharacteristics = FUNCTIONAL_DPE
-data AnnotationPropertyFrame = AnnotationPropertyF AnnotationPropertyIRI [AnnotationPropertyElement]
-data AnnotationPropertyElement = AnnotationAPE Annotations
-                               | DomainAPE (AnnotatedList IRI)
-                               | RangeAPE (AnnotatedList IRI)
-                               | SubPropertyOfAPE (AnnotatedList AnnotationPropertyIRI)
-data IndividualFrame = IndividualF Individual [IndividualElement]
-data IndividualElement = AnnotationIE Annotations
-                       | TypeIE Descriptions
-                       | FactIE (AnnotatedList Fact)
-                       | SameAsIE (AnnotatedList Individual)
-                       | DifferentFromIE (AnnotatedList Individual)
-type Fact = WithNegation FactElement
-data FactElement = ObjectPropertyFE ObjectPropertyFact | DataPropertyFE DataPropertyFact
-data ObjectPropertyFact = ObjectPropertyFact ObjectPropertyIRI Individual
-data DataPropertyFact = FataPropertyFact DataPropertyIRI Literal
-data Misc = EquivalentClasses Annotations (AtLeast2List Description)
-          | DisjointClasses Annotations (AtLeast2List Description)
-          | EquivalentObjectProperties Annotations (AtLeast2List ObjectProperty)
-          | DisjointObjectProperties Annotations (AtLeast2List ObjectProperty)
-          | EquivalentDataProperties Annotations (AtLeast2List DataProperty)
-          | DisjointDataProperties Annotations (AtLeast2List DataProperty)
-          | SameIndividual Annotations (AtLeast2List Individual)
-          | DifferentIndividual Annotations (AtLeast2List Individual)
-data Literal = TypedLiteralC TypedLiteral
-             | StringLiteralNoLang String
-             | StringLiteralLang LiteralWithLang
-             | IntegerLiteralC IntegerLiteral
-             | DecimalLiteralC DecimalLiteral
-             | FloatingLiteralC FloatPoint
-
--------------------------
----- CLASS INSTANCES ----
--------------------------
-
-instance Show Annotation where
-  show (Annotation i s) = unwords [i, show s]
-
-instance (Show a) => Show (AnnotatedList a) where
-  show (AnnList []) = ""
-  show (AnnList xs) = intercalate ",\n" (go <$> xs)
-   where
-    go ((AnnList []), x) = show x
-    go (al, x) = unwords ["Annotations:", show al, "\n ", show x]
-
-instance Show FloatPoint where
-  show (FloatP n me) = concat [show n, maybe "" show me]
-instance Show Exponent where
-  show (Exponent i) = concat ["e", if i > 0 then "+" else "", show i]
-
 -- | Parses white space and line comments
 --
 -- parsec (sc *> satisfy (const true)) "    some indented text"
@@ -490,7 +318,7 @@ literal =
   lexeme
     $   (show <$> try typedLiteral)
     <|> (show <$> try stringLiteralWithLanguage)
-    <|> (try stringLiteralNoLanguage)
+    <|> try stringLiteralNoLanguage
     <|> (show <$> try integerLiteral)
     <|> (show <$> try decimalLiteral)
     <|> (show <$> try floatingPointLiteral)
@@ -717,7 +545,7 @@ annotation = Annotation <$> annotationPropertyIRI <*> annotationTarget
 -- "http://some.iri"
 --
 annotationTarget :: Parser String
-annotationTarget = (show <$> try nodeID) <|> (try iri) <|> (try literal)
+annotationTarget = (show <$> try nodeID) <|> try iri <|> try literal
 
 ontologyDocument :: Parser OntologyDocument
 ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
@@ -769,10 +597,6 @@ frame =
 -------------------------------------------
 --- Properties and datatype expressions ---
 -------------------------------------------
-
-data ObjectProperty = ObjectP IRI | InverseObjectP IRI deriving Show
-newtype DataProperty = DataP IRI deriving Show
--- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic deriving Show
 
 -- | It parses an object property expression
 --
@@ -940,7 +764,7 @@ conjunction = try restrictions <|> try (unwords <$> singleOrMany "and" primary)
 primary :: Parser String
 primary = do
   neg  <- optionalNegation
-  rOrA <- try restriction <|> (try (unwords <$> atomic))
+  rOrA <- try restriction <|> try (unwords <$> atomic)
   pure . unwords . filter (not . null) $ [fromMaybe "" neg, rOrA]
 
 -- | It parses one of the many differnt type of restrictions on object or data properties
@@ -1178,7 +1002,7 @@ dataPropertyFrame = do
       <|> (symbol "Domain:" *> annotatedList description $> "<domain-description>")
       <|> (symbol "Range:" *> annotatedList dataRange $> "<range-description>")
       <|> (  symbol "Characteristics:"
-          *> (optional annotations)
+          *> optional annotations
           *> symbol "Functional"
           $> "<characteristics-props>"
           )
@@ -1349,7 +1173,7 @@ optionalNegation = optional . symbol $ "not"
 --
 singleOrMany :: String -> Parser p -> Parser [p]
 singleOrMany sep p =
-  let multipleP = (:) <$> p <*> some (symbol sep *> p) in (try multipleP) <|> (pure <$> p)
+  let multipleP = (:) <$> p <*> some (symbol sep *> p) in try multipleP <|> (pure <$> p)
 
 -- | It parses non empty lists
 --
