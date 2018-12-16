@@ -24,7 +24,6 @@ toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
 
 
 type LangTag = String
-type IRI = String
 type ImportIRI = IRI
 type AnnotationPropertyIRI = IRI
 type VersionIRI = IRI
@@ -39,8 +38,8 @@ type Frame = String
 type PrefixName = String
 type Annotations = AnnotatedList Annotation
 type Descriptions = AnnotatedList Description
-type DataRange = NonEmpty DataConjunction
-type DataConjunction = NonEmpty DataPrimary
+newtype DataRange = DataRange (NonEmpty DataConjunction)
+newtype DataConjunction = DataConjunction (NonEmpty DataPrimary)
 type ObjectPropertyExpression = WithNegation IRI
 type Description = NonEmpty Conjunction
 type Fact = WithNegation FactElement
@@ -53,7 +52,10 @@ newtype AnnotatedList a = AnnList [(AnnotatedList Annotation, a)]
 newtype DataPropertyExpression = Dpe IRI
 newtype DataProperty = DataP IRI deriving Show
 
-data TypedLiteral = TypedL String String deriving Show
+data IRI = FullIRI String
+         | AbbreviatedIRI PrefixName String
+         | SimpleIRI String deriving Show
+data TypedLiteral = TypedL String Datatype deriving Show
 data FloatPoint = FloatP Double (Maybe Exponent)
 data LiteralWithLang = LiteralWithLang String LangTag deriving Show
 data ObjectProperty = ObjectP IRI | InverseObjectP IRI deriving Show
@@ -61,7 +63,7 @@ data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving Show
 data PrefixDeclaration = PrefixD PrefixName FullIRI deriving Show
 data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportIRI] [AnnotatedList Annotation] [Frame] deriving Show
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving Show
-data Annotation = Annotation AnnotationPropertyIRI String
+data Annotation = Annotation AnnotationPropertyIRI AnnotationTarget
 data FrameF = DatatypeFrame
             | ClassFrame
             | ObjectPropertyFrame
@@ -72,14 +74,26 @@ data FrameF = DatatypeFrame
             deriving Show
 data DatatypeFrame = DatatypeF Datatype Annotations (Maybe AnnotDataRange)
 data AnnotDataRange = AnnotDataRange Annotations DataRange
-data Datatype = DatatypeIRI
+data Datatype = DatatypeIRI IRI
               | IntegerDT
               | DecimalDT
               | FloatDT
               | StringDT deriving Show
-data DataPrimary = DataPrimary Bool DataAtomic
+type DataPrimary = WithNegation DataAtomic
 data DataAtomic = DatatypeDA Datatype
-                | LiteralList (NonEmpty Literal)
+                | LiteralListDA (NonEmpty Literal)
+                | DatatypeRestrictionDA DatatypeRestriction
+                | DataRangeDA DataRange
+data DatatypeRestriction = DatatypeRestriction Datatype Facet Literal
+data Facet = LENGTH_FACET
+           | MIN_LENGTH_FACET
+           | MAX_LENGTH_FACET
+           | PATTERN_FACET
+           | LANG_RANGE_FACET
+           | LE_FACET
+           | L_FACET
+           | GE_FACET
+           | G_FACET
 data ClassFrame = ClassF IRI [ClassElement] Key
 data ClassElement = AnnotationCE Annotations
                   | SubClassOfCE Descriptions
@@ -162,6 +176,15 @@ data Literal = TypedLiteralC TypedLiteral
              | IntegerLiteralC IntegerLiteral
              | DecimalLiteralC DecimalLiteral
              | FloatingLiteralC FloatPoint
+data Entity = DatatypeEntity Datatype
+            | ClassEntity ClassIRI
+            | ObjectPropertyEntity ObjectPropertyIRI
+            | DataPropertyEntity DataPropertyIRI
+            | AnnotationPropertyEntity AnnotationPropertyIRI
+            | IndividualEntity IndividualIRI
+data AnnotationTarget = NodeAT NodeID
+                      | IriAT IRI
+                      | LiteralAT Literal
 -- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic deriving Show
 
 -------------------------
@@ -169,7 +192,7 @@ data Literal = TypedLiteralC TypedLiteral
 -------------------------
 
 instance Show Annotation where
-  show (Annotation i s) = unwords [i, show s]
+  show (Annotation i s) = unwords [show i, "<undefinded-annotation-target>"]
 
 instance (Show a) => Show (AnnotatedList a) where
   show (AnnList []) = ""

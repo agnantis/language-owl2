@@ -5,6 +5,7 @@ module OwlParser where
 import           Prelude                           hiding ( exponent )
 import           Data.Functor                             ( ($>) )
 import           Data.List                                ( intercalate )
+import           Data.List.NonEmpty                       ( NonEmpty(..) )
 -- import qualified Data.List.NonEmpty            as NEL
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Void
@@ -216,7 +217,7 @@ prefixName = (identifier_ <|> pure "") <* string ":"
 -- unexpected 'h'
 -- expecting '<'
 fullIRI :: Parser IRI
-fullIRI = lexeme . iriParens $ takeWhileP Nothing (/= '>')
+fullIRI = FullIRI <$> (lexeme . iriParens $ takeWhileP Nothing (/= '>'))
 
 -- | It parses abbreviated IRIs. Format: 'prefix:term'
 -- >>> parseTest abbreviatedIRI "xsd:string"
@@ -227,8 +228,8 @@ fullIRI = lexeme . iriParens $ takeWhileP Nothing (/= '>')
 -- unexpected space
 -- ...
 --
-abbreviatedIRI :: Parser (PrefixName, String)
-abbreviatedIRI = (,) <$> prefixName <*> anyIdentifier
+abbreviatedIRI :: Parser IRI
+abbreviatedIRI = AbbreviatedIRI <$> prefixName <*> anyIdentifier
 
 -- | It parses simple IRIs; a finite sequence of characters matching the PN_LOCAL
 -- production of [SPARQL] and not matching any of the keyword terminals of the syntax 
@@ -237,16 +238,15 @@ abbreviatedIRI = (,) <$> prefixName <*> anyIdentifier
 -- >>> parseTest simpleIRI "John"
 -- "John"
 --
-simpleIRI :: Parser String
-simpleIRI = identifier
+simpleIRI :: Parser IRI
+simpleIRI = SimpleIRI <$> identifier
 
 -- | It parses any of the three different formats of IRIs
 -- >>> parseTest iri "John"
 -- "John"
 --
-iri :: Parser String
-iri = fullIRI <|> (concatAbbrIRI <$> try abbreviatedIRI) <|> simpleIRI
-  where concatAbbrIRI (x, y) = concat [x, ":", y]
+iri :: Parser IRI
+iri = fullIRI <|> try abbreviatedIRI <|> simpleIRI
 
 -- | It parses class IRIs
 classIRI :: Parser IRI
@@ -263,25 +263,30 @@ classIRI = iri
 -- >>> parseTest datatype "xsd:string"
 -- "xsd:string"
 --
-datatype :: Parser String
-datatype = try datatypeIRI <|> symbol "integer" <|> symbol "decimal" <|> symbol "float" <|> symbol "string"
+datatype :: Parser Datatype
+datatype = (DatatypeIRI <$> try datatypeIRI)
+         <|> IntegerDT <$ symbol "integer"
+	 <|> DecimalDT <$ symbol "decimal"
+	 <|> FloatDT <$ symbol "float"
+	 <|> StringDT <$ symbol "string"
 
-datatypeIRI :: Parser String
+datatypeIRI :: Parser IRI
 datatypeIRI = iri
 
-objectPropertyIRI :: Parser String
+objectPropertyIRI :: Parser IRI
 objectPropertyIRI = iri
 
-dataPropertyIRI :: Parser String
+dataPropertyIRI :: Parser IRI
 dataPropertyIRI = iri
 
-annotationPropertyIRI :: Parser String
+annotationPropertyIRI :: Parser IRI
 annotationPropertyIRI = iri
 
-individual :: Parser String
-individual = individualIRI <|> (show <$> nodeID)
+individual :: Parser Individual
+individual = IRIIndividual <$> individualIRI
+           <|> (NodeIndividual <$> nodeID)
 
-individualIRI :: Parser String
+individualIRI :: Parser IndividualIRI
 individualIRI = iri
 
 -- | It parses blank nodes
@@ -313,15 +318,15 @@ nodeID = NodeID <$> (symbol "_:" *> identifier)
 -- >>> parseTest literal "\"stringLiteralWithLang\"@en"
 -- "LiteralWithLang \"stringLiteralWithLang\" \"en\""
 --
-literal :: Parser String
+literal :: Parser Literal
 literal =
   lexeme
-    $   (show <$> try typedLiteral)
-    <|> (show <$> try stringLiteralWithLanguage)
-    <|> try stringLiteralNoLanguage
-    <|> (show <$> try integerLiteral)
-    <|> (show <$> try decimalLiteral)
-    <|> (show <$> try floatingPointLiteral)
+    $   (TypedLiteralC <$> try typedLiteral)
+    <|> (StringLiteralLang <$> try stringLiteralWithLanguage)
+    <|> (StringLiteralNoLang <$> stringLiteralNoLanguage)
+    <|> (IntegerLiteralC <$> try integerLiteral)
+    <|> (DecimalLiteralC <$> try decimalLiteral)
+    <|> (FloatingLiteralC <$> try floatingPointLiteral)
 
 -- | It parses a typed literal
 --
@@ -479,22 +484,17 @@ integerLiteral = do
   digs  <- digits
   return . IntegerL . read . concat $ [mSign, digs]
 
-entity :: Parser String
-entity = choice $ fmap (uncurry classParser) alts
+entity :: Parser Entity
+entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
  where
-  classParser :: String -> Parser String -> Parser String
-  classParser s p = do
-    smb  <- symbol s
-    name <- p
-    return . concat $ ["<", s, ">"]
-  alts :: [(String, Parser String)]
+  alts :: [(String, Parser Entity)]
   alts =
-    [ ("Datatype"          , datatype)
-    , ("Class"             , classIRI)
-    , ("ObjectProperty"    , objectPropertyIRI)
-    , ("DataProperty"      , dataPropertyIRI)
-    , ("AnnotationProperty", annotationPropertyIRI)
-    , ("NamedIndividual"   , individualIRI)
+    [ ("Datatype"          , DatatypeEntity <$> datatype)
+    , ("Class"             , ClassEntity <$> classIRI)
+    , ("ObjectProperty"    , ObjectPropertyEntity <$> objectPropertyIRI)
+    , ("DataProperty"      , DataPropertyEntity <$> dataPropertyIRI)
+    , ("AnnotationProperty", AnnotationPropertyEntity <$> annotationPropertyIRI)
+    , ("NamedIndividual"   , IndividualEntity <$> individualIRI)
     ]
 
 
@@ -544,8 +544,8 @@ annotation = Annotation <$> annotationPropertyIRI <*> annotationTarget
 -- >>> parseTest annotationTarget "<http://some.iri>"
 -- "http://some.iri"
 --
-annotationTarget :: Parser String
-annotationTarget = (show <$> try nodeID) <|> try iri <|> try literal
+annotationTarget :: Parser AnnotationTarget
+annotationTarget = NodeAT <$> try nodeID <|> IriAT <$> try iri <|> LiteralAT <$> try literal
 
 ontologyDocument :: Parser OntologyDocument
 ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
@@ -630,40 +630,38 @@ dataPropertyExpression = DataP <$> dataPropertyIRI
 -- >>> parseTest dataRange "integer[>10] and integer[<20] or integer[>100]"
 -- "integer > IntegerL 10 and integer < IntegerL 20 or integer > IntegerL 100"
 --
-dataRange :: Parser String
-dataRange = intercalate " or " <$> singleOrMany "or" dataConjunction
+dataRange :: Parser DataRange
+dataRange = DataRange <$> singleOrMany "or" dataConjunction
 
 -- | It parses a data conjunction (i.e. 'and')
 --
 -- >>> parseTest dataConjunction "integer[<10] and integer[>0]"
 -- "integer < IntegerL 10 and integer > IntegerL 0"
 --
-dataConjunction :: Parser String
-dataConjunction = intercalate " and " <$> singleOrMany "and" dataPrimary
+dataConjunction :: Parser DataConjunction
+dataConjunction = DataConjunction <$> singleOrMany "and" dataPrimary
 
 -- | It parses a data primary
 --
 -- >>> parseTest dataPrimary "integer[<0]"
 -- "integer < IntegerL 0"
 --
-dataPrimary :: Parser String
+dataPrimary :: Parser DataPrimary
 dataPrimary = do
   neg <- optionalNegation
   da  <- dataAtomic
-  pure $ concat [fromMaybe "" neg, da]
+  pure $ fmap (const da) neg
 
 -- | It parses an atomic data
 --
 -- >>> parseTest dataAtomic  "integer[<0]"
 -- "integer < IntegerL 0"
 --
-dataAtomic :: Parser String
-dataAtomic =
-  try datatypeRestriction
-    <|> try datatype
-    <|> unwords
-    <$> enclosedS '{' literalList
-    <|> enclosedS '(' dataRange
+dataAtomic :: Parser DataAtomic
+dataAtomic = DatatypeRestrictionDA <$> try datatypeRestriction
+    <|> DatatypeDA <$> (try datatype)
+    <|> _todo <$> (enclosedS '{' literalList)
+    <|> DataRange <$> (enclosedS '(' dataRange)
 
 -- | It parsers a non empty list of literal
 --
@@ -681,7 +679,7 @@ literalList = nonEmptyList literal
 -- >>> parseTest datatypeRestriction "integer[< 0]"
 -- "integer < IntegerL 0"
 --
-datatypeRestriction :: Parser String
+datatypeRestriction :: Parser DatatypeRestriction
 datatypeRestriction = do
   dt <- datatype
   symbol "["
@@ -1160,8 +1158,8 @@ misc =
 --- Generic parsers ---
 -----------------------
 
-optionalNegation :: Parser (Maybe String)
-optionalNegation = optional . symbol $ "not"
+optionalNegation :: Parser (WithNegation ())
+optionalNegation = maybe (Positive ()) (const (Negative ())) <$> optional . symbol $ "not"
 
 -- | It parser one or more elements parsed by the input parser p and separated by the input string
 --
@@ -1171,9 +1169,9 @@ optionalNegation = optional . symbol $ "not"
 -- >>> parseTest (singleOrMany "or" . lexeme . string $ "test") "test or test or test"
 -- ["test","test","test"]
 --
-singleOrMany :: String -> Parser p -> Parser [p]
+singleOrMany :: String -> Parser p -> Parser (NonEmpty p)
 singleOrMany sep p =
-  let multipleP = (:) <$> p <*> some (symbol sep *> p) in try multipleP <|> (pure <$> p)
+  let multipleP = (:|) <$> p <*> some (symbol sep *> p) in try multipleP <|> (pure <$> p)
 
 -- | It parses non empty lists
 --
