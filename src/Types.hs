@@ -60,7 +60,7 @@ data FloatPoint = FloatP Double (Maybe Exponent)
 data LiteralWithLang = LiteralWithLang String LangTag deriving Show
 data ObjectProperty = ObjectP IRI | InverseObjectP IRI deriving Show
 data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving Show
-data PrefixDeclaration = PrefixD PrefixName FullIRI deriving Show
+data PrefixDeclaration = PrefixD PrefixName IRI deriving Show
 data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportIRI] [AnnotatedList Annotation] [Frame] deriving Show
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving Show
 data Annotation = Annotation AnnotationPropertyIRI AnnotationTarget
@@ -84,7 +84,8 @@ data DataAtomic = DatatypeDA Datatype
                 | LiteralListDA (NonEmpty Literal)
                 | DatatypeRestrictionDA DatatypeRestriction
                 | DataRangeDA DataRange
-data DatatypeRestriction = DatatypeRestriction Datatype Facet Literal
+data DatatypeRestriction = DatatypeRestriction Datatype (NonEmpty RestrictionExp)
+data RestrictionExp = RestrictionExp Facet Literal
 data Facet = LENGTH_FACET
            | MIN_LENGTH_FACET
            | MAX_LENGTH_FACET
@@ -121,7 +122,7 @@ data DataPropertyRestrictionType = SomeDPR DataPrimary
 data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRestrictionType
 data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType
 data Individual = IRIIndividual IndividualIRI | NodeIndividual NodeID
-data Atomic = AtomicClass ClassIRI | AtomicIndividuals [Individual] | AtomicDescription Description
+data Atomic = AtomicClass ClassIRI | AtomicIndividuals (NonEmpty Individual) | AtomicDescription Description
 data ObjectPropertyFrame = ObjectPropertyF ObjectPropertyIRI [ObjectPropertyElement]
 data ObjectPropertyElement = AnnotationOPE Annotations
                            | DomainOPE Descriptions

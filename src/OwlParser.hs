@@ -135,7 +135,7 @@ nonNegativeInteger = (0 <$ zero) <|> positiveInteger
 -- | It may parse a sign or no sign at all
 --
 -- >>> parseTest sign "+"
--- "" 
+-- ""
 -- >>> parseTest sign "-"
 -- "-"
 -- >>> parseTest sign ""
@@ -202,7 +202,7 @@ prefixName = (identifier_ <|> pure "") <* string ":"
 
 -- | TODO currently IRI is defined as text inside <>
 -- No validation is being performed
--- Check: http://www.rfc-editor.org/rfc/rfc3987.txt for BNF representation 
+-- Check: http://www.rfc-editor.org/rfc/rfc3987.txt for BNF representation
 --
 -- >>> parseTest fullIRI "<http://www.uom.gr/ai/TestOntology.owl#Child>"
 -- "http://www.uom.gr/ai/TestOntology.owl#Child"
@@ -232,7 +232,7 @@ abbreviatedIRI :: Parser IRI
 abbreviatedIRI = AbbreviatedIRI <$> prefixName <*> anyIdentifier
 
 -- | It parses simple IRIs; a finite sequence of characters matching the PN_LOCAL
--- production of [SPARQL] and not matching any of the keyword terminals of the syntax 
+-- production of [SPARQL] and not matching any of the keyword terminals of the syntax
 --
 -- TODO: Simplified to a simple identifier parser
 -- >>> parseTest simpleIRI "John"
@@ -376,7 +376,7 @@ lexicalValue = quotedString
 --
 -- >>> parseTest quotedString "\"this is a quoted string\""
 -- "this is a quoted string"
--- >>> parseTest quotedString "\"this is \\\"test \\\" message\"" 
+-- >>> parseTest quotedString "\"this is \\\"test \\\" message\""
 -- "this is \\\"test \\\" message"
 quotedString :: Parser String
 quotedString = do
@@ -605,7 +605,7 @@ frame =
 --
 -- >>> parseTest objectPropertyExpression "inverse <http://object-property-iri.com>"
 -- InverseObjectP "http://object-property-iri.com"
--- 
+--
 objectPropertyExpression :: Parser ObjectProperty
 objectPropertyExpression = (ObjectP <$> objectPropertyIRI) <|> inverseObjectProperty
 
@@ -613,7 +613,7 @@ objectPropertyExpression = (ObjectP <$> objectPropertyIRI) <|> inverseObjectProp
 --
 -- >>> parseTest inverseObjectProperty "inverse <http://object-property-iri.com>"
 -- InverseObjectP "http://object-property-iri.com"
--- 
+--
 inverseObjectProperty :: Parser ObjectProperty
 inverseObjectProperty = symbol "inverse" *> (InverseObjectP <$> objectPropertyIRI)
 
@@ -659,16 +659,16 @@ dataPrimary = do
 --
 dataAtomic :: Parser DataAtomic
 dataAtomic = DatatypeRestrictionDA <$> try datatypeRestriction
-    <|> DatatypeDA <$> (try datatype)
-    <|> _todo <$> (enclosedS '{' literalList)
-    <|> DataRange <$> (enclosedS '(' dataRange)
+    <|> DatatypeDA <$> try datatype
+    <|> LiteralListDA <$> enclosedS '{' literalList
+    <|> DataRangeDA <$> enclosedS '(' dataRange
 
 -- | It parsers a non empty list of literal
 --
 -- >>> parseTest literalList "\"kostas\", 32, \"true\""
 -- ["kostas","IntegerL 32","true"]
 --
-literalList :: Parser [String]
+literalList :: Parser (NonEmpty Literal)
 literalList = nonEmptyList literal
 
 -- | It parses datatype restrictions
@@ -683,24 +683,30 @@ datatypeRestriction :: Parser DatatypeRestriction
 datatypeRestriction = do
   dt <- datatype
   symbol "["
-  rvList <- nonEmptyList ((,) <$> facet <*> restrictionValue)
+  rvList <- nonEmptyList (RestrictionExp <$> facet <*> restrictionValue)
   symbol "]"
-  let res = fmap (\(f, v) -> unwords [dt, f, v]) rvList
-  return $ intercalate " AND " res
+  pure $ DatatypeRestriction dt rvList
 
-facet :: Parser String
-facet =
-  choice $ fmap symbol ["length", "maxLength", "minLength", "pattern", "langRange", "<=", "<", ">=", ">"]
+facet :: Parser Facet
+facet = symbol "length" $> LENGTH_FACET
+      <|> symbol "maxLength" $> MAX_LENGTH_FACET
+      <|> symbol "minLength" $> MIN_LENGTH_FACET
+      <|> symbol "pattern" $> PATTERN_FACET
+      <|> symbol "langRange" $> LANG_RANGE_FACET
+      <|> symbol "<=" $> LE_FACET
+      <|> symbol "<" $> L_FACET
+      <|> symbol ">=" $> GE_FACET
+      <|> symbol ">" $> G_FACET
 
-restrictionValue :: Parser String
+restrictionValue :: Parser Literal
 restrictionValue = literal
 
 predifinedPrefixex :: [PrefixDeclaration]
 predifinedPrefixex =
-  [ PrefixD "rdf"  "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-  , PrefixD "rdfs" "http://www.w3.org/2000/01/rdf-schema#"
-  , PrefixD "xsd"  "http://www.w3.org/2001/XMLSchema#"
-  , PrefixD "owl"  "http://www.w3.org/2002/07/owl#"
+  [ PrefixD "rdf"  (FullIRI "http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+  , PrefixD "rdfs" (FullIRI "http://www.w3.org/2000/01/rdf-schema#")
+  , PrefixD "xsd"  (FullIRI "http://www.w3.org/2001/XMLSchema#")
+  , PrefixD "owl"  (FullIRI "http://www.w3.org/2002/07/owl#")
   ]
 
 
@@ -722,7 +728,7 @@ predifinedPrefixex =
 -- >>> parseTest (description >> eof) "hasFirstName value \"John\" or hasFirstName value \"Jack\"^^xsd:string"
 -- ()
 --
-description :: Parser [String]
+description :: Parser (NonEmpty Conjunction)
 description = singleOrMany "or" conjunction
 
 -- | It parses a conjunction
@@ -736,20 +742,20 @@ description = singleOrMany "or" conjunction
 -- >>> parseTest (conjunction >> eof) "owl:Thing that hasFirstName exactly 1"
 -- ()
 --
-conjunction :: Parser String
-conjunction = try restrictions <|> try (unwords <$> singleOrMany "and" primary)
+conjunction :: Parser Conjunction
+conjunction = try (uncurry ClassConj <$> restrictions)
+          <|> try (PrimConj <$> singleOrMany "and" primary)
  where
+  restWithNeg = do
+    neg  <- optionalNegation
+    rst  <- restriction
+    pure $ const rst <$> neg
   restrictions = do
     clsIRI <- classIRI
     symbol "that"
-    neg  <- optionalNegation
-    rst  <- restriction
-    rsts <- many $ do
-      symbol "and"
-      neg' <- optionalNegation
-      rst' <- restriction
-      pure . unwords . filter (not . null) $ [fromMaybe "" neg', rst']
-    pure . unwords . filter (not . null) $ [clsIRI, fromMaybe "" neg, rst] ++ rsts
+    rst <- restWithNeg
+    rsts <- many $ symbol "and" *> restWithNeg
+    pure (clsIRI, rst :| rsts)
 
 -- | It parses a primary
 --
@@ -759,11 +765,10 @@ conjunction = try restrictions <|> try (unwords <$> singleOrMany "and" primary)
 -- >>> parseTest primary "not hasFirstName value \"John\""
 -- "not John"
 --
-primary :: Parser String
+primary :: Parser Primary
 primary = do
   neg  <- optionalNegation
-  rOrA <- try restriction <|> try (unwords <$> atomic)
-  pure . unwords . filter (not . null) $ [fromMaybe "" neg, rOrA]
+  PrimaryR . (\x -> fmap (const x) neg) <$> try restriction <|> PrimaryA . (\x -> fmap (const x) neg) <$> try atomic
 
 -- | It parses one of the many differnt type of restrictions on object or data properties
 --
@@ -776,28 +781,44 @@ primary = do
 -- >>> parseTest (restriction >> eof) "hasFirstName only string[minLength 1]"
 -- ()
 --
-restriction :: Parser String
-restriction = lexeme . choice $ try <$> objectExprParsers <> dataExprParsers
+restriction :: Parser Restriction
+restriction = (OPRestriction . OPR <$> objectPropertyExpression <*> objectRestriction)
+          <|> (DPRestriction . DPR <$> dataPropertyExpression <*> dataRestriction)
  where
-  objExprs =
-    [ ("some"   , primary)
-    , ("only"   , primary)
-    , ("Self"   , pure "")
-    , ("min", show <$> nonNegativeInteger <* optional primary)
-    , ("max", show <$> nonNegativeInteger <* optional primary)
-    , ("exactly", show <$> nonNegativeInteger <* optional primary)
-    ]
-  dataExprs =
-    [ ("some"   , dataPrimary)
-    , ("only"   , dataPrimary)
-    , ("value"  , literal)
-    , ("min", show <$> nonNegativeInteger <* optional dataPrimary)
-    , ("max", show <$> nonNegativeInteger <* optional dataPrimary)
-    , ("exactly", show <$> nonNegativeInteger <* optional dataPrimary)
-    ]
-  -- TODO: now, i keep only the last parser!
-  objectExprParsers = (\(smb, p) -> objectPropertyExpression *> symbol smb *> p) <$> objExprs
-  dataExprParsers   = (\(smb, p) -> dataPropertyExpression *> symbol smb *> p) <$> dataExprs
+  objectRestriction = SomeOPR <$> try (symbol "some" *> primary)
+                  <|> OnlyOPR <$> try (symbol "only" *> primary)
+                  <|> try (symbol "Self") $> SelfOPR
+                  <|> MinOPR <$> try((symbol "min" *> nonNegativeInteger) <*> optional primary)
+                  <|> MaxOPR <$> try((symbol "max" *> nonNegativeInteger) <*> optional primary)
+                  <|> ExactlyOPR <$> try((symbol "exactly" *> nonNegativeInteger) <*> optional primary)
+  dataRestriction = SomeDPR <$> try(symbol "some" *> dataPrimary)
+                  <|> OnlyDPR <$> try(symbol "only" *> dataPrimary)
+                  <|> MinDPR <$> try((symbol "min" *> nonNegativeInteger) <*> optional dataPrimary)
+                  <|> MaxDPR <$> try((symbol "max" *> nonNegativeInteger) <*> optional dataPrimary)
+                  <|> ExactlyDPR <$> try((symbol "exactly" *> nonNegativeInteger) <*> optional dataPrimary)
+
+-- restriction :: Parser Restriction
+-- restriction = lexeme . choice $ try <$> objectExprParsers <> dataExprParsers
+--  where
+--   objExprs =
+--     [ ("some"   , primary)
+--     , ("only"   , primary)
+--     , ("Self"   , pure "")
+--     , ("min", show <$> nonNegativeInteger <* optional primary)
+--     , ("max", show <$> nonNegativeInteger <* optional primary)
+--     , ("exactly", show <$> nonNegativeInteger <* optional primary)
+--     ]
+--   dataExprs =
+--     [ ("some"   , dataPrimary)
+--     , ("only"   , dataPrimary)
+--     , ("value"  , literal)
+--     , ("min", show <$> nonNegativeInteger <* optional dataPrimary)
+--     , ("max", show <$> nonNegativeInteger <* optional dataPrimary)
+--     , ("exactly", show <$> nonNegativeInteger <* optional dataPrimary)
+--     ]
+--   -- TODO: now, i keep only the last parser!
+--   objectExprParsers = (\(smb, p) -> objectPropertyExpression *> symbol smb *> p) <$> objExprs
+--   dataExprParsers   = (\(smb, p) -> dataPropertyExpression *> symbol smb *> p) <$> dataExprs
 
 -- | It parses a class IRI or a list of individual IRIs
 --
@@ -810,8 +831,10 @@ restriction = lexeme . choice $ try <$> objectExprParsers <> dataExprParsers
 -- >>> parseTest atomic "{ <class.iri#ind1>, <class.iri#ind2> }"
 -- ["class.iri#ind1","class.iri#ind2"]
 --
-atomic :: Parser [String]
-atomic = pure <$> classIRI <|> enclosedS '{' (nonEmptyList individual)
+atomic :: Parser Atomic
+atomic = AtomicClass <$> classIRI
+     <|> AtomicIndividuals <$> enclosedS '{' (nonEmptyList individual)
+     <|> AtomicDescription <$> enclosedS '(' description
 
 
 --------------------------------
@@ -824,7 +847,7 @@ atomic = pure <$> classIRI <|> enclosedS '{' (nonEmptyList individual)
 -- >>> :{
 -- let input :: [String]
 --     input =
---       [ 
+--       [
 --         "Datatype: NegInt"
 --       , "Annotations: rdfs:comment \"General domain\", creator John"
 --       , "EquivalentTo: Annotations: rdf:comment \"General Domain\" integer[< 0]"
@@ -847,7 +870,7 @@ datatypeFrame = do
 -- >>> :{
 -- let input :: [String]
 --     input =
---       [ 
+--       [
 --         "Class: Person"
 --       , "Annotations: rdfs:comment \"General domain\", creator John"
 --       , "  SubClassOf: owl:Thing that hasFirstName exactly 1 and hasFirstName only string[minLength 1]"
@@ -895,7 +918,7 @@ classFrame = do
 -- >>> :{
 -- let input :: [String]
 --     input =
---       [ 
+--       [
 --         "ObjectProperty: hasWife"
 --       , "  Annotations: rdfs:comment \"haswife object property\""
 --       , "  Characteristics: Functional, InverseFunctional, Reflexive, Irreflexive, Asymmetric, Transitive"
@@ -974,7 +997,7 @@ objectPropertyCharacteristic =
 -- >>> :{
 -- let input :: [String]
 --     input =
---       [ 
+--       [
 --         "DataProperty: hasAge"
 --       , "Annotations: rdfs:comment \"General domain\", creator John"
 --       , "Characteristics: Functional"
@@ -1014,7 +1037,7 @@ dataPropertyFrame = do
 -- >>> :{
 -- let input :: [String]
 --     input =
---       [ 
+--       [
 --         "AnnotationProperty: creator"
 --       , "Annotations: rdfs:comment \"General domain\", creator John"
 --       , "Domain: Person , Woman"
@@ -1043,7 +1066,7 @@ annotationPropertyFrame = do
 -- >>> :{
 -- let input :: [String]
 --     input =
---       [ 
+--       [
 --        "Individual: John"
 --       , "  Annotations: rdfs:creator \"John\""
 --       , "  Types: Person, hasFirstName value \"John\" or hasFirstName value \"Jack\"^^xsd:string"
@@ -1097,7 +1120,7 @@ dataPropertyFact = do
 -- >>> :{
 -- let input :: [String]
 --     input =
---       [ 
+--       [
 --         "DisjointClasses: g:Rock, g:Scissor, g:Paper"
 --       , "EquivalentProperties: hates, loathes, despises"
 --       , "DisjointProperties: hates, loves, indifferent"
@@ -1183,8 +1206,8 @@ singleOrMany sep p =
 -- unexpected end of input
 -- expecting '@'
 --
-nonEmptyList :: Parser p -> Parser [p]
-nonEmptyList p = (:) <$> p <*> many (symbol "," *> p <* sc)
+nonEmptyList :: Parser p -> Parser (NonEmpty p)
+nonEmptyList p = (|:) <$> p <*> many (symbol "," *> p <* sc)
 
 -- | It parses lists with at least two elements
 --
@@ -1196,8 +1219,8 @@ nonEmptyList p = (:) <$> p <*> many (symbol "," *> p <* sc)
 -- unexpected end of input
 -- ...
 --
-listOfAtLeast2 :: Parser p -> Parser [p]
-listOfAtLeast2 p = (:) <$> p <*> some (symbol "," >> p)
+listOfAtLeast2 :: Parser p -> Parser (NonEmpty p)
+listOfAtLeast2 p = (|:) <$> p <*> some (symbol "," >> p)
 
 -- | It parses non empty annotated lists
 --
