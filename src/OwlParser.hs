@@ -117,7 +117,7 @@ digits = some digit
 --
 -- >>> parseTest positiveInteger "13"
 -- 13
-positiveInteger :: Parser Integer
+positiveInteger :: Parser Int
 positiveInteger = do
   fd  <- nonZero
   rem <- many digit
@@ -129,7 +129,7 @@ positiveInteger = do
 -- 13
 -- >>> parseTest nonNegativeInteger "0"
 -- 0
-nonNegativeInteger :: Parser Integer
+nonNegativeInteger :: Parser Int
 nonNegativeInteger = (0 <$ zero) <|> positiveInteger
 
 -- | It may parse a sign or no sign at all
@@ -583,15 +583,15 @@ versionIRI = iri
 importStmt :: Parser ImportIRI
 importStmt = symbol "Import:" *> iri
 
-frame :: Parser String
+frame :: Parser Frame
 frame =
-  datatypeFrame
-    <|> classFrame
-    <|> objectPropertyFrame
-    <|> dataPropertyFrame
-    <|> annotationPropertyFrame
-    <|> individualFrame
-    <|> misc
+  (FrameDT <$> datatypeFrame)
+    <|> (FrameC <$> classFrame)
+    <|> (FrameOP <$> objectPropertyFrame)
+    <|> (FrameDP <$> dataPropertyFrame)
+    <|> (FrameAP <$> annotationPropertyFrame)
+    <|> (FrameI <$> individualFrame)
+    <|> (FrameM <$> misc)
 
 
 -------------------------------------------
@@ -606,24 +606,25 @@ frame =
 -- >>> parseTest objectPropertyExpression "inverse <http://object-property-iri.com>"
 -- InverseObjectP "http://object-property-iri.com"
 --
-objectPropertyExpression :: Parser ObjectProperty
-objectPropertyExpression = (ObjectP <$> objectPropertyIRI) <|> inverseObjectProperty
+objectPropertyExpression :: Parser ObjectPropertyExpression
+objectPropertyExpression = (Positive <$> objectPropertyIRI)
+                       <|> (Negative <$> (symbol "inverse" *> objectPropertyIRI))
 
 -- | It parses an inverse object property expression
 --
 -- >>> parseTest inverseObjectProperty "inverse <http://object-property-iri.com>"
 -- InverseObjectP "http://object-property-iri.com"
 --
-inverseObjectProperty :: Parser ObjectProperty
-inverseObjectProperty = symbol "inverse" *> (InverseObjectP <$> objectPropertyIRI)
+--inverseObjectProperty :: Parser ObjectProperty
+--inverseObjectProperty = symbol "inverse" *> (InverseObjectP <$> objectPropertyIRI)
 
 -- | It parses a data property expression
 --
 -- >>> parseTest dataPropertyExpression "<http://object-property-iri.com>"
 -- DataP "http://object-property-iri.com"
 --
-dataPropertyExpression :: Parser DataProperty
-dataPropertyExpression = DataP <$> dataPropertyIRI
+dataPropertyExpression :: Parser DataPropertyExpression
+dataPropertyExpression = dataPropertyIRI
 
 -- | It parses a data range
 --
@@ -782,20 +783,20 @@ primary = do
 -- ()
 --
 restriction :: Parser Restriction
-restriction = (OPRestriction . OPR <$> objectPropertyExpression <*> objectRestriction)
-          <|> (DPRestriction . DPR <$> dataPropertyExpression <*> dataRestriction)
+restriction = OPRestriction <$> (OPR <$> objectPropertyExpression <*> objectRestriction)
+          <|> DPRestriction <$> (DPR <$> dataPropertyExpression <*> dataRestriction)
  where
-  objectRestriction = SomeOPR <$> try (symbol "some" *> primary)
-                  <|> OnlyOPR <$> try (symbol "only" *> primary)
-                  <|> try (symbol "Self") $> SelfOPR
-                  <|> MinOPR <$> try((symbol "min" *> nonNegativeInteger) <*> optional primary)
-                  <|> MaxOPR <$> try((symbol "max" *> nonNegativeInteger) <*> optional primary)
-                  <|> ExactlyOPR <$> try((symbol "exactly" *> nonNegativeInteger) <*> optional primary)
-  dataRestriction = SomeDPR <$> try(symbol "some" *> dataPrimary)
-                  <|> OnlyDPR <$> try(symbol "only" *> dataPrimary)
-                  <|> MinDPR <$> try((symbol "min" *> nonNegativeInteger) <*> optional dataPrimary)
-                  <|> MaxDPR <$> try((symbol "max" *> nonNegativeInteger) <*> optional dataPrimary)
-                  <|> ExactlyDPR <$> try((symbol "exactly" *> nonNegativeInteger) <*> optional dataPrimary)
+  objectRestriction = try (SomeOPR <$> (symbol "some" *> primary))
+                  <|> try (OnlyOPR <$> (symbol "only" *> primary))
+                  <|> symbol "Self" $> SelfOPR
+                  <|> try (MinOPR <$> (symbol "min" *> nonNegativeInteger) <*> optional primary)
+                  <|> try (MaxOPR <$> (symbol "max" *> nonNegativeInteger) <*> optional primary)
+                  <|> try (ExactlyOPR <$> (symbol "exactly" *> nonNegativeInteger) <*> optional primary)
+  dataRestriction = try (SomeDPR <$> (symbol "some" *> dataPrimary))
+                  <|> try (OnlyDPR <$> (symbol "only" *> dataPrimary))
+                  <|> try (MinDPR <$> (symbol "min" *> nonNegativeInteger) <*> optional dataPrimary)
+                  <|> try (MaxDPR <$> (symbol "max" *> nonNegativeInteger) <*> optional dataPrimary)
+                  <|> try (ExactlyDPR <$> (symbol "exactly" *> nonNegativeInteger) <*> optional dataPrimary)
 
 -- restriction :: Parser Restriction
 -- restriction = lexeme . choice $ try <$> objectExprParsers <> dataExprParsers
@@ -939,31 +940,20 @@ classFrame = do
 -- >>> parseTest objectPropertyFrame (unlines input)
 -- "hasWife:9"
 --
-objectPropertyFrame :: Parser String
-objectPropertyFrame = do
-  objPropIRI <- symbol "ObjectProperty:" *> objectPropertyIRI
-  blob       <- length <$> many altr
-  pure $ concat [objPropIRI, ":", show blob]
+objectPropertyFrame :: Parser ObjectPropertyFrame
+objectPropertyFrame = ObjectPropertyF <$> (symbol "ObjectProperty:" *> objectPropertyIRI) <*> many altr
  where
-  altr =
-    (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
-      <|> (symbol "Domain:" *> annotatedList description $> "<domain-description>")
-      <|> (symbol "Range:" *> annotatedList description $> "<range-description>")
-      <|> (  symbol "Characteristics:"
-          *> annotatedList objectPropertyCharacteristic
-          $> "<characteristics-props>"
-          )
-      <|> (symbol "SubPropertyOf:" *> annotatedList objectPropertyExpression $> "<sub-property-of-expr>")
-      <|> (symbol "EquivalentTo:" *> annotatedList objectPropertyExpression $> "<equivalent-to-expr>")
-      <|> (symbol "DisjointWith:" *> annotatedList objectPropertyExpression $> "<disjoin-with-expr>")
-      <|> (symbol "InverseOf:" *> annotatedList objectPropertyExpression $> "<inverse-of-expr>")
-      <|> (  symbol "SubPropertyChain:"
-          *> annotations -- TODO: is it really required?
-          *> objectPropertyExpression
-          *> nonEmptyList (symbol "o" *> objectPropertyExpression)
-          $> "<disjoin-union-description>"
-          )
-
+  altr = AnnotationOPE       <$> (symbol "Annotations:" *> annotatedList annotation)
+     <|> DomainOPE           <$> (symbol "Domain:" *> annotatedList description)
+     <|> RangeOPE            <$> (symbol "Range:" *> annotatedList description)
+     <|> CharacteristicsOPE  <$> (symbol "Characteristics:" *> annotatedList objectPropertyCharacteristic)
+     <|> SubPropertyOfOPE    <$> (symbol "SubPropertyOf:" *> annotatedList objectPropertyExpression)
+     <|> EquivalentToOPE     <$> (symbol "EquivalentTo:" *> annotatedList objectPropertyExpression)
+     <|> DisjointWithOPE     <$> (symbol "DisjointWith:" *> annotatedList objectPropertyExpression)
+     <|> InverseOfOPE        <$> (symbol "InverseOf:" *> annotatedList objectPropertyExpression)
+     <|> SubPropertyChainOPE <$> (symbol "SubPropertyChain:" *> annotations) -- TODO: is it really required?
+                             <*> (atLeast2List' <$> objectPropertyExpression
+                                                <*> nonEmptyList (symbol "o" *> objectPropertyExpression))
 
 -- | It parses one of the permitted object property characteristics
 --
@@ -978,18 +968,15 @@ objectPropertyFrame = do
 -- unexpected "Random"
 -- ...
 --
-objectPropertyCharacteristic :: Parser String
+objectPropertyCharacteristic :: Parser ObjectPropertyCharacteristics
 objectPropertyCharacteristic =
-  let charNames =
-        [ "Functional"
-        , "InverseFunctional"
-        , "Reflexive"
-        , "Irreflexive"
-        , "Symmetric"
-        , "Asymmetric"
-        , "Transitive"
-        ]
-  in  choice $ symbol <$> charNames
+            symbol "Functional" $> FUNCTIONAL
+        <|> symbol "InverseFunctional" $> INVERSE_FUNCTIONAL
+        <|> symbol "Reflexive" $> REFLEXIVE
+        <|> symbol "Irreflexive" $> IRREFLEXIVE
+        <|> symbol "Symmetric" $> SYMMETRIC
+        <|> symbol "Asymmetric" $> ASYMMETRIC
+        <|> symbol "Transitive" $> TRANSITIVE
 
 
 -- | It parses an data property

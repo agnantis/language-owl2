@@ -16,6 +16,9 @@ data AtLeast2List a = (a, a) :# [a] deriving ( Eq, Ord, Show, Read, Functor)
 atLeast2List :: a -> a -> [a] -> AtLeast2List a
 atLeast2List x y = (:#) (x, y)
 
+atLeast2List' :: a -> NonEmpty a -> AtLeast2List a
+atLeast2List' x nx = let (x' :| xs) = nx in (x, x') :# xs
+
 toList :: AtLeast2List a -> [a]
 toList ~((x, y) :# xs) = x : y : xs
 
@@ -34,13 +37,13 @@ type ClassIRI = IRI
 type ObjectPropertyIRI = IRI
 type DataPropertyIRI = IRI
 type IndividualIRI = IRI
-type Frame = String
+--type Frame = String
 type PrefixName = String
 type Annotations = AnnotatedList Annotation
 type Descriptions = AnnotatedList Description
 newtype DataRange = DataRange (NonEmpty DataConjunction)
 newtype DataConjunction = DataConjunction (NonEmpty DataPrimary)
-type ObjectPropertyExpression = WithNegation IRI
+type WithInversion = WithNegation
 type Description = NonEmpty Conjunction
 type Fact = WithNegation FactElement
 
@@ -49,29 +52,27 @@ newtype DecimalLiteral = DecimalL Double deriving Show
 newtype IntegerLiteral = IntegerL Integer deriving Show
 newtype NodeID = NodeID String deriving Show
 newtype AnnotatedList a = AnnList [(AnnotatedList Annotation, a)]
-newtype DataPropertyExpression = Dpe IRI
-newtype DataProperty = DataP IRI deriving Show
+type DataPropertyExpression = DataPropertyIRI
+type ObjectPropertyExpression = WithInversion ObjectPropertyIRI
 
 data IRI = FullIRI String
          | AbbreviatedIRI PrefixName String
          | SimpleIRI String deriving Show
 data TypedLiteral = TypedL String Datatype deriving Show
 data FloatPoint = FloatP Double (Maybe Exponent)
-data LiteralWithLang = LiteralWithLang String LangTag deriving Show
-data ObjectProperty = ObjectP IRI | InverseObjectP IRI deriving Show
-data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving Show
+data LiteralWithLang = LiteralWithLang String LangTag
+data OntologyDocument = OntologyD [PrefixDeclaration] Ontology
 data PrefixDeclaration = PrefixD PrefixName IRI deriving Show
-data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportIRI] [AnnotatedList Annotation] [Frame] deriving Show
-data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving Show
+data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportIRI] [AnnotatedList Annotation] [Frame]
+data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI)
 data Annotation = Annotation AnnotationPropertyIRI AnnotationTarget
-data FrameF = DatatypeFrame
-            | ClassFrame
-            | ObjectPropertyFrame
-            | DataPropertyFrame
-            | AnnotationPropertyFrame
-            | IndividualFrame
-            | Misc
-            deriving Show
+data Frame = FrameDT DatatypeFrame
+           | FrameC ClassFrame
+           | FrameOP ObjectPropertyFrame
+           | FrameDP DataPropertyFrame
+           | FrameAP AnnotationPropertyFrame
+           | FrameI IndividualFrame
+           | FrameM Misc
 data DatatypeFrame = DatatypeF Datatype Annotations (Maybe AnnotDataRange)
 data AnnotDataRange = AnnotDataRange Annotations DataRange
 data Datatype = DatatypeIRI IRI
@@ -134,7 +135,7 @@ data ObjectPropertyElement = AnnotationOPE Annotations
                            | InverseOfOPE (AnnotatedList ObjectPropertyExpression)
                            | SubPropertyChainOPE Annotations (AtLeast2List ObjectPropertyExpression)
 data ObjectPropertyCharacteristics = FUNCTIONAL
-                                   | INVERSEFUNCTIONAL
+                                   | INVERSE_FUNCTIONAL
                                    | REFLEXIVE
                                    | IRREFLEXIVE
                                    | SYMMETRIC
@@ -165,10 +166,10 @@ data ObjectPropertyFact = ObjectPropertyFact ObjectPropertyIRI Individual
 data DataPropertyFact = FataPropertyFact DataPropertyIRI Literal
 data Misc = EquivalentClasses Annotations (AtLeast2List Description)
           | DisjointClasses Annotations (AtLeast2List Description)
-          | EquivalentObjectProperties Annotations (AtLeast2List ObjectProperty)
-          | DisjointObjectProperties Annotations (AtLeast2List ObjectProperty)
-          | EquivalentDataProperties Annotations (AtLeast2List DataProperty)
-          | DisjointDataProperties Annotations (AtLeast2List DataProperty)
+          | EquivalentObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
+          | DisjointObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
+          | EquivalentDataProperties Annotations (AtLeast2List DataPropertyExpression)
+          | DisjointDataProperties Annotations (AtLeast2List DataPropertyExpression)
           | SameIndividual Annotations (AtLeast2List Individual)
           | DifferentIndividual Annotations (AtLeast2List Individual)
 data Literal = TypedLiteralC TypedLiteral
