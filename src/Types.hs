@@ -12,7 +12,6 @@ import           Data.List.NonEmpty                       ( NonEmpty(..) )
 -- TODO: Should I include a NonEmpty? I do not think so
 data AtLeast2List a = (a, a) :# [a] deriving ( Eq, Ord, Show, Read, Functor)
 
-
 atLeast2List :: a -> a -> [a] -> AtLeast2List a
 atLeast2List x y = (:#) (x, y)
 
@@ -96,13 +95,15 @@ data Facet = LENGTH_FACET
            | L_FACET
            | GE_FACET
            | G_FACET
-data ClassFrame = ClassF IRI [ClassElement] Key
+data ClassFrame = ClassF IRI [ClassElement]
 data ClassElement = AnnotationCE Annotations
                   | SubClassOfCE Descriptions
                   | EquivalentToCE Descriptions
                   | DisjointToCE Descriptions
-                  | DisjointUnionOfCE Annotations (AtLeast2List Description)
-data Key = KeyAnn Annotations [DataPropertyExpression] [ObjectPropertyExpression]
+                  | DisjointUnionOfCE (Maybe Annotations) (AtLeast2List Description)
+		  | HasKeyCE (Maybe Annotations) NonEmptyListOfObjectOrDataPE
+data NonEmptyListOfObjectOrDataPE = NonEmptyO (NonEmpty ObjectPropertyExpression) [DataPropertyExpression]
+                                  | NonEmptyD [ObjectPropertyExpression] (NonEmpty DataPropertyExpression) 
 data WithNegation a = Positive a | Negative a
 data Conjunction = ClassConj IRI (NonEmpty (WithNegation Restriction)) | PrimConj (NonEmpty Primary)
 data Primary = PrimaryR (WithNegation Restriction) | PrimaryA (WithNegation Atomic)
@@ -189,9 +190,22 @@ data AnnotationTarget = NodeAT NodeID
                       | LiteralAT Literal
 -- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic deriving Show
 
+
+---------------------------
+---- UTILITY FUNCTIONS ----
+---------------------------
+
+
 -------------------------
 ---- CLASS INSTANCES ----
 -------------------------
+
+instance Semigroup (AnnotatedList a) where
+  (AnnList xs) <> (AnnList ys) = AnnList (xs <> ys)  
+
+instance Monoid (AnnotatedList a) where
+  mempty = AnnList []
+
 
 instance Show Annotation where
   show (Annotation i s) = unwords [show i, "<undefinded-annotation-target>"]

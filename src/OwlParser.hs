@@ -858,13 +858,13 @@ atomic = AtomicClass <$> classIRI
 -- >>> parseTest (datatypeFrame >> eof) (unlines input)
 -- ()
 --
-datatypeFrame :: Parser String
+datatypeFrame :: Parser DatatypeFrame
 datatypeFrame = do
-  dttp    <- symbol "Datatype:" *> datatype
+  dtype   <- symbol "Datatype:" *> datatype
   annots  <- many $ symbol "Annotations:" *> annotatedList annotation
-  equiv   <- optional $ symbol "EquivalentTo:" *> annotations <* dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
+  equiv   <- optional $ AnnotDataRange <$> (symbol "EquivalentTo:" *> annotations) <*> dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
   annots' <- many $ symbol "Annotations:" *> annotatedList annotation
-  pure "<data-frame>"
+  pure $ DatatypeF dtype (mconcat (annots <> annots')) equiv
 
 -- | It parses a class frame
 --
@@ -889,30 +889,28 @@ datatypeFrame = do
 -- >>> parseTest (classFrame >> eof) (unlines input)
 -- ()
 --
-classFrame :: Parser String
+-- TODO-check-1: in specs `sndChoice` (aka `HasKey`) is an alternative to the others
+-- I think this is wrong; and `HasKey` should be included in the list of alternatives
+-- TODO-check-2: in specs the annotations of `HasKey` and `DisjointUnionOf` are required,
+-- but I think is wrong. I made them optional :)
+classFrame :: Parser ClassFrame
 classFrame = do
   clsIRI <- symbol "Class:" *> classIRI
-  blob   <- (unwords <$> many fstChoice) <* optional sndChoice -- TODO-check: in specs `sndChoice` aka `HasKey` is an alternative to the others
-  pure "<class-frame>"
+  blob   <- many choices
+  pure $ ClassF clsIRI blob 
  where
-  fstChoice =
-    (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
-      <|> (symbol "SubClassOf:" *> annotatedList description $> "<subclass-description>")
-      <|> (symbol "EquivalentTo:" *> annotatedList description $> "<equivalent-to-description>")
-      <|> (symbol "DisjointWith:" *> annotatedList description $> "<disjoint-with-descriptnio>")
-      <|> (  symbol "DisjointUnionOf:"
-          *> optional annotations -- TODO-check: in spec `annotations` are not optional
-          *> listOfAtLeast2 description
-          $> "<disjoin-union-description>"
-          )
-  sndChoice = do
-    symbol "HasKey:"
-    annots <- optional annotations -- TODO-check: in spec `annotations` are not optional
-    mExpr  <-
-      nonEmptyList
-      $   (objectPropertyExpression $> "<objectPropertyExpression>")
-      <|> (dataPropertyExpression $> "<dataPropertyExpression>")
-    pure "<sndChoice>"
+  choices :: Parser ClassElement
+  choices =
+    AnnotationCE <$> (symbol "Annotations:" *> annotatedList annotation)
+      <|> SubClassOfCE <$> (symbol "SubClassOf:" *> annotatedList description)
+      <|> EquivalentToCE <$> (symbol "EquivalentTo:" *> annotatedList description)
+      <|> DisjointToCE <$> (symbol "DisjointWith:" *> annotatedList description)
+      <|> DisjointUnionOfCE <$> (symbol "DisjointUnionOf:" *> optional annotations) 
+                            <*> listOfAtLeast2 description
+      <|> HasKeyCE <$> (symbol "HasKey:" *> optional annotations)
+                   <*> (nonEmptyOPE <|> nonEmptyDPE)
+  nonEmptyOPE = NonEmptyO <$> nonEmptyList objectPropertyExpression <*> many dataPropertyExpression
+  nonEmptyDPE = NonEmptyD <$> many objectPropertyExpression <*> nonEmptyList dataPropertyExpression
 
 -- | It parses an object property
 --
@@ -1194,7 +1192,7 @@ singleOrMany sep p =
 -- expecting '@'
 --
 nonEmptyList :: Parser p -> Parser (NonEmpty p)
-nonEmptyList p = (|:) <$> p <*> many (symbol "," *> p <* sc)
+nonEmptyList p = (:|) <$> p <*> many (symbol "," *> p <* sc)
 
 -- | It parses lists with at least two elements
 --
@@ -1206,8 +1204,8 @@ nonEmptyList p = (|:) <$> p <*> many (symbol "," *> p <* sc)
 -- unexpected end of input
 -- ...
 --
-listOfAtLeast2 :: Parser p -> Parser (NonEmpty p)
-listOfAtLeast2 p = (|:) <$> p <*> some (symbol "," >> p)
+listOfAtLeast2 :: Parser p -> Parser (AtLeast2List p)
+listOfAtLeast2 p = atLeast2List' <$> p <*> nonEmptyList (symbol "," >> p)
 
 -- | It parses non empty annotated lists
 --
