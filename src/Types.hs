@@ -101,7 +101,7 @@ data ClassElement = AnnotationCE Annotations
                   | EquivalentToCE Descriptions
                   | DisjointToCE Descriptions
                   | DisjointUnionOfCE (Maybe Annotations) (AtLeast2List Description)
-		  | HasKeyCE (Maybe Annotations) NonEmptyListOfObjectOrDataPE
+                  | HasKeyCE (Maybe Annotations) NonEmptyListOfObjectOrDataPE
 data NonEmptyListOfObjectOrDataPE = NonEmptyO (NonEmpty ObjectPropertyExpression) [DataPropertyExpression]
                                   | NonEmptyD [ObjectPropertyExpression] (NonEmpty DataPropertyExpression) 
 data WithNegation a = Positive a | Negative a
@@ -134,7 +134,7 @@ data ObjectPropertyElement = AnnotationOPE Annotations
                            | EquivalentToOPE (AnnotatedList ObjectPropertyExpression)
                            | DisjointWithOPE (AnnotatedList ObjectPropertyExpression)
                            | InverseOfOPE (AnnotatedList ObjectPropertyExpression)
-                           | SubPropertyChainOPE Annotations (AtLeast2List ObjectPropertyExpression)
+                           | SubPropertyChainOPE (AnnotatedList (AtLeast2List ObjectPropertyExpression))
 data ObjectPropertyCharacteristics = FUNCTIONAL
                                    | INVERSE_FUNCTIONAL
                                    | REFLEXIVE
@@ -146,7 +146,7 @@ data DataPropertyFrame = DataPropertyF DataPropertyIRI [DataPropertyElement]
 data DataPropertyElement = AnnotationDPE Annotations
                          | DomainDPE Descriptions
                          | RangeDPE (AnnotatedList DataRange)
-                         | CharacteristicsDPE Annotations DataPropertyCharacteristics
+                         | CharacteristicsDPE (AnnotatedList DataPropertyCharacteristics)
                          | SubPropertyOfDPE (AnnotatedList DataPropertyExpression)
                          | EquivalentToDPE (AnnotatedList DataPropertyExpression)
                          | DisjointWithDPE (AnnotatedList DataPropertyExpression)
@@ -164,15 +164,15 @@ data IndividualElement = AnnotationIE Annotations
                        | DifferentFromIE (AnnotatedList Individual)
 data FactElement = ObjectPropertyFE ObjectPropertyFact | DataPropertyFE DataPropertyFact
 data ObjectPropertyFact = ObjectPropertyFact ObjectPropertyIRI Individual
-data DataPropertyFact = FataPropertyFact DataPropertyIRI Literal
-data Misc = EquivalentClasses Annotations (AtLeast2List Description)
-          | DisjointClasses Annotations (AtLeast2List Description)
-          | EquivalentObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
-          | DisjointObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
-          | EquivalentDataProperties Annotations (AtLeast2List DataPropertyExpression)
-          | DisjointDataProperties Annotations (AtLeast2List DataPropertyExpression)
-          | SameIndividual Annotations (AtLeast2List Individual)
-          | DifferentIndividual Annotations (AtLeast2List Individual)
+data DataPropertyFact = DataPropertyFact DataPropertyIRI Literal
+data Misc = EquivalentClasses (AnnotatedList (AtLeast2List Description))
+          | DisjointClasses (AnnotatedList (AtLeast2List Description))
+          | EquivalentObjectProperties (AnnotatedList (AtLeast2List ObjectPropertyExpression))
+          | DisjointObjectProperties (AnnotatedList (AtLeast2List ObjectPropertyExpression))
+          | EquivalentDataProperties (AnnotatedList (AtLeast2List DataPropertyExpression))
+          | DisjointDataProperties (AnnotatedList (AtLeast2List DataPropertyExpression))
+          | SameIndividual (AnnotatedList (AtLeast2List Individual))
+          | DifferentIndividual (AnnotatedList (AtLeast2List Individual))
 data Literal = TypedLiteralC TypedLiteral
              | StringLiteralNoLang String
              | StringLiteralLang LiteralWithLang

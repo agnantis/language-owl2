@@ -584,14 +584,13 @@ importStmt :: Parser ImportIRI
 importStmt = symbol "Import:" *> iri
 
 frame :: Parser Frame
-frame =
-  (FrameDT <$> datatypeFrame)
-    <|> (FrameC <$> classFrame)
+frame = (FrameDT <$> datatypeFrame)
+    <|> (FrameC  <$> classFrame)
     <|> (FrameOP <$> objectPropertyFrame)
     <|> (FrameDP <$> dataPropertyFrame)
     <|> (FrameAP <$> annotationPropertyFrame)
-    <|> (FrameI <$> individualFrame)
-    <|> (FrameM <$> misc)
+    <|> (FrameI  <$> individualFrame)
+    <|> (FrameM  <$> misc)
 
 
 -------------------------------------------
@@ -941,17 +940,17 @@ classFrame = do
 objectPropertyFrame :: Parser ObjectPropertyFrame
 objectPropertyFrame = ObjectPropertyF <$> (symbol "ObjectProperty:" *> objectPropertyIRI) <*> many altr
  where
-  altr = AnnotationOPE       <$> (symbol "Annotations:" *> annotatedList annotation)
-     <|> DomainOPE           <$> (symbol "Domain:" *> annotatedList description)
-     <|> RangeOPE            <$> (symbol "Range:" *> annotatedList description)
-     <|> CharacteristicsOPE  <$> (symbol "Characteristics:" *> annotatedList objectPropertyCharacteristic)
-     <|> SubPropertyOfOPE    <$> (symbol "SubPropertyOf:" *> annotatedList objectPropertyExpression)
-     <|> EquivalentToOPE     <$> (symbol "EquivalentTo:" *> annotatedList objectPropertyExpression)
-     <|> DisjointWithOPE     <$> (symbol "DisjointWith:" *> annotatedList objectPropertyExpression)
-     <|> InverseOfOPE        <$> (symbol "InverseOf:" *> annotatedList objectPropertyExpression)
-     <|> SubPropertyChainOPE <$> (symbol "SubPropertyChain:" *> annotations) -- TODO: is it really required?
-                             <*> (atLeast2List' <$> objectPropertyExpression
-                                                <*> nonEmptyList (symbol "o" *> objectPropertyExpression))
+  altr = AnnotationOPE       <$> (symbol "Annotations:"      *> annotatedList annotation)
+     <|> DomainOPE           <$> (symbol "Domain:"           *> annotatedList description)
+     <|> RangeOPE            <$> (symbol "Range:"            *> annotatedList description)
+     <|> CharacteristicsOPE  <$> (symbol "Characteristics:"  *> annotatedList objectPropertyCharacteristic)
+     <|> SubPropertyOfOPE    <$> (symbol "SubPropertyOf:"    *> annotatedList objectPropertyExpression)
+     <|> EquivalentToOPE     <$> (symbol "EquivalentTo:"     *> annotatedList objectPropertyExpression)
+     <|> DisjointWithOPE     <$> (symbol "DisjointWith:"     *> annotatedList objectPropertyExpression)
+     <|> InverseOfOPE        <$> (symbol "InverseOf:"        *> annotatedList objectPropertyExpression)
+     <|> SubPropertyChainOPE <$> (symbol "SubPropertyChain:" *> annotatedList 
+                                   (atLeast2List' <$> objectPropertyExpression
+                                                  <*> nonEmptyList (symbol "o" *> objectPropertyExpression)))
 
 -- | It parses one of the permitted object property characteristics
 --
@@ -968,13 +967,13 @@ objectPropertyFrame = ObjectPropertyF <$> (symbol "ObjectProperty:" *> objectPro
 --
 objectPropertyCharacteristic :: Parser ObjectPropertyCharacteristics
 objectPropertyCharacteristic =
-            symbol "Functional" $> FUNCTIONAL
+            symbol "Functional"        $> FUNCTIONAL
         <|> symbol "InverseFunctional" $> INVERSE_FUNCTIONAL
-        <|> symbol "Reflexive" $> REFLEXIVE
-        <|> symbol "Irreflexive" $> IRREFLEXIVE
-        <|> symbol "Symmetric" $> SYMMETRIC
-        <|> symbol "Asymmetric" $> ASYMMETRIC
-        <|> symbol "Transitive" $> TRANSITIVE
+        <|> symbol "Reflexive"         $> REFLEXIVE
+        <|> symbol "Irreflexive"       $> IRREFLEXIVE
+        <|> symbol "Symmetric"         $> SYMMETRIC
+        <|> symbol "Asymmetric"        $> ASYMMETRIC
+        <|> symbol "Transitive"        $> TRANSITIVE
 
 
 -- | It parses an data property
@@ -997,25 +996,23 @@ objectPropertyCharacteristic =
 -- >>> parseTest dataPropertyFrame (unlines input)
 -- "hasAge:7"
 --
-dataPropertyFrame :: Parser String
-dataPropertyFrame = do
-  dataPropIRI <- symbol "DataProperty:" *> dataPropertyIRI
-  blob        <- length <$> many altr
-  return $ concat [dataPropIRI, ":", show blob]
+-- TODO-check: 'annotations' in 'characteristics are probably optional
+dataPropertyFrame :: Parser DataPropertyFrame
+dataPropertyFrame = DataPropertyF <$> (symbol "DataProperty:" *> dataPropertyIRI) <*> many altr
  where
-  altr =
-    (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
-      <|> (symbol "Domain:" *> annotatedList description $> "<domain-description>")
-      <|> (symbol "Range:" *> annotatedList dataRange $> "<range-description>")
-      <|> (  symbol "Characteristics:"
-          *> optional annotations
-          *> symbol "Functional"
-          $> "<characteristics-props>"
-          )
-      <|> (symbol "SubPropertyOf:" *> annotatedList dataPropertyExpression $> "<sub-property-of-expr>")
-      <|> (symbol "EquivalentTo:" *> annotatedList dataPropertyExpression $> "<equivalent-to-expr>")
-      <|> (symbol "DisjointWith:" *> annotatedList dataPropertyExpression $> "<disjoin-with-expr>")
+  altr = AnnotationDPE       <$> (symbol "Annotations:"     *> annotatedList annotation)
+     <|> DomainDPE           <$> (symbol "Domain:"          *> annotatedList description)
+     <|> RangeDPE            <$> (symbol "Range:"           *> annotatedList dataRange)
+     <|> CharacteristicsDPE  <$> (symbol "Characteristics:" *> annotatedList dataPropertyCharacteristic)
+     <|> SubPropertyOfDPE    <$> (symbol "SubPropertyOf:"   *> annotatedList dataPropertyExpression)
+     <|> EquivalentToDPE     <$> (symbol "EquivalentTo:"    *> annotatedList dataPropertyExpression)
+     <|> DisjointWithDPE     <$> (symbol "DisjointWith:"    *> annotatedList dataPropertyExpression)
 
+
+-- | It parses data proprty characteristics. Currently only 'functional' property is supported
+--
+dataPropertyCharacteristic :: Parser DataPropertyCharacteristics
+dataPropertyCharacteristic = symbol "Functional" $> FUNCTIONAL_DPE
 
 -- | It parses an annotation property
 --
@@ -1034,17 +1031,14 @@ dataPropertyFrame = do
 -- >>> parseTest annotationPropertyFrame (unlines input)
 -- "creator:4"
 --
-annotationPropertyFrame :: Parser String
-annotationPropertyFrame = do
-  annPropIRI <- symbol "AnnotationProperty:" *> annotationPropertyIRI
-  blob       <- length <$> many altr
-  pure $ concat [annPropIRI, ":", show blob]
+annotationPropertyFrame :: Parser AnnotationPropertyFrame
+annotationPropertyFrame = AnnotationPropertyF <$> (symbol "AnnotationProperty:" *> annotationPropertyIRI)
+                                              <*> many altr
  where
-  altr =
-    (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
-      <|> (symbol "Domain:" *> annotatedList iri $> "<domain-description>")
-      <|> (symbol "Range:" *> annotatedList iri $> "<range-description>")
-      <|> (symbol "SubPropertyOf:" *> annotatedList annotationPropertyIRI $> "<sub-property-of-expr>")
+  altr = AnnotationAPE       <$> (symbol "Annotations:"     *> annotatedList annotation)
+     <|> DomainAPE           <$> (symbol "Domain:"          *> annotatedList iri)
+     <|> RangeAPE            <$> (symbol "Range:"           *> annotatedList iri)
+     <|> SubPropertyOfAPE    <$> (symbol "SubPropertyOf:"   *> annotatedList annotationPropertyIRI)
 
 -- | It parses an individual frame
 --
@@ -1069,36 +1063,26 @@ annotationPropertyFrame = do
 -- >>> parseTest individualFrame (unlines input2)
 -- "NodeID \"child1\":5"
 --
-individualFrame :: Parser String
-individualFrame = do
-  indi <- symbol "Individual:" *> individual
-  blob <- length <$> many altr
-  pure $ concat [indi, ":", show blob]
+individualFrame :: Parser IndividualFrame
+individualFrame = IndividualF <$> (symbol "Individual:" *> individual) <*> many altr
  where
-  altr =
-    (symbol "Annotations:" *> annotatedList annotation $> "<annotations>")
-      <|> (symbol "Types:" *> annotatedList description $> "<types-description>")
-      <|> (symbol "Facts:" *> annotatedList fact $> "<facts-description>")
-      <|> (symbol "SameAs:" *> annotatedList individual $> "<same-as-individual>")
-      <|> (symbol "DifferentFrom:" *> annotatedList individual $> "<different-from-individual>")
+  altr = AnnotationIE     <$> (symbol "Annotations:"   *> annotatedList annotation)
+      <|> TypeIE          <$> (symbol "Types:"         *> annotatedList description)
+      <|> FactIE          <$> (symbol "Facts:"         *> annotatedList fact)
+      <|> SameAsIE        <$> (symbol "SameAs:"        *> annotatedList individual)
+      <|> DifferentFromIE <$> (symbol "DifferentFrom:" *> annotatedList individual)
 
-fact :: Parser String
+fact :: Parser Fact
 fact = do
   neg  <- optionalNegation
-  fact <- try objectPropertyFact <|> try dataPropertyFact
-  return . unwords $ [fromMaybe "" neg, fact]
+  fact <- (ObjectPropertyFE <$> try objectPropertyFact) <|> (DataPropertyFE <$> try dataPropertyFact)
+  pure $ const fact <$> neg
 
-objectPropertyFact :: Parser String
-objectPropertyFact = do
-  objProp <- objectPropertyIRI
-  indv    <- individual
-  return . unwords $ [objProp, indv]
+objectPropertyFact :: Parser ObjectPropertyFact
+objectPropertyFact = ObjectPropertyFact <$> objectPropertyIRI <*> individual
 
-dataPropertyFact :: Parser String
-dataPropertyFact = do
-  dataProp <- dataPropertyIRI
-  ltr      <- literal
-  return . unwords $ [dataProp, ltr]
+dataPropertyFact :: Parser DataPropertyFact
+dataPropertyFact = DataPropertyFact <$> dataPropertyIRI <*> literal
 
 -- | It parses an class miscelaneous properties
 --
@@ -1119,48 +1103,24 @@ dataPropertyFact = do
 -- >>> parseTest (many misc >> eof) (unlines input)
 -- ()
 --
-misc :: Parser String
-misc =
-  (  symbol "EquivalentClasses:"
-    *> optional annotations -- TODO-check
-    *> listOfAtLeast2 description
-    $> "<equivalent-classes>"
-    )
-    <|> (  symbol "DisjointClasses:"
-        *> optional annotations -- TODO-check
-        *> listOfAtLeast2 description
-        $> "<disjoint-classes>"
-        )
-    <|> (  symbol "EquivalentProperties:"
-        *> optional annotations -- TODO-check
-        *> listOfAtLeast2 objectPropertyIRI
-        $> "<equivalent-object-property>"
-        )
-    <|> (  symbol "DisjointProperties:"
-        *> optional annotations -- TODO-check
-        *> listOfAtLeast2 objectPropertyIRI
-        $> "<disjoint-object-property>"
-        )
-    <|> (  symbol "EquivalentProperties:"
-        *> optional annotations -- TODO-check
-        *> listOfAtLeast2 dataPropertyIRI
-        $> "<equivalent-object-property>"
-        )
-    <|> (  symbol "DisjointProperties:"
-        *> optional annotations -- TODO-check
-        *> listOfAtLeast2 dataPropertyIRI
-        $> "<disjoint-object-property>"
-        )
-    <|> (  symbol "SameIndividual:"
-        *> optional annotations -- TODO-check
-        *> listOfAtLeast2 individual
-        $> "<same-individual>"
-        )
-    <|> (  symbol "DifferentIndividuals:"
-        *> optional annotations -- TODO-check
-        *> listOfAtLeast2 individual
-        $> "<different-individual>"
-        )
+-- TODO-check I converted all required annotation to annotated list
+misc :: Parser Misc
+misc =  EquivalentClasses
+        <$> (symbol "EquivalentClasses:" *> annotatedList (listOfAtLeast2 description))
+    <|> DisjointClasses
+        <$> (symbol "DisjointClasses:"   *> annotatedList (listOfAtLeast2 description))
+    <|> EquivalentObjectProperties
+        <$> (symbol "EquivalentProperties:" *> annotatedList (listOfAtLeast2 objectPropertyExpression))
+    <|> DisjointObjectProperties
+        <$> (symbol "DisjointProperties:" *> annotatedList (listOfAtLeast2 objectPropertyExpression))
+    <|> EquivalentDataProperties
+        <$> (symbol "EquivalentProperties:" *> annotatedList (listOfAtLeast2 dataPropertyExpression))
+    <|> DisjointDataProperties
+        <$> (symbol "DisjointProperties:" *> annotatedList (listOfAtLeast2 dataPropertyExpression))
+    <|> SameIndividual
+        <$> (symbol "SameIndividual:" *> annotatedList (listOfAtLeast2 individual))
+    <|> DifferentIndividual
+        <$> (symbol "DifferentIndividuals:" *> annotatedList (listOfAtLeast2 individual))
 
 -----------------------
 --- Generic parsers ---
