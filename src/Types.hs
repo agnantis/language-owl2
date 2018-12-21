@@ -50,7 +50,7 @@ newtype Exponent = Exponent Integer
 newtype DecimalLiteral = DecimalL Double deriving Show
 newtype IntegerLiteral = IntegerL Integer deriving Show
 newtype NodeID = NodeID String deriving Show
-newtype AnnotatedList a = AnnList [(AnnotatedList Annotation, a)]
+newtype AnnotatedList a = AnnList (NonEmpty (Maybe Annotations, a))
 type DataPropertyExpression = DataPropertyIRI
 type ObjectPropertyExpression = WithInversion ObjectPropertyIRI
 
@@ -72,7 +72,7 @@ data Frame = FrameDT DatatypeFrame
            | FrameAP AnnotationPropertyFrame
            | FrameI IndividualFrame
            | FrameM Misc
-data DatatypeFrame = DatatypeF Datatype Annotations (Maybe AnnotDataRange)
+data DatatypeFrame = DatatypeF Datatype (Maybe Annotations) (Maybe AnnotDataRange)
 data AnnotDataRange = AnnotDataRange Annotations DataRange
 data Datatype = DatatypeIRI IRI
               | IntegerDT
@@ -104,7 +104,7 @@ data ClassElement = AnnotationCE Annotations
                   | HasKeyCE (Maybe Annotations) NonEmptyListOfObjectOrDataPE
 data NonEmptyListOfObjectOrDataPE = NonEmptyO (NonEmpty ObjectPropertyExpression) [DataPropertyExpression]
                                   | NonEmptyD [ObjectPropertyExpression] (NonEmpty DataPropertyExpression) 
-data WithNegation a = Positive a | Negative a
+data WithNegation a = Positive a | Negative a deriving Functor
 data Conjunction = ClassConj IRI (NonEmpty (WithNegation Restriction)) | PrimConj (NonEmpty Primary)
 data Primary = PrimaryR (WithNegation Restriction) | PrimaryA (WithNegation Atomic)
 data Restriction = OPRestriction ObjectPropertyRestriction | DPRestriction DataPropertyRestriction
@@ -194,7 +194,9 @@ data AnnotationTarget = NodeAT NodeID
 ---------------------------
 ---- UTILITY FUNCTIONS ----
 ---------------------------
-
+flattenAnnList :: [AnnotatedList a] -> Maybe (AnnotatedList a)
+flattenAnnList [] = Nothing
+flattenAnnList xs = Just $ foldl1 (<>) xs
 
 -------------------------
 ---- CLASS INSTANCES ----
@@ -203,19 +205,15 @@ data AnnotationTarget = NodeAT NodeID
 instance Semigroup (AnnotatedList a) where
   (AnnList xs) <> (AnnList ys) = AnnList (xs <> ys)  
 
-instance Monoid (AnnotatedList a) where
-  mempty = AnnList []
-
-
 instance Show Annotation where
   show (Annotation i s) = unwords [show i, "<undefinded-annotation-target>"]
 
-instance (Show a) => Show (AnnotatedList a) where
-  show (AnnList []) = ""
-  show (AnnList xs) = intercalate ",\n" (go <$> xs)
-   where
-    go (AnnList [], x) = show x
-    go (al, x) = unwords ["Annotations:", show al, "\n ", show x]
+-- instance (Show a) => Show (AnnotatedList a) where
+--   show (AnnList []) = ""
+--   show (AnnList xs) = intercalate ",\n" (go <$> xs)
+--    where
+--     go (AnnList [], x) = show x
+--     go (al, x) = unwords ["Annotations:", show al, "\n ", show x]
 
 instance Show FloatPoint where
   show (FloatP n me) = concat [show n, maybe "" show me]

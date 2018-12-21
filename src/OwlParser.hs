@@ -264,11 +264,11 @@ classIRI = iri
 -- "xsd:string"
 --
 datatype :: Parser Datatype
-datatype = (DatatypeIRI <$> try datatypeIRI)
-         <|> IntegerDT <$ symbol "integer"
-	 <|> DecimalDT <$ symbol "decimal"
-	 <|> FloatDT <$ symbol "float"
-	 <|> StringDT <$ symbol "string"
+datatype =  DatatypeIRI <$> try datatypeIRI
+        <|> IntegerDT   <$ symbol "integer"
+        <|> DecimalDT   <$ symbol "decimal"
+        <|> FloatDT     <$ symbol "float"
+        <|> StringDT    <$ symbol "string"
 
 datatypeIRI :: Parser IRI
 datatypeIRI = iri
@@ -863,7 +863,7 @@ datatypeFrame = do
   annots  <- many $ symbol "Annotations:" *> annotatedList annotation
   equiv   <- optional $ AnnotDataRange <$> (symbol "EquivalentTo:" *> annotations) <*> dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
   annots' <- many $ symbol "Annotations:" *> annotatedList annotation
-  pure $ DatatypeF dtype (mconcat (annots <> annots')) equiv
+  pure $ DatatypeF dtype (flattenAnnList (annots <> annots')) equiv
 
 -- | It parses a class frame
 --
@@ -1127,7 +1127,7 @@ misc =  EquivalentClasses
 -----------------------
 
 optionalNegation :: Parser (WithNegation ())
-optionalNegation = maybe (Positive ()) (const (Negative ())) <$> optional . symbol $ "not"
+optionalNegation = maybe (Positive ()) (const (Negative ())) <$> (optional . symbol $ "not")
 
 -- | It parser one or more elements parsed by the input parser p and separated by the input string
 --
@@ -1174,6 +1174,6 @@ listOfAtLeast2 p = atLeast2List' <$> p <*> nonEmptyList (symbol "," >> p)
 --
 annotatedList :: Parser p -> Parser (AnnotatedList p)
 annotatedList p =
-  let annotationList = (,) <$> fmap (fromMaybe (AnnList [])) (optional annotations) <*> p
+  let annotationList = (,) <$> optional annotations <*> p
   in  AnnList <$> nonEmptyList annotationList
 
