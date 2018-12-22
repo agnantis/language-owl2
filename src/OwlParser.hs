@@ -21,8 +21,8 @@ import           Types
 type Parser = Parsec Void String
 -- | Parses white space and line comments
 --
--- parsec (sc *> satisfy (const true)) "    some indented text"
--- "some individual text"
+-- >>> parseTest (sc *> many (satisfy (const True))) "    some indented text"
+-- "some indented text"
 sc :: Parser ()
 sc = L.space space1 (L.skipLineComment "#") empty
 
@@ -79,10 +79,6 @@ propertyKeywords =
   , "minLength"
   , "maxLength"
   , "pattern"
---  , "<="
---  , "<"
---  , ">="
---  , ">"
   ]
 
 -- | Parses the symbol and then any remaining space
@@ -205,7 +201,7 @@ prefixName = (identifier_ <|> pure "") <* string ":"
 -- Check: http://www.rfc-editor.org/rfc/rfc3987.txt for BNF representation
 --
 -- >>> parseTest fullIRI "<http://www.uom.gr/ai/TestOntology.owl#Child>"
--- "http://www.uom.gr/ai/TestOntology.owl#Child"
+-- FullIRI "http://www.uom.gr/ai/TestOntology.owl#Child"
 --
 -- >>> parseTest fullIRI "<http://www.uom.gr/ai/TestOntology.owl#Child"
 -- ...
@@ -216,12 +212,13 @@ prefixName = (identifier_ <|> pure "") <* string ":"
 -- ...
 -- unexpected 'h'
 -- expecting '<'
+--
 fullIRI :: Parser IRI
 fullIRI = FullIRI <$> (lexeme . iriParens $ takeWhileP Nothing (/= '>'))
 
 -- | It parses abbreviated IRIs. Format: 'prefix:term'
 -- >>> parseTest abbreviatedIRI "xsd:string"
--- ("xsd","string")
+-- AbbreviatedIRI "xsd" "string"
 --
 -- >>> parseTest abbreviatedIRI "owl:   user1"
 -- ...
@@ -236,14 +233,20 @@ abbreviatedIRI = AbbreviatedIRI <$> prefixName <*> anyIdentifier
 --
 -- TODO: Simplified to a simple identifier parser
 -- >>> parseTest simpleIRI "John"
--- "John"
+-- SimpleIRI "John"
 --
 simpleIRI :: Parser IRI
 simpleIRI = SimpleIRI <$> identifier
 
 -- | It parses any of the three different formats of IRIs
 -- >>> parseTest iri "John"
--- "John"
+-- SimpleIRI "John"
+--
+-- >>> parseTest iri "owl:John"
+-- AbbreviatedIRI "owl" "John"
+--
+-- >>> parseTest iri "<http://www.uom.gr/ai/TestOntology.owl#Child>"
+-- FullIRI "http://www.uom.gr/ai/TestOntology.owl#Child"
 --
 iri :: Parser IRI
 iri = fullIRI <|> try abbreviatedIRI <|> simpleIRI
@@ -255,16 +258,16 @@ classIRI = iri
 -- | It parses datatypes
 --
 -- >>> parseTest datatype "<http://example.iri>"
--- "http://example.iri"
+-- IriDT (FullIRI "http://example.iri")
 --
 -- >>> parseTest datatype "integer"
--- "integer"
+-- IntegerDT
 --
 -- >>> parseTest datatype "xsd:string"
--- "xsd:string"
+-- IriDT (AbbreviatedIRI "xsd" "string")
 --
 datatype :: Parser Datatype
-datatype =  DatatypeIRI <$> try datatypeIRI
+datatype =  IriDT <$> try datatypeIRI
         <|> IntegerDT   <$ symbol "integer"
         <|> DecimalDT   <$ symbol "decimal"
         <|> FloatDT     <$ symbol "float"
@@ -283,8 +286,8 @@ annotationPropertyIRI :: Parser IRI
 annotationPropertyIRI = iri
 
 individual :: Parser Individual
-individual = IRIIndividual <$> individualIRI
-           <|> (NodeIndividual <$> nodeID)
+individual =  IRIIndividual  <$> individualIRI
+          <|> NodeIndividual <$> nodeID
 
 individualIRI :: Parser IndividualIRI
 individualIRI = iri
@@ -310,13 +313,13 @@ nodeID = NodeID <$> (symbol "_:" *> identifier)
 -- | It parses literals
 --
 -- >>> parseTest literal "\"32\"^^integer"
--- "TypedL \"32\" \"integer\""
+-- TypedLiteralC (TypedL "32" IntegerDT)
 --
 -- >>> parseTest literal "\"stringLiteralNoLanguage\""
--- "stringLiteralNoLanguage"
+-- StringLiteralNoLang "stringLiteralNoLanguage"
 --
 -- >>> parseTest literal "\"stringLiteralWithLang\"@en"
--- "LiteralWithLang \"stringLiteralWithLang\" \"en\""
+-- StringLiteralLang (LiteralWithLang "stringLiteralWithLang" "en")
 --
 literal :: Parser Literal
 literal =
@@ -331,10 +334,10 @@ literal =
 -- | It parses a typed literal
 --
 -- >>> parseTest typedLiteral "\"32\"^^integer"
--- TypedL "32" "integer"
+-- TypedL "32" IntegerDT
 --
 -- >>> parseTest typedLiteral "\"Jack\"^^xsd:string"
--- TypedL "Jack" "xsd:string"
+-- TypedL "Jack" (IriDT (AbbreviatedIRI "xsd" "string"))
 --
 typedLiteral :: Parser TypedLiteral
 typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" *> datatype)
@@ -358,9 +361,9 @@ stringLiteralWithLanguage = LiteralWithLang <$> quotedString <*> languageTag
 
 -- | It parse a language tag
 --
--- parseTest languageTag "@en"
+-- >>> parseTest languageTag "@en"
 -- "en"
--- parseTest languageTag "en"
+-- >>> parseTest languageTag "en"
 -- ...
 -- unexpected 'e'
 -- expecting '@'
@@ -401,17 +404,18 @@ quotedString = do
 --   * -12.3F
 --
 -- >>> parseTest floatingPointLiteral "12F"
--- 12.0
+-- FloatP 12.0 Nothing
 -- >>> parseTest floatingPointLiteral "12.3f"
--- 12.3
+-- FloatP 12.3 Nothing
 -- >>> parseTest floatingPointLiteral "-12.332F"
--- -12.332
+-- FloatP (-12.332) Nothing
 -- >>> parseTest floatingPointLiteral ".3f"
--- 0.3
+-- FloatP 0.3 Nothing
 -- >>> parseTest floatingPointLiteral ".3e10f"
--- 0.3e+10
+-- FloatP 0.3 (Just 10)
 -- >>> parseTest floatingPointLiteral "-12.3e-10F"
--- -12.3e-10
+-- FloatP (-12.3) (Just (-10))
+--
 floatingPointLiteral :: Parser FloatPoint
 floatingPointLiteral = do
   sgn  <- sign
@@ -437,23 +441,24 @@ floatingPointLiteral = do
 -- | It parses an exponent
 --
 -- >>> parseTest exponent "e10"
--- e+10
+-- 10
 -- >>> parseTest exponent "E10"
--- e+10
+-- 10
 -- >>> parseTest exponent "e+10"
--- e+10
+-- 10
 -- >>> parseTest exponent "E+10"
--- e+10
+-- 10
 -- >>> parseTest exponent "e-10"
--- e-10
+-- -10
 -- >>> parseTest exponent "E-10"
--- e-10
+-- -10
+--
 exponent :: Parser Exponent
 exponent = do
   symb <- symbol "e" <|> symbol "E"
   ms   <- sign
   dgts <- digits
-  return . Exponent . read . concat $ [ms, dgts]
+  pure . read . concat $ [ms, dgts]
 
 -- | It parser decimal values
 --
@@ -463,6 +468,7 @@ exponent = do
 -- DecimalL (-10.345)
 -- >>> parseTest decimalLiteral "+10.345"
 -- DecimalL 10.345
+--
 decimalLiteral :: Parser DecimalLiteral
 decimalLiteral = do
   mSign <- sign
@@ -478,6 +484,7 @@ decimalLiteral = do
 -- IntegerL (-10)
 -- >>> parseTest integerLiteral"+10"
 -- IntegerL 10
+--
 integerLiteral :: Parser IntegerLiteral
 integerLiteral = do
   mSign <- sign
@@ -504,7 +511,7 @@ entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
 
 -- | It parses annotations
 --
--- >>> :{
+-- >> :{
 -- let input :: [String]
 --     input =
 --      [ "Annotations: creator \"John\","
@@ -513,7 +520,7 @@ entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
 --      ]
 -- :}
 --
--- >>> parseTest annotations (unlines input)
+-- >> parseTest annotations (unlines input)
 -- creator "John",
 -- Annotations: rdfs:comment "Creation Year"
 --   creationYear "IntegerL 2008",
@@ -524,7 +531,7 @@ annotations = symbol "Annotations:" *> annotatedList annotation
 
 -- | It parses a single annotation
 --
--- >>> parseTest annotation ":creator \"john\""
+-- >> parseTest annotation ":creator \"john\""
 -- :creator "john"
 --
 annotation :: Parser Annotation
@@ -532,16 +539,16 @@ annotation = Annotation <$> annotationPropertyIRI <*> annotationTarget
 
 -- | It parser node ids, iris or literals
 --
--- >>> parseTest annotationTarget "\"john\""
+-- >> parseTest annotationTarget "\"john\""
 -- "john"
 --
--- >>> parseTest annotationTarget "John"
+-- >> parseTest annotationTarget "John"
 -- "John"
 --
--- >>> parseTest annotationTarget "_:node"
+-- >> parseTest annotationTarget "_:node"
 -- "NodeID \"node\""
 --
--- >>> parseTest annotationTarget "<http://some.iri>"
+-- >> parseTest annotationTarget "<http://some.iri>"
 -- "http://some.iri"
 --
 annotationTarget :: Parser AnnotationTarget
@@ -551,10 +558,10 @@ ontologyDocument :: Parser OntologyDocument
 ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
 
 -- | It parses prefix names. Format: 'Prefix: <name>: <IRI>
--- >>> parseTest prefixDeclaration "Prefix: g: <http://ex.com/owl2/families#>"
+-- >> parseTest prefixDeclaration "Prefix: g: <http://ex.com/owl2/families#>"
 -- PrefixD "g" "http://ex.com/owl2/families#"
 --
--- >>> parseTest prefixDeclaration "Prefix: : <http://ex.com/owl/families#>"
+-- >> parseTest prefixDeclaration "Prefix: : <http://ex.com/owl/families#>"
 -- PrefixD "" "http://ex.com/owl/families#"
 --
 prefixDeclaration :: Parser PrefixDeclaration
@@ -577,7 +584,7 @@ versionIRI = iri
 
 -- | It parses import statements
 --
--- >>> parseTest importStmt "Import: <http://ex.com/owl2/families.owl>"
+-- >> parseTest importStmt "Import: <http://ex.com/owl2/families.owl>"
 -- "http://ex.com/owl2/families.owl"
 --
 importStmt :: Parser ImportIRI
@@ -599,10 +606,10 @@ frame = (FrameDT <$> datatypeFrame)
 
 -- | It parses an object property expression
 --
--- >>> parseTest objectPropertyExpression "<http://object-property-iri.com>"
+-- >> parseTest objectPropertyExpression "<http://object-property-iri.com>"
 -- ObjectP "http://object-property-iri.com"
 --
--- >>> parseTest objectPropertyExpression "inverse <http://object-property-iri.com>"
+-- >> parseTest objectPropertyExpression "inverse <http://object-property-iri.com>"
 -- InverseObjectP "http://object-property-iri.com"
 --
 objectPropertyExpression :: Parser ObjectPropertyExpression
@@ -611,7 +618,7 @@ objectPropertyExpression = (Positive <$> objectPropertyIRI)
 
 -- | It parses an inverse object property expression
 --
--- >>> parseTest inverseObjectProperty "inverse <http://object-property-iri.com>"
+-- >> parseTest inverseObjectProperty "inverse <http://object-property-iri.com>"
 -- InverseObjectP "http://object-property-iri.com"
 --
 --inverseObjectProperty :: Parser ObjectProperty
@@ -619,7 +626,7 @@ objectPropertyExpression = (Positive <$> objectPropertyIRI)
 
 -- | It parses a data property expression
 --
--- >>> parseTest dataPropertyExpression "<http://object-property-iri.com>"
+-- >> parseTest dataPropertyExpression "<http://object-property-iri.com>"
 -- DataP "http://object-property-iri.com"
 --
 dataPropertyExpression :: Parser DataPropertyExpression
@@ -627,7 +634,7 @@ dataPropertyExpression = dataPropertyIRI
 
 -- | It parses a data range
 --
--- >>> parseTest dataRange "integer[>10] and integer[<20] or integer[>100]"
+-- >> parseTest dataRange "integer[>10] and integer[<20] or integer[>100]"
 -- "integer > IntegerL 10 and integer < IntegerL 20 or integer > IntegerL 100"
 --
 dataRange :: Parser DataRange
@@ -635,7 +642,7 @@ dataRange = DataRange <$> singleOrMany "or" dataConjunction
 
 -- | It parses a data conjunction (i.e. 'and')
 --
--- >>> parseTest dataConjunction "integer[<10] and integer[>0]"
+-- >> parseTest dataConjunction "integer[<10] and integer[>0]"
 -- "integer < IntegerL 10 and integer > IntegerL 0"
 --
 dataConjunction :: Parser DataConjunction
@@ -643,7 +650,7 @@ dataConjunction = DataConjunction <$> singleOrMany "and" dataPrimary
 
 -- | It parses a data primary
 --
--- >>> parseTest dataPrimary "integer[<0]"
+-- >> parseTest dataPrimary "integer[<0]"
 -- "integer < IntegerL 0"
 --
 dataPrimary :: Parser DataPrimary
@@ -654,7 +661,7 @@ dataPrimary = do
 
 -- | It parses an atomic data
 --
--- >>> parseTest dataAtomic  "integer[<0]"
+-- >> parseTest dataAtomic  "integer[<0]"
 -- "integer < IntegerL 0"
 --
 dataAtomic :: Parser DataAtomic
@@ -665,7 +672,7 @@ dataAtomic = DatatypeRestrictionDA <$> try datatypeRestriction
 
 -- | It parsers a non empty list of literal
 --
--- >>> parseTest literalList "\"kostas\", 32, \"true\""
+-- >> parseTest literalList "\"kostas\", 32, \"true\""
 -- ["kostas","IntegerL 32","true"]
 --
 literalList :: Parser (NonEmpty Literal)
@@ -673,10 +680,10 @@ literalList = nonEmptyList literal
 
 -- | It parses datatype restrictions
 --
--- >>> parseTest datatypeRestriction "integer[> 0, maxLength 2]"
+-- >> parseTest datatypeRestriction "integer[> 0, maxLength 2]"
 -- "integer > IntegerL 0 AND integer maxLength IntegerL 2"
 --
--- >>> parseTest datatypeRestriction "integer[< 0]"
+-- >> parseTest datatypeRestriction "integer[< 0]"
 -- "integer < IntegerL 0"
 --
 datatypeRestriction :: Parser DatatypeRestriction
@@ -716,16 +723,16 @@ predifinedPrefixex =
 
 -- | It parses a description
 --
--- >>> parseTest (description >> eof) "Man"
+-- >> parseTest (description >> eof) "Man"
 -- ()
 --
--- >>> parseTest (description >> eof) "Man or Woman"
+-- >> parseTest (description >> eof) "Man or Woman"
 -- ()
 --
--- >>> parseTest (description >> eof) "hasFirstName value \"John\" or Man"
+-- >> parseTest (description >> eof) "hasFirstName value \"John\" or Man"
 -- ()
 --
--- >>> parseTest (description >> eof) "hasFirstName value \"John\" or hasFirstName value \"Jack\"^^xsd:string"
+-- >> parseTest (description >> eof) "hasFirstName value \"John\" or hasFirstName value \"Jack\"^^xsd:string"
 -- ()
 --
 description :: Parser (NonEmpty Conjunction)
@@ -733,13 +740,13 @@ description = singleOrMany "or" conjunction
 
 -- | It parses a conjunction
 --
--- >>> parseTest conjunction "Person and Man"
+-- >> parseTest conjunction "Person and Man"
 -- "Person Man"
 --
--- >>> parseTest conjunction "Person"
+-- >> parseTest conjunction "Person"
 -- "Person"
 --
--- >>> parseTest (conjunction >> eof) "owl:Thing that hasFirstName exactly 1"
+-- >> parseTest (conjunction >> eof) "owl:Thing that hasFirstName exactly 1"
 -- ()
 --
 conjunction :: Parser Conjunction
@@ -759,10 +766,10 @@ conjunction = try (uncurry ClassConj <$> restrictions)
 
 -- | It parses a primary
 --
--- >>> parseTest primary "not Person"
+-- >> parseTest primary "not Person"
 -- "not Person"
 --
--- >>> parseTest primary "not hasFirstName value \"John\""
+-- >> parseTest primary "not hasFirstName value \"John\""
 -- "not John"
 --
 primary :: Parser Primary
@@ -772,13 +779,13 @@ primary = do
 
 -- | It parses one of the many differnt type of restrictions on object or data properties
 --
--- >>> parseTest (restriction >>eof) "hasFirstName value \"John\""
+-- >> parseTest (restriction >>eof) "hasFirstName value \"John\""
 -- ()
 --
--- >>> parseTest (restriction >> eof) "hasFirstName exactly 1"
+-- >> parseTest (restriction >> eof) "hasFirstName exactly 1"
 -- ()
 --
--- >>> parseTest (restriction >> eof) "hasFirstName only string[minLength 1]"
+-- >> parseTest (restriction >> eof) "hasFirstName only string[minLength 1]"
 -- ()
 --
 restriction :: Parser Restriction
@@ -822,13 +829,13 @@ restriction = OPRestriction <$> (OPR <$> objectPropertyExpression <*> objectRest
 
 -- | It parses a class IRI or a list of individual IRIs
 --
--- >>> parseTest atomic "<class.iri>"
+-- >> parseTest atomic "<class.iri>"
 -- ["class.iri"]
 --
--- >>> parseTest atomic "Person"
+-- >> parseTest atomic "Person"
 -- ["Person"]
 --
--- >>> parseTest atomic "{ <class.iri#ind1>, <class.iri#ind2> }"
+-- >> parseTest atomic "{ <class.iri#ind1>, <class.iri#ind2> }"
 -- ["class.iri#ind1","class.iri#ind2"]
 --
 atomic :: Parser Atomic
@@ -844,7 +851,7 @@ atomic = AtomicClass <$> classIRI
 
 -- | It parses a datatype frame
 --
--- >>> :{
+-- >> :{
 -- let input :: [String]
 --     input =
 --       [
@@ -854,7 +861,7 @@ atomic = AtomicClass <$> classIRI
 --       ]
 -- :}
 --
--- >>> parseTest (datatypeFrame >> eof) (unlines input)
+-- >> parseTest (datatypeFrame >> eof) (unlines input)
 -- ()
 --
 datatypeFrame :: Parser DatatypeFrame
@@ -867,7 +874,7 @@ datatypeFrame = do
 
 -- | It parses a class frame
 --
--- >>> :{
+-- >> :{
 -- let input :: [String]
 --     input =
 --       [
@@ -885,7 +892,7 @@ datatypeFrame = do
 --       ]
 -- :}
 --
--- >>> parseTest (classFrame >> eof) (unlines input)
+-- >> parseTest (classFrame >> eof) (unlines input)
 -- ()
 --
 -- TODO-check-1: in specs `sndChoice` (aka `HasKey`) is an alternative to the others
@@ -913,7 +920,7 @@ classFrame = do
 
 -- | It parses an object property
 --
--- >>> :{
+-- >> :{
 -- let input :: [String]
 --     input =
 --       [
@@ -934,7 +941,7 @@ classFrame = do
 --       ]
 -- :}
 --
--- >>> parseTest objectPropertyFrame (unlines input)
+-- >> parseTest objectPropertyFrame (unlines input)
 -- "hasWife:9"
 --
 objectPropertyFrame :: Parser ObjectPropertyFrame
@@ -954,13 +961,13 @@ objectPropertyFrame = ObjectPropertyF <$> (symbol "ObjectProperty:" *> objectPro
 
 -- | It parses one of the permitted object property characteristics
 --
--- >>> parseTest objectPropertyCharacteristic "InverseFunctional"
+-- >> parseTest objectPropertyCharacteristic "InverseFunctional"
 -- "InverseFunctional"
 --
--- >>> parseTest objectPropertyCharacteristic "Functionalandmore"
+-- >> parseTest objectPropertyCharacteristic "Functionalandmore"
 -- "Functional"
 --
--- >>> parseTest objectPropertyCharacteristic "Random"
+-- >> parseTest objectPropertyCharacteristic "Random"
 -- ...
 -- unexpected "Random"
 -- ...
@@ -978,7 +985,7 @@ objectPropertyCharacteristic =
 
 -- | It parses an data property
 --
--- >>> :{
+-- >> :{
 -- let input :: [String]
 --     input =
 --       [
@@ -993,7 +1000,7 @@ objectPropertyCharacteristic =
 --       ]
 -- :}
 --
--- >>> parseTest dataPropertyFrame (unlines input)
+-- >> parseTest dataPropertyFrame (unlines input)
 -- "hasAge:7"
 --
 -- TODO-check: 'annotations' in 'characteristics are probably optional
@@ -1016,7 +1023,7 @@ dataPropertyCharacteristic = symbol "Functional" $> FUNCTIONAL_DPE
 
 -- | It parses an annotation property
 --
--- >>> :{
+-- >> :{
 -- let input :: [String]
 --     input =
 --       [
@@ -1028,7 +1035,7 @@ dataPropertyCharacteristic = symbol "Functional" $> FUNCTIONAL_DPE
 --       ]
 -- :}
 --
--- >>> parseTest annotationPropertyFrame (unlines input)
+-- >> parseTest annotationPropertyFrame (unlines input)
 -- "creator:4"
 --
 annotationPropertyFrame :: Parser AnnotationPropertyFrame
@@ -1042,7 +1049,7 @@ annotationPropertyFrame = AnnotationPropertyF <$> (symbol "AnnotationProperty:" 
 
 -- | It parses an individual frame
 --
--- >>> :{
+-- >> :{
 -- let input :: [String]
 --     input =
 --       [
@@ -1057,10 +1064,10 @@ annotationPropertyFrame = AnnotationPropertyF <$> (symbol "AnnotationProperty:" 
 --     input2 = "Individual: _:child1":(tail input)
 -- :}
 --
--- >>> parseTest individualFrame (unlines input)
+-- >> parseTest individualFrame (unlines input)
 -- "John:5"
 --
--- >>> parseTest individualFrame (unlines input2)
+-- >> parseTest individualFrame (unlines input2)
 -- "NodeID \"child1\":5"
 --
 individualFrame :: Parser IndividualFrame
@@ -1086,7 +1093,7 @@ dataPropertyFact = DataPropertyFact <$> dataPropertyIRI <*> literal
 
 -- | It parses an class miscelaneous properties
 --
--- >>> :{
+-- >> :{
 -- let input :: [String]
 --     input =
 --       [
@@ -1100,7 +1107,7 @@ dataPropertyFact = DataPropertyFact <$> dataPropertyIRI <*> literal
 --       ]
 -- :}
 --
--- >>> parseTest (many misc >> eof) (unlines input)
+-- >> parseTest (many misc >> eof) (unlines input)
 -- ()
 --
 -- TODO-check I converted all required annotation to annotated list
@@ -1131,10 +1138,10 @@ optionalNegation = maybe (Positive ()) (const (Negative ())) <$> (optional . sym
 
 -- | It parser one or more elements parsed by the input parser p and separated by the input string
 --
--- >>> parseTest (singleOrMany "," . string $ "test") "test"
+-- >> parseTest (singleOrMany "," . string $ "test") "test"
 -- ["test"]
 --
--- >>> parseTest (singleOrMany "or" . lexeme . string $ "test") "test or test or test"
+-- >> parseTest (singleOrMany "or" . lexeme . string $ "test") "test or test or test"
 -- ["test","test","test"]
 --
 singleOrMany :: String -> Parser p -> Parser (NonEmpty p)
@@ -1143,10 +1150,10 @@ singleOrMany sep p =
 
 -- | It parses non empty lists
 --
--- >>> parseTest (nonEmptyList languageTag) "@en, @el, @test"
+-- >> parseTest (nonEmptyList languageTag) "@en, @el, @test"
 -- ["en","el","test"]
 --
--- >>> parseTest (nonEmptyList languageTag) ""
+-- >> parseTest (nonEmptyList languageTag) ""
 -- ...
 -- unexpected end of input
 -- expecting '@'
@@ -1156,10 +1163,10 @@ nonEmptyList p = (:|) <$> p <*> many (symbol "," *> p <* sc)
 
 -- | It parses lists with at least two elements
 --
--- >>> parseTest (listOfAtLeast2 languageTag) "@en, @el, @test"
+-- >> parseTest (listOfAtLeast2 languageTag) "@en, @el, @test"
 -- ["en","el","test"]
 --
--- >>> parseTest (listOfAtLeast2 languageTag) "@en"
+-- >> parseTest (listOfAtLeast2 languageTag) "@en"
 -- ...
 -- unexpected end of input
 -- ...
@@ -1169,7 +1176,7 @@ listOfAtLeast2 p = atLeast2List' <$> p <*> nonEmptyList (symbol "," >> p)
 
 -- | It parses non empty annotated lists
 --
--- >>> parseTest (annotatedList description) "Man, Person"
+-- >> parseTest (annotatedList description) "Man, Person"
 -- ...
 --
 annotatedList :: Parser p -> Parser (AnnotatedList p)

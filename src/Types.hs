@@ -46,7 +46,7 @@ type WithInversion = WithNegation
 type Description = NonEmpty Conjunction
 type Fact = WithNegation FactElement
 
-newtype Exponent = Exponent Integer
+type Exponent = Integer
 newtype DecimalLiteral = DecimalL Double deriving Show
 newtype IntegerLiteral = IntegerL Integer deriving Show
 newtype NodeID = NodeID String deriving Show
@@ -58,10 +58,10 @@ data IRI = FullIRI String
          | AbbreviatedIRI PrefixName String
          | SimpleIRI String deriving Show
 data TypedLiteral = TypedL String Datatype deriving Show
-data FloatPoint = FloatP Double (Maybe Exponent)
-data LiteralWithLang = LiteralWithLang String LangTag
+data FloatPoint = FloatP Double (Maybe Exponent) deriving Show
+data LiteralWithLang = LiteralWithLang String LangTag deriving Show
 data OntologyDocument = OntologyD [PrefixDeclaration] Ontology
-data PrefixDeclaration = PrefixD PrefixName IRI deriving Show
+data PrefixDeclaration = PrefixD PrefixName IRI
 data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportIRI] [AnnotatedList Annotation] [Frame]
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI)
 data Annotation = Annotation AnnotationPropertyIRI AnnotationTarget
@@ -74,7 +74,7 @@ data Frame = FrameDT DatatypeFrame
            | FrameM Misc
 data DatatypeFrame = DatatypeF Datatype (Maybe Annotations) (Maybe AnnotDataRange)
 data AnnotDataRange = AnnotDataRange Annotations DataRange
-data Datatype = DatatypeIRI IRI
+data Datatype = IriDT IRI
               | IntegerDT
               | DecimalDT
               | FloatDT
@@ -178,7 +178,7 @@ data Literal = TypedLiteralC TypedLiteral
              | StringLiteralLang LiteralWithLang
              | IntegerLiteralC IntegerLiteral
              | DecimalLiteralC DecimalLiteral
-             | FloatingLiteralC FloatPoint
+             | FloatingLiteralC FloatPoint deriving Show
 data Entity = DatatypeEntity Datatype
             | ClassEntity ClassIRI
             | ObjectPropertyEntity ObjectPropertyIRI
@@ -188,7 +188,7 @@ data Entity = DatatypeEntity Datatype
 data AnnotationTarget = NodeAT NodeID
                       | IriAT IRI
                       | LiteralAT Literal
--- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic deriving Show
+-- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic
 
 
 ---------------------------
@@ -205,8 +205,8 @@ flattenAnnList xs = Just $ foldl1 (<>) xs
 instance Semigroup (AnnotatedList a) where
   (AnnList xs) <> (AnnList ys) = AnnList (xs <> ys)  
 
-instance Show Annotation where
-  show (Annotation i s) = unwords [show i, "<undefinded-annotation-target>"]
+-- instance Show Annotation where
+--   show (Annotation i s) = unwords [show i, "<undefinded-annotation-target>"]
 
 -- instance (Show a) => Show (AnnotatedList a) where
 --   show (AnnList []) = ""
@@ -215,8 +215,8 @@ instance Show Annotation where
 --     go (AnnList [], x) = show x
 --     go (al, x) = unwords ["Annotations:", show al, "\n ", show x]
 
-instance Show FloatPoint where
-  show (FloatP n me) = concat [show n, maybe "" show me]
-instance Show Exponent where
-  show (Exponent i) = concat ["e", if i > 0 then "+" else "", show i]
+-- instance Show FloatPoint where
+--   show (FloatP n me) = concat [show n, maybe "" show me]
+-- instance Show Exponent where
+--   show (Exponent i) = concat ["e", if i > 0 then "+" else "", show i]
 
