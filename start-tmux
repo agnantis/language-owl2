@@ -6,7 +6,7 @@ SESSION=`basename $PWD`
 
 tmux -2 new-session -d -s $SESSION
 tmux send-keys "nix-shell" C-m
-tmux send-keys "nvim src/OwlParser.hs" C-m
+tmux send-keys "cd src; nvim OwlParser.hs" C-m
 tmux split-window -h
 tmux resize-pane -R 10
 tmux send-keys "nix-shell" C-m
@@ -17,10 +17,10 @@ tmux send-keys "nix-shell" C-m
 tmux send-keys "cabal repl" C-m
 tmux split-window -v
 tmux send-keys "nix-shell" C-m
-tmux send-keys "hlint src/"
+tmux send-keys "find . -type f -name \"*.hs\" | entr hlint src/" C-m
 tmux split-window -v
 tmux send-keys "nix-shell" C-m
-tmux send-keys "doctest src/"
+tmux send-keys "find . -type f -name \"*.hs\" | entr doctest src/" C-m
 
 tmux select-pane -t:.0
 tmux split-window -v

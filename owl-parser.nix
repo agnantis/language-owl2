@@ -6,8 +6,9 @@ let
           project =
             let
               devDeps = with haskellPackagesOld; if pkgs.lib.inNixShell then [ hlint brittany ghcid doctest ] else [ ];
+              devSystemDeps = if pkgs.lib.inNixShell then [ pkgs.entr ] else [ ];
             in 
-              haskellPackagesNew.callPackage ./default.nix { inherit devDeps; };
+              haskellPackagesNew.callPackage ./default.nix { inherit devDeps; inherit devSystemDeps; };
           iri =
             pkgs.haskell.lib.dontCheck haskellPackagesOld.iri;
           ptr =
