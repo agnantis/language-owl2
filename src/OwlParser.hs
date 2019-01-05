@@ -594,10 +594,10 @@ versionIRI = iri
 -- | It parses import statements
 --
 -- >>> parseTest importStmt "Import: <http://ex.com/owl2/families.owl>"
--- FullIRI "http://ex.com/owl2/families.owl"
+-- ImportD (FullIRI "http://ex.com/owl2/families.owl")
 --
-importStmt :: Parser ImportIRI
-importStmt = symbol "Import:" *> iri
+importStmt :: Parser ImportDeclaration
+importStmt = ImportD <$> (symbol "Import:" *> iri)
 
 frame :: Parser Frame
 frame =  FrameDT <$> datatypeFrame
