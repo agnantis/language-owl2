@@ -616,14 +616,14 @@ frame =  FrameDT <$> datatypeFrame
 -- | It parses an object property expression
 --
 -- >>> parseTest objectPropertyExpression "<http://object-property-iri.com>"
--- Positive (FullIRI "http://object-property-iri.com")
+-- Plain (FullIRI "http://object-property-iri.com")
 --
 -- >>> parseTest objectPropertyExpression "inverse <http://object-property-iri.com>"
--- Negative (FullIRI "http://object-property-iri.com")
+-- Inverse (FullIRI "http://object-property-iri.com")
 --
 objectPropertyExpression :: Parser ObjectPropertyExpression
-objectPropertyExpression =  Positive <$> objectPropertyIRI
-                        <|> Negative <$> (symbol "inverse" *> objectPropertyIRI)
+objectPropertyExpression =  Plain   <$> objectPropertyIRI
+                        <|> Inverse <$> (symbol "inverse" *> objectPropertyIRI)
 
 -- | It parses a data property expression
 --
@@ -780,7 +780,7 @@ primary = do
 -- DPRestriction (DPR (SimpleIRI "hasFirstName") (ValueDPR (StringLiteralNoLang "John")))
 --
 -- >>> parseTest (restriction <* eof) "hasFirstName exactly 1"
--- OPRestriction (OPR (Positive (SimpleIRI "hasFirstName")) (ExactlyOPR 1 Nothing))
+-- OPRestriction (OPR (Plain (SimpleIRI "hasFirstName")) (ExactlyOPR 1 Nothing))
 --
 -- >>> parseTest (restriction *> eof) "hasFirstName only string[minLength 1]"
 -- ()

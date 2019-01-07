@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module PrettyPrint where
 
+import qualified Data.List.NonEmpty            as NE
+import qualified Data.Text                     as T
+import           Data.Text.Prettyprint.Doc
 import           Types
-import           Data.Text.Prettyprint.Doc 
-import qualified Data.List.NonEmpty as NE
 
 instance Pretty IRI where
   pretty (FullIRI i) = enclose "<" ">" (pretty i)
@@ -18,10 +19,10 @@ instance Pretty ImportDeclaration where
 
 instance Pretty a => Pretty (AnnotatedList a) where
   pretty (AnnList nelst) = sep . punctuate comma $ xs
-    where xs = (\(ma, a) -> mPretty ma <+> pretty a) <$> NE.toList nelst
+    where xs = (\(ma, a) -> mPretty ma <> pretty a) <$> NE.toList nelst
           mPretty :: Maybe Annotations -> Doc ann
           mPretty Nothing  = mempty
-          mPretty (Just z) = "Annotations:" <+> pretty z
+          mPretty m = "Annotations:" <+> align (prettyM m)
           
 instance Pretty Annotation where
   pretty (Annotation i t) = pretty i <+> pretty t
@@ -65,3 +66,101 @@ instance Pretty FloatPoint where
   pretty (FloatP d me) = pretty d <> pretty pme <> "f"
    where
     pme = ("e" ++) . show <$> me
+
+instance Pretty OntologyVersionIRI where
+  pretty (OntologyVersionIRI oIri mvIri) = pretty oIri <> prettyM' mvIri
+
+instance Pretty a => Pretty (WithNegation a) where
+  pretty (Positive a) = pretty a
+  pretty (Negative a) = "not" <+> pretty a
+
+instance Pretty a => Pretty (WithInversion a) where
+  pretty (Plain a) = pretty a
+  pretty (Inverse a) = "inverse" <+> pretty a
+
+instance Pretty Primary where
+  pretty (PrimaryR r) = pretty r 
+  pretty (PrimaryA a) = pretty a
+
+instance Pretty Atomic where
+  pretty (AtomicClass i) = pretty i
+  pretty (AtomicIndividuals is) = braces . pretty . NE.toList $ is 
+  pretty (AtomicDescription d) = parens . pretty $ d 
+
+instance Pretty Individual where
+  pretty (IRIIndividual i) = pretty i
+  pretty (NodeIndividual n) = pretty n
+
+instance Pretty Restriction where
+  pretty (OPRestriction o) = pretty o
+  pretty (DPRestriction d) = pretty d
+
+instance Pretty ObjectPropertyRestriction where
+  pretty (OPR e rt) = pretty e <+> pretty rt
+
+instance Pretty DataPropertyRestriction where
+  pretty (DPR e rt) = pretty e <+> pretty rt
+
+instance Pretty ObjectPropertyRestrictionType where
+  pretty SelfOPR           = "Self"
+  pretty (SomeOPR p)       = "some"    <+> pretty p
+  pretty (OnlyOPR p)       = "only"    <+> pretty p
+  pretty (MinOPR i mp)     = "min"     <+> pretty i <> prettyM' mp 
+  pretty (MaxOPR i mp)     = "max"     <+> pretty i <> prettyM' mp 
+  pretty (ExactlyOPR i mp) = "exactly" <+> pretty i <> prettyM' mp 
+
+instance Pretty DataPropertyRestrictionType where
+  pretty (SomeDPR p)       = "some"    <+> pretty p
+  pretty (OnlyDPR p)       = "only"    <+> pretty p
+  pretty (ValueDPR l)      = "value"   <+> pretty l
+  pretty (MinDPR i mp)     = "min"     <+> pretty i <> prettyM' mp 
+  pretty (MaxDPR i mp)     = "max"     <+> pretty i <> prettyM' mp 
+  pretty (ExactlyDPR i mp) = "exactly" <+> pretty i <> prettyM' mp 
+
+instance Pretty DataAtomic where
+  pretty (DatatypeDA d) = pretty d
+  pretty (LiteralListDA ls) = braces $ join "," (NE.toList ls)
+  pretty (DatatypeRestrictionDA r) = pretty r
+  pretty (DataRangeDA r) = parens (pretty r)
+
+instance Pretty DataRange where
+  pretty (DataRange dcs) = join "or" (NE.toList dcs)
+
+instance Pretty DataConjunction where
+  pretty (DataConjunction dps) = join "and" (NE.toList dps)
+
+instance Pretty DatatypeRestriction where
+  pretty (DatatypeRestriction d re) = pretty d <+> brackets (join "," (NE.toList  re))
+
+instance Pretty RestrictionExp where
+  pretty (RestrictionExp f l) = pretty f <+> pretty l
+
+instance Pretty Facet where
+  pretty LENGTH_FACET     = "length"
+  pretty MIN_LENGTH_FACET = "minLength"
+  pretty MAX_LENGTH_FACET = "maxLength"
+  pretty PATTERN_FACET    = "pattern"
+  pretty LANG_RANGE_FACET = "langRange"
+  pretty LE_FACET         = "<="
+  pretty L_FACET          = "<"
+  pretty GE_FACET         = ">="
+  pretty G_FACET          = ">"
+
+instance Pretty Conjunction where
+  pretty (ClassConj i rs) = pretty i <+> "that" <+> join "and" (NE.toList rs)
+  pretty (PrimConj ps)    = join "and" (NE.toList ps)
+-----------------------
+-- Utility functions --
+-----------------------
+
+prettyM :: Pretty a => Maybe a -> Doc ann
+prettyM Nothing = mempty
+prettyM m = pretty m <> space
+
+prettyM' :: Pretty a => Maybe a -> Doc ann
+prettyM' Nothing = mempty
+prettyM' m = space <> pretty m
+
+join :: Pretty a => T.Text -> [a] -> Doc ann
+join s xs = concatWith (surround (space <> pretty s <> space)) (pretty <$> xs)
+

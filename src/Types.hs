@@ -41,7 +41,6 @@ type PrefixName = String
 type Annotations = AnnotatedList Annotation
 type Descriptions = AnnotatedList Description
 type Exponent = Integer
-type WithInversion = WithNegation
 type Description = NonEmpty Conjunction
 type Fact = WithNegation FactElement
 type DataPropertyExpression = DataPropertyIRI
@@ -50,23 +49,23 @@ type DataPrimary = WithNegation DataAtomic
 
 newtype DataRange = DataRange (NonEmpty DataConjunction) deriving (Show)
 newtype DataConjunction = DataConjunction (NonEmpty DataPrimary) deriving (Show)
-newtype DecimalLiteral = DecimalL Double deriving (Show)
-newtype IntegerLiteral = IntegerL Integer deriving (Show)
-newtype NodeID = NodeID String deriving (Show)
-newtype AnnotatedList a = AnnList (NonEmpty (Maybe Annotations, a)) deriving (Show)
+newtype DecimalLiteral = DecimalL Double deriving (Show) -- PP
+newtype IntegerLiteral = IntegerL Integer deriving (Show) -- PP
+newtype NodeID = NodeID String deriving (Show) -- PP
+newtype AnnotatedList a = AnnList (NonEmpty (Maybe Annotations, a)) deriving (Show) -- PP
 
 data IRI = FullIRI String
          | AbbreviatedIRI PrefixName String
-         | SimpleIRI String deriving (Show)
-data TypedLiteral = TypedL String Datatype deriving (Show)
-data FloatPoint = FloatP Double (Maybe Exponent) deriving (Show)
-data LiteralWithLang = LiteralWithLang String LangTag deriving (Show)
+         | SimpleIRI String deriving (Show) -- PP
+data TypedLiteral = TypedL String Datatype deriving (Show) -- PP
+data FloatPoint = FloatP Double (Maybe Exponent) deriving (Show) -- PP
+data LiteralWithLang = LiteralWithLang String LangTag deriving (Show) -- PP
 data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving (Show)
-data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show)
-data ImportDeclaration = ImportD IRI deriving (Show)
+data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show) -- PP
+data ImportDeclaration = ImportD IRI deriving (Show) -- PP
 data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [AnnotatedList Annotation] [Frame] deriving (Show)
-data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Show)
-data Annotation = Annotation AnnotationPropertyIRI AnnotationTarget deriving (Show)
+data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Show) -- PP
+data Annotation = Annotation AnnotationPropertyIRI AnnotationTarget deriving (Show) -- PP
 data Frame = FrameDT DatatypeFrame
            | FrameC ClassFrame
            | FrameOP ObjectPropertyFrame
@@ -80,7 +79,7 @@ data Datatype = IriDT IRI
               | IntegerDT
               | DecimalDT
               | FloatDT
-              | StringDT deriving (Show)
+              | StringDT deriving (Show) -- PP
 data DataAtomic = DatatypeDA Datatype
                 | LiteralListDA (NonEmpty Literal)
                 | DatatypeRestrictionDA DatatypeRestriction
@@ -105,7 +104,8 @@ data ClassElement = AnnotationCE Annotations
                   | HasKeyCE (Maybe Annotations) NonEmptyListOfObjectOrDataPE deriving (Show)
 data NonEmptyListOfObjectOrDataPE = NonEmptyO (NonEmpty ObjectPropertyExpression) [DataPropertyExpression]
                                   | NonEmptyD [ObjectPropertyExpression] (NonEmpty DataPropertyExpression) deriving (Show)
-data WithNegation a = Positive a | Negative a deriving (Show, Functor)
+data WithNegation a = Positive a | Negative a deriving (Show, Functor) -- PP
+data WithInversion a = Plain a | Inverse a deriving (Show, Functor)
 data Conjunction = ClassConj IRI (NonEmpty (WithNegation Restriction)) | PrimConj (NonEmpty Primary) deriving (Show)
 data Primary = PrimaryR (WithNegation Restriction) | PrimaryA (WithNegation Atomic) deriving (Show)
 data Restriction = OPRestriction ObjectPropertyRestriction | DPRestriction DataPropertyRestriction deriving (Show)
@@ -179,7 +179,7 @@ data Literal = TypedLiteralC TypedLiteral
              | StringLiteralLang LiteralWithLang
              | IntegerLiteralC IntegerLiteral
              | DecimalLiteralC DecimalLiteral
-             | FloatingLiteralC FloatPoint deriving (Show)
+             | FloatingLiteralC FloatPoint deriving (Show) -- PP
 data Entity = DatatypeEntity Datatype
             | ClassEntity ClassIRI
             | ObjectPropertyEntity ObjectPropertyIRI
@@ -188,7 +188,7 @@ data Entity = DatatypeEntity Datatype
             | IndividualEntity IndividualIRI deriving (Show)
 data AnnotationTarget = NodeAT NodeID
                       | IriAT IRI
-                      | LiteralAT Literal deriving (Show)
+                      | LiteralAT Literal deriving (Show) -- PP
 -- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic
 
 
