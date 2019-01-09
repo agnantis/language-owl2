@@ -6,13 +6,14 @@ import           Prelude                           hiding ( exponent )
 import           Data.Functor                             ( ($>) )
 import           Data.List                                ( intercalate )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
--- import qualified Data.List.NonEmpty            as NEL
+import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Void
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer    as L
 import           Types
+import           Data.Either
 
 --------------------------
 -- Parser related types --
@@ -889,9 +890,9 @@ classFrame = do
          <|> DisjointUnionOfCE <$> (symbol "DisjointUnionOf:" *> optional annotations) 
                                <*> listOfAtLeast2 description
          <|> HasKeyCE          <$> (symbol "HasKey:" *> optional annotations)
-                               <*> (nonEmptyOPE <|> nonEmptyDPE)
-  nonEmptyOPE = NonEmptyO <$> nonEmptyList objectPropertyExpression <*> many dataPropertyExpression
-  nonEmptyDPE = NonEmptyD <$> many objectPropertyExpression <*> nonEmptyList dataPropertyExpression
+                               <*> (NE.fromList <$> some ((ObjectPE <$> objectPropertyExpression) 
+                                              <|> (DataPE   <$> dataPropertyExpression)))
+--  nonEmptyDPE = NonEmptyD <$> many objectPropertyExpression <*> nonEmptyList dataPropertyExpression
 
 -- | It parses an object property
 --

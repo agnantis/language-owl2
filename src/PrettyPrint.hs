@@ -64,8 +64,7 @@ instance Pretty DecimalLiteral where
 
 instance Pretty FloatPoint where
   pretty (FloatP d me) = pretty d <> pretty pme <> "f"
-   where
-    pme = ("e" ++) . show <$> me
+    where pme = ("e" ++) . show <$> me
 
 instance Pretty OntologyVersionIRI where
   pretty (OntologyVersionIRI oIri mvIri) = pretty oIri <> prettyM' mvIri
@@ -149,6 +148,30 @@ instance Pretty Facet where
 instance Pretty Conjunction where
   pretty (ClassConj i rs) = pretty i <+> "that" <+> join "and" (NE.toList rs)
   pretty (PrimConj ps)    = join "and" (NE.toList ps)
+
+instance Pretty DatatypeFrame where
+  pretty (DatatypeF dt ma mdr) = "DatatypFrame:" <+> pretty dt <>  prettyM' pma <>  prettyM' pme
+    where pma = ("Annotations: "  ++) . show . pretty <$> ma
+          pme = ("EquivalentTo: " ++) . show . pretty <$> mdr
+
+instance Pretty AnnotDataRange where
+  pretty (AnnotDataRange a dr) = pretty a <+> pretty dr
+
+instance Pretty ClassFrame where
+  pretty (ClassF i ces) = "Class:" <+> pretty i <+> sep (pretty <$> ces)
+
+instance Pretty ClassElement where
+  pretty (AnnotationCE as)          = "Annotations:"     <+> pretty as
+  pretty (SubClassOfCE ds)          = "SubClassOf:"      <+> pretty ds
+  pretty (EquivalentToCE ds)        = "EquivalentTo:"    <+> pretty ds
+  pretty (DisjointToCE ds)          = "DisjointWith:"    <+> pretty ds
+  pretty (DisjointUnionOfCE mas ds) = "DisjointUnionOf:" <+> prettyM mas <> pretty (toList ds) 
+  pretty (HasKeyCE mas od)          = "HasKey:"          <+> prettyM mas <> pretty (NE.toList od)
+
+instance Pretty ObjectOrDataPE where
+  pretty (ObjectPE ope) = pretty ope
+  pretty (DataPE dpe)   = pretty dpe
+
 -----------------------
 -- Utility functions --
 -----------------------

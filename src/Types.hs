@@ -73,8 +73,8 @@ data Frame = FrameDT DatatypeFrame
            | FrameAP AnnotationPropertyFrame
            | FrameI IndividualFrame
            | FrameM Misc deriving (Show)
-data DatatypeFrame = DatatypeF Datatype (Maybe Annotations) (Maybe AnnotDataRange) deriving (Show)
-data AnnotDataRange = AnnotDataRange Annotations DataRange deriving (Show)
+data DatatypeFrame = DatatypeF Datatype (Maybe Annotations) (Maybe AnnotDataRange) deriving (Show) -- PP
+data AnnotDataRange = AnnotDataRange Annotations DataRange deriving (Show) -- PP
 data Datatype = IriDT IRI
               | IntegerDT
               | DecimalDT
@@ -101,18 +101,18 @@ data ClassElement = AnnotationCE Annotations
                   | EquivalentToCE Descriptions
                   | DisjointToCE Descriptions
                   | DisjointUnionOfCE (Maybe Annotations) (AtLeast2List Description)
-                  | HasKeyCE (Maybe Annotations) NonEmptyListOfObjectOrDataPE deriving (Show)
-data NonEmptyListOfObjectOrDataPE = NonEmptyO (NonEmpty ObjectPropertyExpression) [DataPropertyExpression]
-                                  | NonEmptyD [ObjectPropertyExpression] (NonEmpty DataPropertyExpression) deriving (Show)
+                  | HasKeyCE (Maybe Annotations) (NonEmpty ObjectOrDataPE) deriving (Show)
+data ObjectOrDataPE = ObjectPE ObjectPropertyExpression
+                    | DataPE DataPropertyExpression deriving (Show)
 data WithNegation a = Positive a | Negative a deriving (Show, Functor) -- PP
-data WithInversion a = Plain a | Inverse a deriving (Show, Functor)
+data WithInversion a = Plain a | Inverse a deriving (Show, Functor) -- PP
 data Conjunction = ClassConj IRI (NonEmpty (WithNegation Restriction)) | PrimConj (NonEmpty Primary) deriving (Show)
 data Primary = PrimaryR (WithNegation Restriction) | PrimaryA (WithNegation Atomic) deriving (Show)
 data Restriction = OPRestriction ObjectPropertyRestriction | DPRestriction DataPropertyRestriction deriving (Show)
-data ObjectPropertyRestrictionType = SomeOPR Primary
+data ObjectPropertyRestrictionType = SelfOPR
+                                   | SomeOPR Primary
                                    | OnlyOPR Primary
                                    | ValueOPR Individual
-                                   | SelfOPR
                                    | MinOPR Int (Maybe Primary) -- TODO: Int -> Nat
                                    | MaxOPR Int (Maybe Primary) -- TODO: Int -> Nat
                                    | ExactlyOPR Int (Maybe Primary) deriving (Show) -- TODO: Int -> Nat
@@ -121,7 +121,7 @@ data DataPropertyRestrictionType = SomeDPR DataPrimary
                                  | ValueDPR Literal
                                  | MinDPR Int (Maybe DataPrimary) -- TODO: Int -> Nat
                                  | MaxDPR Int (Maybe DataPrimary) -- TODO: Int -> Nat
-                                 | ExactlyDPR Int (Maybe DataPrimary) deriving (Show) -- TODO: Int -> Nat
+                                 | ExactlyDPR Int (Maybe DataPrimary) deriving (Show) -- TODO: Int -> Nat -- PP
 data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRestrictionType deriving (Show)
 data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType deriving (Show)
 data Individual = IRIIndividual IndividualIRI | NodeIndividual NodeID deriving (Show)
