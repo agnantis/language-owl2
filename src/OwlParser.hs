@@ -931,9 +931,9 @@ objectPropertyFrame = ObjectPropertyF <$> (symbol "ObjectProperty:" *> objectPro
       <|> EquivalentToOPE     <$> (symbol "EquivalentTo:"     *> annotatedList objectPropertyExpression)
       <|> DisjointWithOPE     <$> (symbol "DisjointWith:"     *> annotatedList objectPropertyExpression)
       <|> InverseOfOPE        <$> (symbol "InverseOf:"        *> annotatedList objectPropertyExpression)
-      <|> SubPropertyChainOPE <$> (symbol "SubPropertyChain:" *> annotatedList 
+      <|> SubPropertyChainOPE <$> (symbol "SubPropertyChain:" *> annotations) <*>
                                     (atLeast2List' <$> objectPropertyExpression
-                                                   <*> nonEmptyList (symbol "o" *> objectPropertyExpression)))
+                                                   <*> nonEmptyList (symbol "o" *> objectPropertyExpression))
 
 -- | It parses one of the permitted object property characteristics
 --

@@ -2,6 +2,7 @@
 module PrettyPrint where
 
 import qualified Data.List.NonEmpty            as NE
+import           Data.Maybe                               ( fromMaybe )
 import qualified Data.Text                     as T
 import           Data.Text.Prettyprint.Doc
 import           Types
@@ -150,9 +151,9 @@ instance Pretty Conjunction where
   pretty (PrimConj ps)    = join "and" (NE.toList ps)
 
 instance Pretty DatatypeFrame where
-  pretty (DatatypeF dt ma mdr) = "DatatypFrame:" <+> pretty dt <>  prettyM' pma <>  prettyM' pme
-    where pma = ("Annotations: "  ++) . show . pretty <$> ma
-          pme = ("EquivalentTo: " ++) . show . pretty <$> mdr
+  pretty (DatatypeF dt ma mdr) = "DatatypFrame:" <+> pretty dt <>  pma <>  pme
+    where pma = prependM "Annotations: " ma
+          pme = prependM "EquivalentTo: " mdr
 
 instance Pretty AnnotDataRange where
   pretty (AnnotDataRange a dr) = pretty a <+> pretty dr
@@ -172,6 +173,29 @@ instance Pretty ObjectOrDataPE where
   pretty (ObjectPE ope) = pretty ope
   pretty (DataPE dpe)   = pretty dpe
 
+instance Pretty ObjectPropertyFrame where
+  pretty (ObjectPropertyF i ops) = "ObjectProperty:" <+> pretty i <+> sep (pretty <$> ops)
+
+instance Pretty ObjectPropertyElement where
+  pretty (AnnotationOPE a)           = "Annotations:"      <+> pretty a
+  pretty (DomainOPE ds)              = "Domain:"           <+> pretty ds
+  pretty (RangeOPE ds)               = "Range:"            <+> pretty ds
+  pretty (CharacteristicsOPE ops)    = "Characteristics:"  <+> pretty ops
+  pretty (SubPropertyOfOPE ops)      = "SubPropertyOf:"    <+> pretty ops
+  pretty (EquivalentToOPE ops)       = "EquivalentTo:"     <+> pretty ops
+  pretty (DisjointWithOPE ops)       = "DisjointWith:"     <+> pretty ops
+  pretty (InverseOfOPE ops)          = "InverseOf:"        <+> pretty ops
+  pretty (SubPropertyChainOPE a ops) = "SubPropertyChain:" <+> pretty a <+> join "o" (toList ops)
+
+instance Pretty ObjectPropertyCharacteristics where
+  pretty FUNCTIONAL         = "Functional"
+  pretty INVERSE_FUNCTIONAL = "InverseFunctional"
+  pretty REFLEXIVE          = "Reflexive"
+  pretty IRREFLEXIVE        = "Irreflexive"
+  pretty SYMMETRIC          = "Symmetric"
+  pretty ASYMMETRIC         = "Asymmetric"
+  pretty TRANSITIVE         = "Transitive"
+
 -----------------------
 -- Utility functions --
 -----------------------
@@ -183,6 +207,18 @@ prettyM m = pretty m <> space
 prettyM' :: Pretty a => Maybe a -> Doc ann
 prettyM' Nothing = mempty
 prettyM' m = space <> pretty m
+
+-- | Prepends a value when the there is a Just
+--
+-- >>> prefix = T.pack "name: "
+-- >>> show $ prependM prefix (Just "Joe")
+-- "name: Joe"
+--
+-- >>> length . show $ prependM prefix (Nothing :: Maybe ())
+-- 0
+--
+prependM :: Pretty a => T.Text -> Maybe a -> Doc ann
+prependM t ma = let pma = (pretty t <>) . pretty <$> ma in fromMaybe mempty pma
 
 join :: Pretty a => T.Text -> [a] -> Doc ann
 join s xs = concatWith (surround (space <> pretty s <> space)) (pretty <$> xs)

@@ -53,6 +53,7 @@ newtype DecimalLiteral = DecimalL Double deriving (Show) -- PP
 newtype IntegerLiteral = IntegerL Integer deriving (Show) -- PP
 newtype NodeID = NodeID String deriving (Show) -- PP
 newtype AnnotatedList a = AnnList (NonEmpty (Maybe Annotations, a)) deriving (Show) -- PP
+newtype ImportDeclaration = ImportD IRI deriving (Show) -- PP
 
 data IRI = FullIRI String
          | AbbreviatedIRI PrefixName String
@@ -62,7 +63,6 @@ data FloatPoint = FloatP Double (Maybe Exponent) deriving (Show) -- PP
 data LiteralWithLang = LiteralWithLang String LangTag deriving (Show) -- PP
 data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving (Show)
 data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show) -- PP
-data ImportDeclaration = ImportD IRI deriving (Show) -- PP
 data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [AnnotatedList Annotation] [Frame] deriving (Show)
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Show) -- PP
 data Annotation = Annotation AnnotationPropertyIRI AnnotationTarget deriving (Show) -- PP
@@ -135,7 +135,7 @@ data ObjectPropertyElement = AnnotationOPE Annotations
                            | EquivalentToOPE (AnnotatedList ObjectPropertyExpression)
                            | DisjointWithOPE (AnnotatedList ObjectPropertyExpression)
                            | InverseOfOPE (AnnotatedList ObjectPropertyExpression)
-                           | SubPropertyChainOPE (AnnotatedList (AtLeast2List ObjectPropertyExpression)) deriving (Show)
+                           | SubPropertyChainOPE Annotations (AtLeast2List ObjectPropertyExpression) deriving (Show)
 data ObjectPropertyCharacteristics = FUNCTIONAL
                                    | INVERSE_FUNCTIONAL
                                    | REFLEXIVE
