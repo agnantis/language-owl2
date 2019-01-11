@@ -844,9 +844,9 @@ datatypeFrame :: Parser DatatypeFrame
 datatypeFrame = do
   dtype   <- symbol "Datatype:" *> datatype
   annots  <- many $ symbol "Annotations:" *> annotatedList annotation
-  equiv   <- optional $ AnnotDataRange <$> (symbol "EquivalentTo:" *> annotations) <*> dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
+  equiv   <- optional $ AnnotDataRange <$> (symbol "EquivalentTo:" *> optional annotations) <*> dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
   annots' <- many $ symbol "Annotations:" *> annotatedList annotation
-  pure $ DatatypeF dtype (flattenAnnList (annots <> annots')) equiv
+  pure $ DatatypeF dtype (annots <> annots') equiv
 
 -- | It parses a class frame
 --
@@ -931,7 +931,7 @@ objectPropertyFrame = ObjectPropertyF <$> (symbol "ObjectProperty:" *> objectPro
       <|> EquivalentToOPE     <$> (symbol "EquivalentTo:"     *> annotatedList objectPropertyExpression)
       <|> DisjointWithOPE     <$> (symbol "DisjointWith:"     *> annotatedList objectPropertyExpression)
       <|> InverseOfOPE        <$> (symbol "InverseOf:"        *> annotatedList objectPropertyExpression)
-      <|> SubPropertyChainOPE <$> (symbol "SubPropertyChain:" *> annotations) <*>
+      <|> SubPropertyChainOPE <$> (symbol "SubPropertyChain:" *> optional annotations) <*>
                                     (atLeast2List' <$> objectPropertyExpression
                                                    <*> nonEmptyList (symbol "o" *> objectPropertyExpression))
 
@@ -1093,21 +1093,21 @@ dataPropertyFact = DataPropertyFact <$> dataPropertyIRI <*> literal
 misc :: Parser Misc
 misc =
     EquivalentClasses
-        <$> (symbol "EquivalentClasses:" *> annotatedList (listOfAtLeast2 description))
+        <$> (symbol "EquivalentClasses:" *> optional annotations) <*> listOfAtLeast2 description
     <|> DisjointClasses
-        <$> (symbol "DisjointClasses:"   *> annotatedList (listOfAtLeast2 description))
+        <$> (symbol "DisjointClasses:"   *> optional annotations) <*> listOfAtLeast2 description
     <|> EquivalentObjectProperties
-        <$> (symbol "EquivalentProperties:" *> annotatedList (listOfAtLeast2 objectPropertyExpression))
+        <$> (symbol "EquivalentProperties:" *> optional annotations) <*> listOfAtLeast2 objectPropertyExpression
     <|> DisjointObjectProperties
-        <$> (symbol "DisjointProperties:" *> annotatedList (listOfAtLeast2 objectPropertyExpression))
+        <$> (symbol "DisjointProperties:" *> optional annotations) <*> listOfAtLeast2 objectPropertyExpression
     <|> EquivalentDataProperties
-        <$> (symbol "EquivalentProperties:" *> annotatedList (listOfAtLeast2 dataPropertyExpression))
+        <$> (symbol "EquivalentProperties:" *> optional annotations) <*> listOfAtLeast2 dataPropertyExpression
     <|> DisjointDataProperties
-        <$> (symbol "DisjointProperties:" *> annotatedList (listOfAtLeast2 dataPropertyExpression))
+        <$> (symbol "DisjointProperties:" *> optional annotations) <*> listOfAtLeast2 dataPropertyExpression
     <|> SameIndividual
-        <$> (symbol "SameIndividual:" *> annotatedList (listOfAtLeast2 individual))
+        <$> (symbol "SameIndividual:" *> optional annotations) <*> listOfAtLeast2 individual
     <|> DifferentIndividual
-        <$> (symbol "DifferentIndividuals:" *> annotatedList (listOfAtLeast2 individual))
+        <$> (symbol "DifferentIndividuals:" *> optional annotations) <*> listOfAtLeast2 individual
 
 -----------------------
 --- Generic parsers ---

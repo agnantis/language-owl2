@@ -151,8 +151,8 @@ instance Pretty Conjunction where
   pretty (PrimConj ps)    = join "and" (NE.toList ps)
 
 instance Pretty DatatypeFrame where
-  pretty (DatatypeF dt ma mdr) = "DatatypFrame:" <+> pretty dt <>  pma <>  pme
-    where pma = prependM "Annotations: " ma
+  pretty (DatatypeF dt ma mdr) = "DatatypFrame:" <+> pretty dt <+> pma <> pme
+    where pma = if null ma then mempty else "Annotations:" <+> sep (pretty <$> ma)
           pme = prependM "EquivalentTo: " mdr
 
 instance Pretty AnnotDataRange where
@@ -195,6 +195,72 @@ instance Pretty ObjectPropertyCharacteristics where
   pretty SYMMETRIC          = "Symmetric"
   pretty ASYMMETRIC         = "Asymmetric"
   pretty TRANSITIVE         = "Transitive"
+
+
+instance Pretty DataPropertyFrame where
+  pretty (DataPropertyF i dps) = "DataProperty:" <+> pretty i <+> sep (pretty <$> dps)
+
+instance Pretty DataPropertyElement where
+  pretty (AnnotationDPE a)        = "Annotations:"      <+> pretty a
+  pretty (DomainDPE ds)           = "Domain:"           <+> pretty ds
+  pretty (RangeDPE ds)            = "Range:"            <+> pretty ds
+  pretty (CharacteristicsDPE dps) = "Characteristics:"  <+> pretty dps
+  pretty (SubPropertyOfDPE dps)   = "SubPropertyOf:"    <+> pretty dps
+  pretty (EquivalentToDPE dps)    = "EquivalentTo:"     <+> pretty dps
+  pretty (DisjointWithDPE dps)    = "DisjointWith:"     <+> pretty dps
+
+instance Pretty DataPropertyCharacteristics where
+  pretty FUNCTIONAL_DPE = "Functional"
+
+instance Pretty AnnotationPropertyFrame where
+  pretty (AnnotationPropertyF i aps) = "AnnotationProperty:" <+> pretty i <+> sep (pretty <$> aps)
+
+instance Pretty AnnotationPropertyElement where
+  pretty (AnnotationAPE a)        = "Annotations:"      <+> pretty a
+  pretty (DomainAPE as)           = "Domain:"           <+> pretty as
+  pretty (RangeAPE as)            = "Range:"            <+> pretty as
+  pretty (SubPropertyOfAPE aps)   = "SubPropertyOf:"    <+> pretty aps
+
+instance Pretty IndividualFrame where
+  pretty (IndividualF i oes) = "Individual:" <+> pretty i <+> sep (pretty <$> oes)
+
+instance Pretty IndividualElement where
+  pretty (AnnotationIE a)     = "Annotations:"  <+> pretty a
+  pretty (TypeIE ds)          = "Types:"        <+> pretty ds
+  pretty (FactIE af)          = "Facts:"        <+> pretty af
+  pretty (SameAsIE ai)        = "SameAs:"       <+> pretty ai
+  pretty (DifferentFromIE ai) = "DifferentFrom" <+> pretty ai
+
+instance Pretty FactElement where
+  pretty (ObjectPropertyFE opf) = pretty opf 
+  pretty (DataPropertyFE dpf)   = pretty dpf
+
+instance Pretty ObjectPropertyFact where
+  pretty (ObjectPropertyFact i ind) = pretty i <+> pretty ind
+
+instance Pretty DataPropertyFact where
+  pretty (DataPropertyFact i l) = pretty i <+> pretty l
+
+instance Pretty Misc where
+  pretty (EquivalentClasses as ds)           = "EquivalentClasses:"    <+> pretty as <+> pretty ds
+  pretty (DisjointClasses as ds)             = "DisjointClasses:"      <+> pretty as <+> pretty ds
+  pretty (EquivalentObjectProperties as ope) = "EquivalentProperties:" <+> pretty as <+> pretty ope
+  pretty (DisjointObjectProperties as ope)   = "DisjointProperties:"   <+> pretty as <+> pretty ope
+  pretty (EquivalentDataProperties as dpe)   = "EquivalentProperties:" <+> pretty as <+> pretty dpe
+  pretty (DisjointDataProperties as dpe)     = "DisjointProperties:"   <+> pretty as <+> pretty dpe
+  pretty (SameIndividual as is)              = "SameIndividual:"       <+> pretty as <+> pretty is
+  pretty (DifferentIndividual as is)         = "DifferentIndividual:"  <+> pretty as <+> pretty is
+
+instance Pretty a => Pretty (AtLeast2List a) where
+  pretty = pretty . toList
+
+instance Pretty Entity where
+  pretty (DatatypeEntity de)           = "Datatype"           <+> "(" <+> pretty de <+> ")"
+  pretty (ClassEntity ce)              = "Class"              <+> "(" <+> pretty ce <+> ")"
+  pretty (ObjectPropertyEntity ie)     = "ObjectProperty"     <+> "(" <+> pretty ie <+> ")"
+  pretty (DataPropertyEntity de)       = "DataProperty"       <+> "(" <+> pretty de <+> ")"
+  pretty (AnnotationPropertyEntity ae) = "AnnotationProperty" <+> "(" <+> pretty ae <+> ")"
+  pretty (IndividualEntity ie)         = "NamedIndividual"    <+> "(" <+> pretty ie <+> ")"
 
 -----------------------
 -- Utility functions --
