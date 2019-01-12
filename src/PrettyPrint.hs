@@ -19,12 +19,13 @@ instance Pretty ImportDeclaration where
   pretty (ImportD i) = "Import:" <+> pretty i
 
 instance Pretty a => Pretty (AnnotatedList a) where
-  pretty (AnnList nelst) = sep . punctuate comma $ xs
-    where xs = (\(ma, a) -> mPretty ma <> pretty a) <$> NE.toList nelst
-          mPretty :: Maybe Annotations -> Doc ann
-          mPretty Nothing  = mempty
-          mPretty m = "Annotations:" <+> align (prettyM m)
+  pretty (AnnList nelst) = sep $ punctuate comma xs
+    where xs :: [Doc ann]
+          xs = (\(ma, a) -> prependM "Annotations: " ma <-> pretty a) <$> NE.toList nelst
           
+instance Pretty Description where
+  pretty (Description nel) = sep . punctuate " or " $ pretty <$> NE.toList nel
+
 instance Pretty Annotation where
   pretty (Annotation i t) = pretty i <+> pretty t
 
@@ -67,8 +68,20 @@ instance Pretty FloatPoint where
   pretty (FloatP d me) = pretty d <> pretty pme <> "f"
     where pme = ("e" ++) . show <$> me
 
+instance Pretty OntologyDocument where
+  pretty (OntologyD pds o) = vsep (pretty <$> pds) <> emptyLine <> pretty o
+
+instance Pretty Ontology where
+  pretty (Ontology mvi ims ans frs) = "Ontology:" <-> pretty mvi
+                                   <> emptyLine
+                                   <> vsep (pretty <$> ims)
+                                   <> emptyLine
+                                   <> vsep (pretty <$> ans)
+                                   <> emptyLine
+                                   <> vsep (pretty <$> frs)
+
 instance Pretty OntologyVersionIRI where
-  pretty (OntologyVersionIRI oIri mvIri) = pretty oIri <> prettyM' mvIri
+  pretty (OntologyVersionIRI oIri mvIri) = pretty oIri <-> pretty mvIri
 
 instance Pretty a => Pretty (WithNegation a) where
   pretty (Positive a) = pretty a
@@ -105,17 +118,17 @@ instance Pretty ObjectPropertyRestrictionType where
   pretty SelfOPR           = "Self"
   pretty (SomeOPR p)       = "some"    <+> pretty p
   pretty (OnlyOPR p)       = "only"    <+> pretty p
-  pretty (MinOPR i mp)     = "min"     <+> pretty i <> prettyM' mp 
-  pretty (MaxOPR i mp)     = "max"     <+> pretty i <> prettyM' mp 
-  pretty (ExactlyOPR i mp) = "exactly" <+> pretty i <> prettyM' mp 
+  pretty (MinOPR i mp)     = "min"     <+> pretty i <-> pretty mp 
+  pretty (MaxOPR i mp)     = "max"     <+> pretty i <-> pretty mp 
+  pretty (ExactlyOPR i mp) = "exactly" <+> pretty i <-> pretty mp 
 
 instance Pretty DataPropertyRestrictionType where
   pretty (SomeDPR p)       = "some"    <+> pretty p
   pretty (OnlyDPR p)       = "only"    <+> pretty p
   pretty (ValueDPR l)      = "value"   <+> pretty l
-  pretty (MinDPR i mp)     = "min"     <+> pretty i <> prettyM' mp 
-  pretty (MaxDPR i mp)     = "max"     <+> pretty i <> prettyM' mp 
-  pretty (ExactlyDPR i mp) = "exactly" <+> pretty i <> prettyM' mp 
+  pretty (MinDPR i mp)     = "min"     <+> pretty i <-> pretty mp 
+  pretty (MaxDPR i mp)     = "max"     <+> pretty i <-> pretty mp 
+  pretty (ExactlyDPR i mp) = "exactly" <+> pretty i <-> pretty mp 
 
 instance Pretty DataAtomic where
   pretty (DatatypeDA d) = pretty d
@@ -151,41 +164,50 @@ instance Pretty Conjunction where
   pretty (PrimConj ps)    = join "and" (NE.toList ps)
 
 instance Pretty DatatypeFrame where
-  pretty (DatatypeF dt ma mdr) = "DatatypFrame:" <+> pretty dt <+> pma <> pme
-    where pma = if null ma then mempty else "Annotations:" <+> sep (pretty <$> ma)
-          pme = prependM "EquivalentTo: " mdr
+  pretty (DatatypeF dt ma mdr) = "DatatypFrame:" <+> pretty dt
+                               <> line
+                               <> pma
+                               <> line
+                               <> prependM "EquivalentTo: " mdr
+    where pma = if null ma
+                then mempty
+                else "Annotations:" <+> indent 4 (align (vsep (pretty <$> ma)))
 
 instance Pretty AnnotDataRange where
   pretty (AnnotDataRange a dr) = pretty a <+> pretty dr
 
 instance Pretty ClassFrame where
-  pretty (ClassF i ces) = "Class:" <+> pretty i <+> sep (pretty <$> ces)
+  pretty (ClassF i ces) = "Class:" <+> pretty i
+                        <> line
+                        <> indent 4 (vsep (pretty <$> ces))
 
 instance Pretty ClassElement where
-  pretty (AnnotationCE as)          = "Annotations:"     <+> pretty as
-  pretty (SubClassOfCE ds)          = "SubClassOf:"      <+> pretty ds
-  pretty (EquivalentToCE ds)        = "EquivalentTo:"    <+> pretty ds
-  pretty (DisjointToCE ds)          = "DisjointWith:"    <+> pretty ds
-  pretty (DisjointUnionOfCE mas ds) = "DisjointUnionOf:" <+> prettyM mas <> pretty (toList ds) 
-  pretty (HasKeyCE mas od)          = "HasKey:"          <+> prettyM mas <> pretty (NE.toList od)
+  pretty (AnnotationCE as)          = "Annotations:"     <+> align (pretty as)
+  pretty (SubClassOfCE ds)          = "SubClassOf:"      <+> align (pretty ds)
+  pretty (EquivalentToCE ds)        = "EquivalentTo:"    <+> align (pretty ds)
+  pretty (DisjointToCE ds)          = "DisjointWith:"    <+> align (pretty ds)
+  pretty (DisjointUnionOfCE mas ds) = "DisjointUnionOf:" <-> align (pretty mas <-> pretty (toList ds))
+  pretty (HasKeyCE mas od)          = "HasKey:"          <-> align (pretty mas <-> pretty (NE.toList od))
 
 instance Pretty ObjectOrDataPE where
   pretty (ObjectPE ope) = pretty ope
   pretty (DataPE dpe)   = pretty dpe
 
 instance Pretty ObjectPropertyFrame where
-  pretty (ObjectPropertyF i ops) = "ObjectProperty:" <+> pretty i <+> sep (pretty <$> ops)
+  pretty (ObjectPropertyF i ops) = "ObjectProperty:" <+> pretty i 
+                                 <> line
+                                 <> indent 4 (vsep (pretty <$> ops))
 
 instance Pretty ObjectPropertyElement where
-  pretty (AnnotationOPE a)           = "Annotations:"      <+> pretty a
-  pretty (DomainOPE ds)              = "Domain:"           <+> pretty ds
-  pretty (RangeOPE ds)               = "Range:"            <+> pretty ds
-  pretty (CharacteristicsOPE ops)    = "Characteristics:"  <+> pretty ops
-  pretty (SubPropertyOfOPE ops)      = "SubPropertyOf:"    <+> pretty ops
-  pretty (EquivalentToOPE ops)       = "EquivalentTo:"     <+> pretty ops
-  pretty (DisjointWithOPE ops)       = "DisjointWith:"     <+> pretty ops
-  pretty (InverseOfOPE ops)          = "InverseOf:"        <+> pretty ops
-  pretty (SubPropertyChainOPE a ops) = "SubPropertyChain:" <+> pretty a <+> join "o" (toList ops)
+  pretty (AnnotationOPE a)           = "Annotations:"      <+> align (pretty a)
+  pretty (DomainOPE ds)              = "Domain:"           <+> align (pretty ds)
+  pretty (RangeOPE ds)               = "Range:"            <+> align (pretty ds)
+  pretty (CharacteristicsOPE ops)    = "Characteristics:"  <+> align (pretty ops)
+  pretty (SubPropertyOfOPE ops)      = "SubPropertyOf:"    <+> align (pretty ops)
+  pretty (EquivalentToOPE ops)       = "EquivalentTo:"     <+> align (pretty ops)
+  pretty (DisjointWithOPE ops)       = "DisjointWith:"     <+> align (pretty ops)
+  pretty (InverseOfOPE ops)          = "InverseOf:"        <+> align (pretty ops)
+  pretty (SubPropertyChainOPE a ops) = "SubPropertyChain:" <+> align (pretty a <+> join "o" (toList ops))
 
 instance Pretty ObjectPropertyCharacteristics where
   pretty FUNCTIONAL         = "Functional"
@@ -198,22 +220,35 @@ instance Pretty ObjectPropertyCharacteristics where
 
 
 instance Pretty DataPropertyFrame where
-  pretty (DataPropertyF i dps) = "DataProperty:" <+> pretty i <+> sep (pretty <$> dps)
+  pretty (DataPropertyF i dps) = "DataProperty:" <+> pretty i 
+                               <> line
+                               <> indent 4 (vsep (pretty <$> dps))
 
 instance Pretty DataPropertyElement where
-  pretty (AnnotationDPE a)        = "Annotations:"      <+> pretty a
-  pretty (DomainDPE ds)           = "Domain:"           <+> pretty ds
-  pretty (RangeDPE ds)            = "Range:"            <+> pretty ds
-  pretty (CharacteristicsDPE dps) = "Characteristics:"  <+> pretty dps
-  pretty (SubPropertyOfDPE dps)   = "SubPropertyOf:"    <+> pretty dps
-  pretty (EquivalentToDPE dps)    = "EquivalentTo:"     <+> pretty dps
-  pretty (DisjointWithDPE dps)    = "DisjointWith:"     <+> pretty dps
+  pretty (AnnotationDPE a)        = "Annotations:"      <+> align (pretty a)
+  pretty (DomainDPE ds)           = "Domain:"           <+> align (pretty ds)
+  pretty (RangeDPE ds)            = "Range:"            <+> align (pretty ds)
+  pretty (CharacteristicsDPE dps) = "Characteristics:"  <+> align (pretty dps)
+  pretty (SubPropertyOfDPE dps)   = "SubPropertyOf:"    <+> align (pretty dps)
+  pretty (EquivalentToDPE dps)    = "EquivalentTo:"     <+> align (pretty dps)
+  pretty (DisjointWithDPE dps)    = "DisjointWith:"     <+> align (pretty dps)
 
 instance Pretty DataPropertyCharacteristics where
   pretty FUNCTIONAL_DPE = "Functional"
 
+instance Pretty Frame where
+  pretty (FrameDT df)  = pretty df
+  pretty (FrameC cf)   = pretty cf
+  pretty (FrameOP opf) = pretty opf
+  pretty (FrameDP dpf) = pretty dpf
+  pretty (FrameAP af ) = pretty af 
+  pretty (FrameI ifr)  = pretty ifr
+  pretty (FrameM m)    = pretty m 
+
 instance Pretty AnnotationPropertyFrame where
-  pretty (AnnotationPropertyF i aps) = "AnnotationProperty:" <+> pretty i <+> sep (pretty <$> aps)
+  pretty (AnnotationPropertyF i aps) = "AnnotationProperty:" <+> pretty i
+                                     <> line
+                                     <> indent 4 (vsep (pretty <$> aps))
 
 instance Pretty AnnotationPropertyElement where
   pretty (AnnotationAPE a)        = "Annotations:"      <+> pretty a
@@ -222,7 +257,9 @@ instance Pretty AnnotationPropertyElement where
   pretty (SubPropertyOfAPE aps)   = "SubPropertyOf:"    <+> pretty aps
 
 instance Pretty IndividualFrame where
-  pretty (IndividualF i oes) = "Individual:" <+> pretty i <+> sep (pretty <$> oes)
+  pretty (IndividualF i oes) = "Individual:" <+> pretty i
+                             <> line
+                             <> indent 4 (vsep (pretty <$> oes))
 
 instance Pretty IndividualElement where
   pretty (AnnotationIE a)     = "Annotations:"  <+> pretty a
@@ -266,13 +303,13 @@ instance Pretty Entity where
 -- Utility functions --
 -----------------------
 
-prettyM :: Pretty a => Maybe a -> Doc ann
-prettyM Nothing = mempty
-prettyM m = pretty m <> space
-
-prettyM' :: Pretty a => Maybe a -> Doc ann
-prettyM' Nothing = mempty
-prettyM' m = space <> pretty m
+-- prettyM :: Pretty a => Maybe a -> Doc ann
+-- prettyM Nothing = mempty
+-- prettyM m = pretty m <> space
+-- 
+-- prettyM' :: Pretty a => Maybe a -> Doc ann
+-- prettyM' Nothing = mempty
+-- prettyM' m = space <> pretty m
 
 -- | Prepends a value when the there is a Just
 --
@@ -289,3 +326,14 @@ prependM t ma = let pma = (pretty t <>) . pretty <$> ma in fromMaybe mempty pma
 join :: Pretty a => T.Text -> [a] -> Doc ann
 join s xs = concatWith (surround (space <> pretty s <> space)) (pretty <$> xs)
 
+emptyLine :: Doc ann
+emptyLine = line <> line
+
+-- | Like @(<+>), with bettrn handling of empty representations, in order to avoid 
+-- having many spaces (e.g. when you _canncatenate_ Docs where are empty
+--
+(<->) :: Doc ann -> Doc ann -> Doc ann
+d1 <-> d2
+ | null (show d1) = d2
+ | null (show d2) = d1
+ | otherwise = d1 <+> d2

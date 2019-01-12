@@ -28,5 +28,6 @@ library
                      , parser-combinators
                      , prettyprinter
                      , iri
+                     , text
   hs-source-dirs:      src
   default-language:    Haskell2010

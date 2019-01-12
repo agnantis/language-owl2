@@ -3,17 +3,22 @@
 module OwlParser where
 
 import           Prelude                           hiding ( exponent )
+
+import           Data.Either
 import           Data.Functor                             ( ($>) )
 import           Data.List                                ( intercalate )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
+import           Data.Text.Prettyprint.Doc
 import           Data.Void
+import           System.IO
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer    as L
 import           Types
-import           Data.Either
+
+import           PrettyPrint
 
 --------------------------
 -- Parser related types --
@@ -483,7 +488,7 @@ decimalLiteral :: Parser DecimalLiteral
 decimalLiteral = do
   mSign <- sign
   dig1  <- digits
-  dig2  <- symbol "." >> digits
+  dig2  <- symbol "." *> digits
   pure . DecimalL . read . concat $ [mSign, dig1, ".", dig2]
 
 -- | It parser integer values
@@ -530,8 +535,11 @@ entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
 --      ]
 -- :}
 --
--- >>> parseTest (annotations >> eof) (unlines input)
+-- >>> parseTest (annotations *> eof) (unlines input)
 -- ()
+--
+-- >>> x = parse (annotations <* eof) "" (unlines input)
+-- >>> y = fromRight undefined x
 --
 annotations :: Parser (AnnotatedList Annotation)
 annotations = symbol "Annotations:" *> annotatedList annotation
@@ -582,9 +590,9 @@ ontology = do
   symbol "Ontology:"
   ontoIRI <- optional $ OntologyVersionIRI <$> ontologyIRI <*> optional versionIRI -- Maybe (iri, Maybe iri)
   imports <- many importStmt
-  annots  <- annotations
+  annots  <- many annotations
   frames  <- many frame
-  pure $ Ontology ontoIRI imports [annots] frames
+  pure $ Ontology ontoIRI imports annots frames
 
 ontologyIRI :: Parser IRI
 ontologyIRI = iri
@@ -636,7 +644,7 @@ dataPropertyExpression = dataPropertyIRI
 
 -- | It parses a data range
 --
--- >>> parseTest (dataRange >> eof) "integer[>10] and integer[<20] or integer[>100]"
+-- >>> parseTest (dataRange *> eof) "integer[>10] and integer[<20] or integer[>100]"
 -- ()
 --
 dataRange :: Parser DataRange
@@ -644,7 +652,7 @@ dataRange = DataRange <$> singleOrMany "or" dataConjunction
 
 -- | It parses a data conjunction (i.e. 'and')
 --
--- >>> parseTest (dataConjunction >> eof) "integer[<10] and integer[>0]"
+-- >>> parseTest (dataConjunction *> eof) "integer[<10] and integer[>0]"
 -- ()
 --
 dataConjunction :: Parser DataConjunction
@@ -663,7 +671,7 @@ dataPrimary = do
 
 -- | It parses an atomic data
 --
--- >>> parseTest (dataAtomic >> eof)  "integer[<0]"
+-- >>> parseTest (dataAtomic *> eof)  "integer[<0]"
 -- ()
 --
 dataAtomic :: Parser DataAtomic
@@ -682,7 +690,7 @@ literalList = nonEmptyList literal
 
 -- | It parses datatype restrictions
 --
--- >>> parseTest (datatypeRestriction >> eof) "integer[> 0, maxLength 2]"
+-- >>> parseTest (datatypeRestriction *> eof) "integer[> 0, maxLength 2]"
 -- ()
 --
 -- >>> parseTest datatypeRestriction "integer[< 0]"
@@ -716,11 +724,11 @@ restrictionValue = literal
 
 -- | It parses a description
 --
--- >>> parseTest (description <* eof) "Man"
--- PrimConj (PrimaryA (Positive (AtomicClass (SimpleIRI "Man"))) :| []) :| []
+-- >>> parseTest (description *> eof) "Man"
+-- ()
 --
--- >>> parseTest (description <* eof) "Man or Woman"
--- PrimConj (PrimaryA (Positive (AtomicClass (SimpleIRI "Man"))) :| []) :| [PrimConj (PrimaryA (Positive (AtomicClass (SimpleIRI "Woman"))) :| [])]
+-- >>> parseTest (description *> eof) "Man or Woman"
+-- ()
 --
 -- >>> parseTest (description *> eof) "hasFirstName value \"John\" or Man"
 -- ()
@@ -728,8 +736,8 @@ restrictionValue = literal
 -- >>> parseTest (description *> eof) "hasFirstName value \"John\" or hasFirstName value \"Jack\"^^xsd:string"
 -- ()
 --
-description :: Parser (NonEmpty Conjunction)
-description = singleOrMany "or" conjunction
+description :: Parser Description
+description = Description <$> singleOrMany "or" conjunction
 
 -- | It parses a conjunction
 --
@@ -743,6 +751,9 @@ description = singleOrMany "or" conjunction
 -- PrimConj (PrimaryA (Positive (AtomicClass (SimpleIRI "Person"))) :| [])
 --
 -- >>> parseTest (conjunction *> eof) "owl:Thing that hasFirstName exactly 1"
+-- ()
+--
+-- >>> parseTest (conjunction *> eof) "p some a and p only b"
 -- ()
 --
 conjunction :: Parser Conjunction
@@ -880,17 +891,17 @@ classFrame :: Parser ClassFrame
 classFrame = do
   clsIRI <- symbol "Class:" *> classIRI
   blob   <- many choices
-  pure $ ClassF clsIRI blob 
+  pure $ ClassF clsIRI blob
  where
   choices :: Parser ClassElement
   choices =  AnnotationCE      <$> (symbol "Annotations:" *> annotatedList annotation)
          <|> SubClassOfCE      <$> (symbol "SubClassOf:" *> annotatedList description)
          <|> EquivalentToCE    <$> (symbol "EquivalentTo:" *> annotatedList description)
          <|> DisjointToCE      <$> (symbol "DisjointWith:" *> annotatedList description)
-         <|> DisjointUnionOfCE <$> (symbol "DisjointUnionOf:" *> optional annotations) 
+         <|> DisjointUnionOfCE <$> (symbol "DisjointUnionOf:" *> optional annotations)
                                <*> listOfAtLeast2 description
          <|> HasKeyCE          <$> (symbol "HasKey:" *> optional annotations)
-                               <*> (NE.fromList <$> some ((ObjectPE <$> objectPropertyExpression) 
+                               <*> (NE.fromList <$> some ((ObjectPE <$> objectPropertyExpression)
                                               <|> (DataPE   <$> dataPropertyExpression)))
 --  nonEmptyDPE = NonEmptyD <$> many objectPropertyExpression <*> nonEmptyList dataPropertyExpression
 
@@ -1172,3 +1183,17 @@ predifinedPrefixes =
   , PrefixD "owl"  (FullIRI "http://www.w3.org/2002/07/owl#")
   ]
 
+parseOntologyDoc :: FilePath -> IO (Maybe OntologyDocument)
+parseOntologyDoc file =
+  putStrLn ("Parsing ontology document: '" <> file <> "'") >>
+  readFile file >>= parseContent
+  where
+    parseContent content =
+      case parse ontologyDocument file content of
+        Left bundle -> do
+          putStrLn "Unable to parse file. Reason: "
+          putStrLn (errorBundlePretty bundle)
+          pure Nothing
+        Right doc -> do
+          putStrLn "File parsed succesfully"
+          pure (Just doc)
