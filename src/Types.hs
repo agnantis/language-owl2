@@ -1,9 +1,11 @@
 {-# LANGUAGE DeriveFunctor #-}
 
+
 module Types where
 
 import           Data.List                                ( intercalate )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
+import           Data.Text                                ( Text )
 
 ---------------
 ---- TYPES ----
@@ -25,7 +27,7 @@ toNonEmptyList :: AtLeast2List a -> NonEmpty a
 toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
 
 
-type LangTag = String
+type LangTag = Text
 type ImportIRI = IRI
 type AnnotationPropertyIRI = IRI
 type VersionIRI = IRI
@@ -36,8 +38,8 @@ type ClassIRI = IRI
 type ObjectPropertyIRI = IRI
 type DataPropertyIRI = IRI
 type IndividualIRI = IRI
---type Frame = String
-type PrefixName = String
+--type Frame = Text
+type PrefixName = Text
 type Annotations = AnnotatedList Annotation
 type Descriptions = AnnotatedList Description
 type Exponent = Integer
@@ -52,16 +54,16 @@ newtype DataConjunction = DataConjunction (NonEmpty DataPrimary) deriving (Show)
 newtype DecimalLiteral = DecimalL Double deriving (Show) -- PP
 newtype Description = Description (NonEmpty Conjunction) deriving (Show) -- PP
 newtype IntegerLiteral = IntegerL Integer deriving (Show) -- PP
-newtype NodeID = NodeID String deriving (Show) -- PP
+newtype NodeID = NodeID Text deriving (Show) -- PP
 newtype AnnotatedList a = AnnList (NonEmpty (Annotations', a)) deriving (Show) -- PP
 newtype ImportDeclaration = ImportD IRI deriving (Show) -- PP
 
-data IRI = FullIRI String
-         | AbbreviatedIRI PrefixName String
-         | SimpleIRI String deriving (Show) -- PP
-data TypedLiteral = TypedL String Datatype deriving (Show) -- PP
+data IRI = FullIRI Text
+         | AbbreviatedIRI PrefixName Text
+         | SimpleIRI Text deriving (Show) -- PP
+data TypedLiteral = TypedL Text Datatype deriving (Show) -- PP
 data FloatPoint = FloatP Double (Maybe Exponent) deriving (Show) -- PP
-data LiteralWithLang = LiteralWithLang String LangTag deriving (Show) -- PP
+data LiteralWithLang = LiteralWithLang Text LangTag deriving (Show) -- PP
 data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving (Show)
 data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show) -- PP
 data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [AnnotatedList Annotation] [Frame] deriving (Show)
@@ -176,7 +178,7 @@ data Misc = EquivalentClasses Annotations' (AtLeast2List Description)
           | SameIndividual Annotations' (AtLeast2List Individual)
           | DifferentIndividual Annotations' (AtLeast2List Individual) deriving (Show) -- PP
 data Literal = TypedLiteralC TypedLiteral
-             | StringLiteralNoLang String
+             | StringLiteralNoLang Text
              | StringLiteralLang LiteralWithLang
              | IntegerLiteralC IntegerLiteral
              | DecimalLiteralC DecimalLiteral

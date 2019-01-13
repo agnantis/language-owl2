@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module OwlParser where
 
@@ -11,6 +12,11 @@ import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Text.Prettyprint.Doc
+import           Data.Text                                ( Text )
+import qualified Data.Text                     as T
+import qualified Data.Text.Lazy                as TL
+import qualified Data.Text.IO                  as TIO
+import qualified Data.Text.Lazy.IO             as TLIO
 import           Data.Void
 import           System.IO
 import           Text.Megaparsec
@@ -20,11 +26,16 @@ import           Types
 
 import           PrettyPrint
 
+-- DocTest setup
+--
+-- $setup
+-- >>> :set -XOverloadedStrings
+
 --------------------------
 -- Parser related types --
 --------------------------
 
-type Parser = Parsec Void String
+type Parser = Parsec Void Text
 -- | Parses white space and line comments
 --
 -- >>> parseTest (sc *> many (satisfy (const True))) "    some indented text"
@@ -46,15 +57,15 @@ enclosed :: Char -> Parser a -> Parser a
 enclosed c = between (char c) (char (cChar c))
 
 enclosedS :: Char -> Parser a -> Parser a
-enclosedS c = between (symbol [c]) (symbol [cChar c])
+enclosedS c = between (symbol . T.singleton $ c) (symbol . T.singleton . cChar $ c)
 
 -- | Reserved keywords
-allKeywords :: [String]
+allKeywords :: [Text]
 allKeywords = concat [ datatypeKeywords, entityKeywords, ontologyKeywords
                      , propertyKeywords, miscKeywords
                      ]
 
-datatypeKeywords :: [String]
+datatypeKeywords :: [Text]
 datatypeKeywords = ["integer", "decimal", "float", "string"]
 
 -- c for complement
@@ -70,23 +81,23 @@ cChar = \case
   ']' -> '['
   c   -> c
 
-entityKeywords :: [String]
+entityKeywords :: [Text]
 entityKeywords = [ "Datatype", "Class", "ObjectProperty", "DataProperty", "AnnotationProperty"
                  , "NamedInvividual", "EquivalentTo", "SubClassOf", "DisjointWith"
                  , "DisjointUnionOf", "HasKey", "Domain", "Range", "Characteristics"
                  , "SubPropertyOf", "InverseOf", "SubPropertyChain"
                  ]
 
-ontologyKeywords :: [String]
+ontologyKeywords :: [Text]
 ontologyKeywords = ["Annotations", "Prefix", "Ontology", "Import"]
 
-propertyKeywords :: [String]
+propertyKeywords :: [Text]
 propertyKeywords = [ "inverse", "or", "and", "not", "length", "minLength", "maxLength", "pattern"
                    , "Functional", "InverseFunctional", "Reflexive", "Irreflexive", "Symmetric"
                    , "Asymmetric", "Transitive"
                    ]
 
-miscKeywords :: [String]
+miscKeywords :: [Text]
 miscKeywords = [ "Individual", "Types", "Facts", "SameAs", "DifferentFrom", "EquivalentClasses"
                , "DisjointClasses", "EquivalentProperties", "DisjointProperties"
                , "EquivalentProperties", "DisjointProperties", "SameIndividual"
@@ -98,7 +109,7 @@ miscKeywords = [ "Individual", "Types", "Facts", "SameAs", "DifferentFrom", "Equ
 -- >>> parseTest (symbol "a symbol" *> symbol "and a second") "a symbol    and a second"
 -- "and a second"
 --
-symbol :: String -> Parser String
+symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
 -- | It parses zero
@@ -118,8 +129,8 @@ nonZero = notFollowedBy zero *> digitChar
 digit :: Parser Char
 digit = zero <|> nonZero
 
-digits :: Parser String
-digits = some digit
+digits :: Parser Text
+digits = T.pack <$> some digit
 
 -- | It parses positive integer
 --
@@ -151,7 +162,7 @@ nonNegativeInteger =
 -- "-"
 -- >>> parseTest sign ""
 -- ""
-sign :: Parser String
+sign :: Parser Text
 sign = do
   mSign <- optional $ "" <$ symbol "+" <|> symbol "-"
   pure $ fromMaybe "" mSign
@@ -176,12 +187,12 @@ sign = do
 -- >>> parseTest identifier "Ontology"
 -- ...
 -- keyword "Ontology" cannot be an identifier
-identifier :: Parser String
+identifier :: Parser Text
 identifier = lexeme identifier_
 
 -- | It parses arbitrary alpharithmetics provived that it does not belong to
 -- the list of reserved keywords. It does not parse any space after the identifier
-identifier_ :: Parser String
+identifier_ :: Parser Text
 identifier_ = try (anyIdentifier_ >>= check)
  where
   check x =
@@ -190,11 +201,11 @@ identifier_ = try (anyIdentifier_ >>= check)
     else pure x
 
 -- | It parses arbitrary alpharithmetics. It does not parse any space after the identifier
-anyIdentifier_ :: Parser String
-anyIdentifier_ = try p where p = (:) <$> letterChar <*> many (alphaNumChar <|> char '_')
+anyIdentifier_ :: Parser Text
+anyIdentifier_ = T.pack <$> try ((:) <$> letterChar <*> many (alphaNumChar <|> char '_'))
 
 -- | It parses arbitrary alpharithmetics. It parses any space after the identifier
-anyIdentifier :: Parser String
+anyIdentifier :: Parser Text
 anyIdentifier = lexeme anyIdentifier_
 
 -- | It parses prefix names
@@ -210,7 +221,7 @@ anyIdentifier = lexeme anyIdentifier_
 -- unexpected space
 -- ...
 --
-prefixName :: Parser String
+prefixName :: Parser Text
 prefixName = (identifier_ <|> pure "") <* string ":"
 
 -- | TODO currently IRI is defined as text inside <>
@@ -362,7 +373,7 @@ typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" *> datatype)
 -- >>> parseTest stringLiteralNoLanguage "\"hello there\""
 -- "hello there"
 --
-stringLiteralNoLanguage :: Parser String
+stringLiteralNoLanguage :: Parser Text
 stringLiteralNoLanguage = quotedString
 
 
@@ -387,7 +398,7 @@ stringLiteralWithLanguage = LiteralWithLang <$> quotedString <*> languageTag
 languageTag :: Parser LangTag
 languageTag = char '@' *> identifier_ -- (U+40) followed a nonempty sequence of characters matching the langtag production from [BCP 47]
 
-lexicalValue :: Parser String
+lexicalValue :: Parser Text
 lexicalValue = quotedString
 
 -- | It parses a string enclosed in double quotes
@@ -396,18 +407,19 @@ lexicalValue = quotedString
 -- "this is a quoted string"
 -- >>> parseTest quotedString "\"this is \\\"test \\\" message\""
 -- "this is \\\"test \\\" message"
-quotedString :: Parser String
+--
+quotedString :: Parser Text
 quotedString = do
   char '\"'
   strings <- many chars
   char '\"'
-  pure $ concat strings
+  pure . T.pack . concat $ strings
  where
   chars     = fmap pure nonEscape <|> escape
-  nonEscape = noneOf "\\\"\0\n\r\v\t\b\f" -- all the characters that can be escaped
+  nonEscape = noneOf ("\\\"\0\n\r\v\t\b\f" :: String) -- all the characters that can be escaped
   escape    = do
     d <- char '\\'
-    c <- oneOf "\\\"0nrvtbf"
+    c <- oneOf ("\\\"0nrvtbf" :: String)
     pure [d, c]
 
 
@@ -437,20 +449,22 @@ floatingPointLiteral = do
   dgts <- dig1 <|> dig2
   mExp <- optional exponent
   symbol "f" <|> symbol "F"
-  pure $ FloatP (read (sgn ++ dgts)) mExp
+  pure $ FloatP (read . T.unpack $ sgn <> dgts) mExp
  where
+  dig1 :: Parser Text
   dig1 = do
     dg'  <- digits
     mDec <- optional $ do
       symbol "."
       dg <- digits
-      pure $ '.' : dg
+      pure $ "." <> dg
     let dc = fromMaybe "" mDec
-    pure $ dg' ++ dc
+    pure $ dg' <> dc
+  dig2 :: Parser Text
   dig2 = do
     _    <- symbol "."
     dgts <- digits
-    pure $ "0." ++ dgts
+    pure $ "0." <> dgts
 
 
 -- | It parses an exponent
@@ -473,7 +487,7 @@ exponent = do
   symb <- symbol "e" <|> symbol "E"
   ms   <- sign
   dgts <- digits
-  pure . read . concat $ [ms, dgts]
+  pure . read . T.unpack $ ms <> dgts
 
 -- | It parser decimal values
 --
@@ -489,7 +503,7 @@ decimalLiteral = do
   mSign <- sign
   dig1  <- digits
   dig2  <- symbol "." *> digits
-  pure . DecimalL . read . concat $ [mSign, dig1, ".", dig2]
+  pure . DecimalL . read . T.unpack . T.concat $ [mSign, dig1, ".", dig2]
 
 -- | It parser integer values
 --
@@ -504,12 +518,12 @@ integerLiteral :: Parser IntegerLiteral
 integerLiteral = do
   mSign <- sign
   digs  <- digits
-  pure . IntegerL . read . concat $ [mSign, digs]
+  pure . IntegerL . read . T.unpack $ mSign <> digs
 
 entity :: Parser Entity
 entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
  where
-  alts :: [(String, Parser Entity)]
+  alts :: [(Text, Parser Entity)]
   alts =
     [ ("Datatype"          , DatatypeEntity <$> datatype)
     , ("Class"             , ClassEntity <$> classIRI)
@@ -527,7 +541,7 @@ entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
 -- | It parses annotations
 --
 -- >>> :{
--- let input :: [String]
+-- let input :: [Text]
 --     input =
 --      [ "Annotations: creator \"John\","
 --      , "             Annotations: rdfs:comment \"Creation Year\" creationYear 2008,"
@@ -535,10 +549,10 @@ entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
 --      ]
 -- :}
 --
--- >>> parseTest (annotations *> eof) (unlines input)
+-- >>> parseTest (annotations *> eof) (T.unlines input)
 -- ()
 --
--- >>> x = parse (annotations <* eof) "" (unlines input)
+-- >>> x = parse (annotations <* eof) "" (T.unlines input)
 -- >>> y = fromRight undefined x
 --
 annotations :: Parser (AnnotatedList Annotation)
@@ -839,7 +853,7 @@ atomic =  AtomicClass       <$> classIRI
 -- | It parses a datatype frame
 --
 -- >>> :{
--- let input :: [String]
+-- let input :: [Text]
 --     input =
 --       [
 --         "Datatype: NegInt"
@@ -848,7 +862,7 @@ atomic =  AtomicClass       <$> classIRI
 --       ]
 -- :}
 --
--- >>> parseTest (datatypeFrame *> eof) (unlines input)
+-- >>> parseTest (datatypeFrame *> eof) (T.unlines input)
 -- ()
 --
 datatypeFrame :: Parser DatatypeFrame
@@ -862,7 +876,7 @@ datatypeFrame = do
 -- | It parses a class frame
 --
 -- >>> :{
--- let input :: [String]
+-- let input :: [Text]
 --     input =
 --       [
 --         "Class: Person"
@@ -879,7 +893,7 @@ datatypeFrame = do
 --       ]
 -- :}
 --
--- >>> parseTest (classFrame *> eof) (unlines input)
+-- >>> parseTest (classFrame *> eof) (T.unlines input)
 -- ()
 --
 -- TODO-check-1: in specs `sndChoice` (aka `HasKey`) is an alternative to the others
@@ -908,7 +922,7 @@ classFrame = do
 -- | It parses an object property
 --
 -- >>> :{
--- let input :: [String]
+-- let input :: [Text]
 --     input =
 --       [
 --         "ObjectProperty: hasWife"
@@ -928,7 +942,7 @@ classFrame = do
 --       ]
 -- :}
 --
--- >>> parseTest (objectPropertyFrame *> eof) (unlines input)
+-- >>> parseTest (objectPropertyFrame *> eof) (T.unlines input)
 -- ()
 --
 objectPropertyFrame :: Parser ObjectPropertyFrame
@@ -973,7 +987,7 @@ objectPropertyCharacteristic =
 -- | It parses an data property
 --
 -- >>> :{
--- let input :: [String]
+-- let input :: [Text]
 --     input =
 --       [
 --         "DataProperty: hasAge"
@@ -987,7 +1001,7 @@ objectPropertyCharacteristic =
 --       ]
 -- :}
 --
--- >>> parseTest (dataPropertyFrame *> eof) (unlines input)
+-- >>> parseTest (dataPropertyFrame *> eof) (T.unlines input)
 -- ()
 --
 -- TODO-check: 'annotations' in 'characteristics are probably optional
@@ -1017,7 +1031,7 @@ dataPropertyCharacteristic = symbol "Functional" $> FUNCTIONAL_DPE
 -- | It parses an annotation property
 --
 -- >>> :{
--- let input :: [String]
+-- let input :: [Text]
 --     input =
 --       [ "AnnotationProperty: creator"
 --       , "Annotations: rdfs:comment \"General domain\", creator John"
@@ -1027,7 +1041,7 @@ dataPropertyCharacteristic = symbol "Functional" $> FUNCTIONAL_DPE
 --       ]
 -- :}
 --
--- >>> parseTest (annotationPropertyFrame *> eof) (unlines input)
+-- >>> parseTest (annotationPropertyFrame *> eof) (T.unlines input)
 -- ()
 --
 annotationPropertyFrame :: Parser AnnotationPropertyFrame
@@ -1042,7 +1056,7 @@ annotationPropertyFrame = AnnotationPropertyF <$> (symbol "AnnotationProperty:" 
 -- | It parses an individual frame
 --
 -- >>> :{
--- let input :: [String]
+-- let input :: [Text]
 --     input =
 --       [ "Individual: John"
 --       , "  Annotations: rdfs:creator \"John\""
@@ -1051,14 +1065,14 @@ annotationPropertyFrame = AnnotationPropertyF <$> (symbol "AnnotationProperty:" 
 --       , "  DifferentFrom: Susan"
 --       , "  SameAs: Jack , Bob"
 --       ]
---     input2 :: [String]
+--     input2 :: [Text]
 --     input2 = "Individual: _:child1":(tail input)
 -- :}
 --
--- >>> parseTest (individualFrame *> eof) (unlines input)
+-- >>> parseTest (individualFrame *> eof) (T.unlines input)
 -- ()
 --
--- >>> parseTest (individualFrame *> eof) (unlines input2)
+-- >>> parseTest (individualFrame *> eof) (T.unlines input2)
 -- ()
 --
 individualFrame :: Parser IndividualFrame
@@ -1085,7 +1099,7 @@ dataPropertyFact = DataPropertyFact <$> dataPropertyIRI <*> literal
 -- | It parses an class miscelaneous properties
 --
 -- >>> :{
--- let input :: [String]
+-- let input :: [Text]
 --     input =
 --       [ "DisjointClasses: g:Rock, g:Scissor, g:Paper"
 --       , "EquivalentProperties: hates, loathes, despises"
@@ -1097,7 +1111,7 @@ dataPropertyFact = DataPropertyFact <$> dataPropertyIRI <*> literal
 --       ]
 -- :}
 --
--- >>> parseTest (many misc *> eof) (unlines input)
+-- >>> parseTest (many misc *> eof) (T.unlines input)
 -- ()
 --
 -- TODO-check I converted all required annotation to annotated list
@@ -1135,7 +1149,7 @@ optionalNegation = maybe (Positive ()) (const (Negative ())) <$> (optional . sym
 -- >>> parseTest (singleOrMany "or" . lexeme . string $ "test") "test or test or test"
 -- "test" :| ["test","test"]
 --
-singleOrMany :: String -> Parser p -> Parser (NonEmpty p)
+singleOrMany :: Text -> Parser p -> Parser (NonEmpty p)
 singleOrMany sep p =
   let multipleP = (:|) <$> p <*> some (symbol sep *> p) in try multipleP <|> (pure <$> p)
 
@@ -1186,7 +1200,7 @@ predifinedPrefixes =
 parseOntologyDoc :: FilePath -> IO (Maybe OntologyDocument)
 parseOntologyDoc file =
   putStrLn ("Parsing ontology document: '" <> file <> "'") >>
-  readFile file >>= parseContent
+  TIO.readFile file >>= parseContent
   where
     parseContent content =
       case parse ontologyDocument file content of
