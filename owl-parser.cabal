@@ -21,7 +21,8 @@ library
                        OwlParser
                      , Types
                      , PrettyPrint
-  -- other-modules:       
+  other-modules:       
+                       Import
   -- other-extensions:    
   build-depends:       base >=4.11 && <4.12
                      , megaparsec >= 7.0

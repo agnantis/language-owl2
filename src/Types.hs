@@ -5,7 +5,7 @@ module Types where
 
 import           Data.List                                ( intercalate )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
-import           Data.Text                                ( Text )
+import           Import                                   ( Text )
 
 ---------------
 ---- TYPES ----

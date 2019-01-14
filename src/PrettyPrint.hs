@@ -3,8 +3,8 @@ module PrettyPrint where
 
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
-import qualified Data.Text                     as T
 import           Data.Text.Prettyprint.Doc
+import qualified Import                        as T
 import           Types
 
 instance Pretty IRI where

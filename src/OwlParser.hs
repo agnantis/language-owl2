@@ -12,12 +12,9 @@ import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Text.Prettyprint.Doc
-import           Data.Text                                ( Text )
-import qualified Data.Text                     as T
-import qualified Data.Text.Lazy                as TL
-import qualified Data.Text.IO                  as TIO
-import qualified Data.Text.Lazy.IO             as TLIO
 import           Data.Void
+import           Import                                   ( Text )
+import qualified Import                        as T
 import           System.IO
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
@@ -1200,7 +1197,7 @@ predifinedPrefixes =
 parseOntologyDoc :: FilePath -> IO (Maybe OntologyDocument)
 parseOntologyDoc file =
   putStrLn ("Parsing ontology document: '" <> file <> "'") >>
-  TIO.readFile file >>= parseContent
+  T.readFile file >>= parseContent
   where
     parseContent content =
       case parse ontologyDocument file content of
