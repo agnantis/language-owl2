@@ -1,1 +1,1 @@
-(import ./owl-parser.nix).project.env
+(import ./language-owl2.nix).project.env

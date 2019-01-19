@@ -1,8 +1,9 @@
-# OWL-Parser
+# Language-OWL2
 
-A Haskell parser for the [Manchester Syntax](https://www.w3.org/TR/owl2-manchester-syntax) of OWL 2 Web Ontology Language
+A Haskell parser and pretty printer for various dialects of the OWL 2 Web Ontology Language.
+It's current version is able to parse and pretty print the [Manchester Syntax](https://www.w3.org/TR/owl2-manchester-syntax)
 
-This a work in progress and by no means complete
+**DISCLAIMER**: This a work in progress and by no means complete
 
 
 ## Technologies/Tools

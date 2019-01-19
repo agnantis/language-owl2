@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 
-echo "Initializing environment for 'owl-parser' project..."
+echo "Initializing environment for 'language-owl2' project..."
 
 SESSION=`basename $PWD`
 
 tmux -2 new-session -d -s $SESSION
 tmux send-keys "nix-shell" C-m
-tmux send-keys "cd src; nvim OwlParser.hs" C-m
+tmux send-keys "cd src" C-m
+tmux send-keys "nvim" C-m
 tmux split-window -h
 tmux resize-pane -R 10
 tmux send-keys "nix-shell" C-m
@@ -22,9 +23,9 @@ tmux split-window -v
 tmux send-keys "nix-shell" C-m
 tmux send-keys "find . -type f -name \"*.hs\" | entr doctest src/" C-m
 
-tmux select-pane -t:.0
-tmux split-window -v
-tmux send-keys "nvim res/example.owl" C-m
-tmux resize-pane -D 8
+# tmux select-pane -t:.0
+# tmux split-window -v
+# tmux send-keys "nvim res/example.owl" C-m
+# tmux resize-pane -D 8
 tmux -2 attach -t $SESSION
 tmux rename-window -t $SESSION:1 IDE

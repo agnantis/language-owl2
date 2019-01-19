@@ -1,11 +1,11 @@
 {-# LANGUAGE DeriveFunctor #-}
 
 
-module Types where
+module Language.OWL2.Types where
 
 import           Data.List                                ( intercalate )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
-import           Import                                   ( Text )
+import           Language.OWL2.Import                     ( Text )
 
 ---------------
 ---- TYPES ----

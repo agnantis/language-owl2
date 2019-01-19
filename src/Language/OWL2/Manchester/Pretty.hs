@@ -1,11 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
-module PrettyPrint where
+
+module Language.OWL2.Manchester.Pretty where
 
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Text.Prettyprint.Doc
-import qualified Import                        as T
-import           Types
+
+import qualified Language.OWL2.Import          as T
+import           Language.OWL2.Types
 
 instance Pretty IRI where
   pretty (FullIRI i) = enclose "<" ">" (pretty i)

@@ -1,10 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module OwlParser where
+module Language.OWL2.Manchester.Parser where
 
 import           Prelude                           hiding ( exponent )
-
 import           Data.Either
 import           Data.Functor                             ( ($>) )
 import           Data.List                                ( intercalate )
@@ -13,15 +12,15 @@ import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Text.Prettyprint.Doc
 import           Data.Void
-import           Import                                   ( Text )
-import qualified Import                        as T
 import           System.IO
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer    as L
-import           Types
 
-import           PrettyPrint
+import           Language.OWL2.Import                     ( Text )
+import qualified Language.OWL2.Import          as T
+import           Language.OWL2.Types
+import           Language.OWL2.Manchester.Pretty
 
 -- DocTest setup
 --
