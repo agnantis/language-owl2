@@ -10,7 +10,6 @@ import           Data.List                                ( intercalate )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
-import           Data.Text.Prettyprint.Doc
 import           Data.Void
 import           System.IO
 import           Text.Megaparsec
