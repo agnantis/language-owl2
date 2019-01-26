@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DefaultSignatures #-}
 
-module Language.OWL2.Manchester.Pretty where
+module Language.OWL2.Functional.Pretty where
 
+import           Data.List.NonEmpty                       ( NonEmpty )
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Text.Prettyprint.Doc         hiding ( pretty, prettyList )
@@ -20,6 +21,7 @@ class PrettyM a where
 
 instance PrettyM () where
   pretty = mempty
+
 -- instance (PrettyM a, PP.Pretty a) => PrettyM (Maybe a) where
 --   pretty = PP.pretty
 instance PrettyM a => PrettyM (Maybe a) where
@@ -32,6 +34,9 @@ instance PrettyM Char where
 
 instance PrettyM a => PrettyM [a] where
     pretty = prettyList
+
+instance PrettyM a => PrettyM (NonEmpty a) where
+    pretty nel = sep (pretty <$> NE.toList nel)
 
 instance PrettyM Double where
   pretty = PP.pretty
@@ -48,21 +53,29 @@ instance PrettyM T.Text where
 instance PrettyM IRI where
   pretty (FullIRI i) = enclose "<" ">" (PP.pretty i)
   pretty (AbbreviatedIRI pfx i) = pretty pfx <> ":" <> pretty i
-  pretty (SimpleIRI i) = pretty i
+  pretty (SimpleIRI i) = ":" <> pretty i -- TODO: does it really require ':'?
 
 instance PrettyM PrefixDeclaration where
-  pretty (PrefixD pfx i) = "Prefix:" <+> (pretty pfx <> ":") <+> pretty i
+  pretty (PrefixD pfx i) = "Prefix" <> parens ((pretty pfx <> ":=") <> pretty i)
 
 instance PrettyM ImportDeclaration where
-  pretty (ImportD i) = "Import:" <+> pretty i
+  pretty (ImportD i) = "Import" <> parens (pretty i)
 
 instance PrettyM a => PrettyM (AnnotatedList a) where
   pretty (AnnList nelst) = sep $ punctuate comma xs
     where xs :: [Doc ann]
           xs = (\(ma, a) -> prependM "Annotations: " ma <-> pretty a) <$> NE.toList nelst
-          
+
+instance PrettyM Conjunction where
+  pretty (ClassConj i rs) = "ObjectIntersectionOf" <> parens (pretty i <+> pretty rs)
+  pretty (PrimConj ps)
+    | null (NE.tail ps) = pretty ps
+    | otherwise          = "ObjectIntersectionOf" <> parens (pretty ps)
+      
 instance PrettyM Description where
-  pretty (Description nel) = sep . punctuate " or " $ pretty <$> NE.toList nel
+  pretty (Description nel)
+    | null (NE.tail nel) = pretty nel
+    | otherwise          = "ObjectUnionOf" <> parens (pretty nel)
 
 instance PrettyM Annotation where
   pretty (Annotation i t) = pretty i <+> pretty t
@@ -88,10 +101,10 @@ instance PrettyM TypedLiteral where
 
 instance PrettyM Datatype where
   pretty (IriDT i) = pretty i
-  pretty IntegerDT = "integer"
-  pretty DecimalDT = "decimal"
-  pretty FloatDT   = "float"
-  pretty StringDT  = "string"
+  pretty IntegerDT = "xsd:integer"
+  pretty DecimalDT = "xsd:decimal"
+  pretty FloatDT   = "xsd:float"
+  pretty StringDT  = "xsd:string"
 
 instance PrettyM LiteralWithLang where
   pretty (LiteralWithLang s l) = pretty s <> pretty l
@@ -110,13 +123,16 @@ instance PrettyM OntologyDocument where
   pretty (OntologyD pds o) = vsep (pretty <$> pds) <> emptyLine <> pretty o
 
 instance PrettyM Ontology where
-  pretty (Ontology mvi ims ans frs) = "Ontology:" <-> pretty mvi
-                                   <> emptyLine
-                                   <> vsep (pretty <$> ims)
-                                   <> emptyLine
-                                   <> vsep (pretty <$> ans)
-                                   <> emptyLine
-                                   <> vsep (pretty <$> frs)
+  pretty (Ontology mvi ims ans frs) = "Ontology" <> parens (nest 2 body)
+   where
+    body =  emptyLine
+         <> pretty mvi
+         <> emptyLine
+         <> vsep (pretty <$> ims)
+         <> emptyLine
+         <> vsep (pretty <$> ans)
+         <> emptyLine
+         <> vsep (pretty <$> frs)
 
 instance PrettyM OntologyVersionIRI where
   pretty (OntologyVersionIRI oIri mvIri) = pretty oIri <-> pretty mvIri
@@ -125,18 +141,37 @@ instance PrettyM a => PrettyM (WithNegation a) where
   pretty (Positive a) = pretty a
   pretty (Negative a) = "not" <+> pretty a
 
+
 instance PrettyM ObjectPropertyExpression where
   pretty (OPE o)        = pretty o
-  pretty (InverseOPE o) = "inverse" <+> pretty o
+  pretty (InverseOPE o) = "InverseObjectProperty" <> parens (pretty o)
 
 instance PrettyM Primary where
-  pretty (PrimaryR r) = pretty r 
-  pretty (PrimaryA a) = pretty a
+  pretty (PrimaryR (Positive r)) = pretty r 
+  pretty (PrimaryR (Negative r)) = "ObjectComplementOf" <> parens (pretty r) 
+  pretty (PrimaryA (Positive a)) = pretty a
+  pretty (PrimaryA (Negative a)) = "ObjectComplementOf" <> parens (pretty a)
+
+-- prettifyWNDataAtomic :: WithNegation DataAtomic -> Doc ann
+-- prettifyWNDataAtomic (Positive r) = pretty r
+-- prettifyWNDataAtomic (Negative r) = undefined
+-- 
+-- prettifyWNAtomic :: WithNegation Atomic -> Doc ann
+-- prettifyWNAtomic (Positive r) = pretty r
+-- prettifyWNAtomic (Negative r) = undefined
+-- 
+-- prettifyWNRestriction :: WithNegation Restriction -> Doc ann
+-- prettifyWNRestriction (Positive r) = pretty r
+-- prettifyWNRestriction (Negative r) = undefined
+-- 
+-- prettifyWIObjPropertyExpr :: WithInversion ObjectPropertyIRI -> Doc ann
+-- prettifyWIObjPropertyExpr (Plain o) = pretty o
+-- prettifyWIObjPropertyExpr (Inverse o) = "InverseObjectProperty" <> parens (pretty o)
 
 instance PrettyM Atomic where
-  pretty (AtomicClass i) = pretty i
-  pretty (AtomicIndividuals is) = braces . pretty . NE.toList $ is 
-  pretty (AtomicDescription d) = parens . pretty $ d 
+  pretty (AtomicClass i)        = pretty i
+  pretty (AtomicIndividuals is) = "ObjectOneOf" <> parens (sep (pretty <$> NE.toList is))
+  pretty (AtomicDescription d)  = pretty d
 
 instance PrettyM Individual where
   pretty (IRIIndividual i) = pretty i
@@ -147,27 +182,37 @@ instance PrettyM Restriction where
   pretty (DPRestriction d) = pretty d
 
 instance PrettyM ObjectPropertyRestriction where
-  pretty (OPR e rt) = pretty e <+> pretty rt
-
+  pretty (OPR e SelfOPR)           = "ObjectHasSelf"          <> parens (pretty e)
+  pretty (OPR e (SomeOPR p))       = "ObjectSomeValuesFrom"   <> parens (pretty e <+> pretty p)
+  pretty (OPR e (OnlyOPR p))       = "ObjectAllValuesFrom"    <> parens (pretty e <+> pretty p)
+  pretty (OPR e (ValueOPR i))      = "ObjectHasValue"         <> parens (pretty e <+> pretty i)
+  pretty (OPR e (MinOPR i mp))     = "ObjectMinCardinality"   <> parens (pretty e <+> pretty i <-> pretty mp)
+  pretty (OPR e (MaxOPR i mp))     = "ObjectMaxCardinality"   <> parens (pretty e <+> pretty i <-> pretty mp)
+  pretty (OPR e (ExactlyOPR i mp)) = "ObjectExactCardinality" <> parens (pretty e <+> pretty i <-> pretty mp)
+    
 instance PrettyM DataPropertyRestriction where
-  pretty (DPR e rt) = pretty e <+> pretty rt
+  pretty (DPR e (SomeDPR p))       = "DataSomeValuesFrom"   <> parens (pretty e <+> pretty p)
+  pretty (DPR e (OnlyDPR p))       = "DataAllValuesFrom"    <> parens (pretty e <+> pretty p)
+  pretty (DPR e (ValueDPR l))      = "DataHasValue"         <> parens (pretty e <+> pretty l)
+  pretty (DPR e (MinDPR i mp))     = "DataMinCardinality"   <> parens (pretty e <+> pretty i <-> pretty mp) 
+  pretty (DPR e (MaxDPR i mp))     = "DataMaxCardinality"   <> parens (pretty e <+> pretty i <-> pretty mp) 
+  pretty (DPR e (ExactlyDPR i mp)) = "DataExactCardinality" <> parens (pretty e <+> pretty i <-> pretty mp)
 
-instance PrettyM ObjectPropertyRestrictionType where
-  pretty SelfOPR           = "Self"
-  pretty (SomeOPR p)       = "some"    <+> pretty p
-  pretty (OnlyOPR p)       = "only"    <+> pretty p
-  pretty (ValueOPR i)      = "value"   <+> pretty i
-  pretty (MinOPR i mp)     = "min"     <+> pretty i <-> pretty mp 
-  pretty (MaxOPR i mp)     = "max"     <+> pretty i <-> pretty mp 
-  pretty (ExactlyOPR i mp) = "exactly" <+> pretty i <-> pretty mp 
+--instance PrettyM ObjectPropertyRestrictionType where
+--  pretty SelfOPR           = "Self"
+--  pretty (SomeOPR p)       = "ObjectSomeValuesFrom" <> parens (pretty p)
+--  pretty (OnlyOPR p)       = "only"    <+> pretty p
+--  pretty (MinOPR i mp)     = "min"     <+> pretty i <-> pretty mp 
+--  pretty (MaxOPR i mp)     = "max"     <+> pretty i <-> pretty mp 
+--  pretty (ExactlyOPR i mp) = "exactly" <+> pretty i <-> pretty mp 
 
-instance PrettyM DataPropertyRestrictionType where
-  pretty (SomeDPR p)       = "some"    <+> pretty p
-  pretty (OnlyDPR p)       = "only"    <+> pretty p
-  pretty (ValueDPR l)      = "value"   <+> pretty l
-  pretty (MinDPR i mp)     = "min"     <+> pretty i <-> pretty mp 
-  pretty (MaxDPR i mp)     = "max"     <+> pretty i <-> pretty mp 
-  pretty (ExactlyDPR i mp) = "exactly" <+> pretty i <-> pretty mp 
+--instance PrettyM DataPropertyRestrictionType where
+--  pretty (SomeDPR p)       = "some"    <+> pretty p
+--  pretty (OnlyDPR p)       = "only"    <+> pretty p
+--  pretty (ValueDPR l)      = "value"   <+> pretty l
+--  pretty (MinDPR i mp)     = "min"     <+> pretty i <-> pretty mp 
+--  pretty (MaxDPR i mp)     = "max"     <+> pretty i <-> pretty mp 
+--  pretty (ExactlyDPR i mp) = "exactly" <+> pretty i <-> pretty mp
 
 instance PrettyM DataAtomic where
   pretty (DatatypeDA d) = pretty d
@@ -176,10 +221,14 @@ instance PrettyM DataAtomic where
   pretty (DataRangeDA r) = parens (pretty r)
 
 instance PrettyM DataRange where
-  pretty (DataRange dcs) = join "or" (NE.toList dcs)
+  pretty (DataRange dcs)
+    | null (NE.tail dcs) = pretty dcs
+    | otherwise          = "DataUnionOf" <> parens (pretty dcs)
 
 instance PrettyM DataConjunction where
-  pretty (DataConjunction dps) = join "and" (NE.toList dps)
+  pretty (DataConjunction dps)
+    | null (NE.tail dps) = pretty dps
+    | otherwise          = "DataIntersectionOf" <> parens (pretty dps)
 
 instance PrettyM DatatypeRestriction where
   pretty (DatatypeRestriction d re) = pretty d <+> brackets (join "," (NE.toList  re))
@@ -188,19 +237,15 @@ instance PrettyM RestrictionExp where
   pretty (RestrictionExp f l) = pretty f <+> pretty l
 
 instance PrettyM Facet where
-  pretty LENGTH_FACET     = "length"
-  pretty MIN_LENGTH_FACET = "minLength"
-  pretty MAX_LENGTH_FACET = "maxLength"
-  pretty PATTERN_FACET    = "pattern"
-  pretty LANG_RANGE_FACET = "langRange"
-  pretty LE_FACET         = "<="
-  pretty L_FACET          = "<"
-  pretty GE_FACET         = ">="
-  pretty G_FACET          = ">"
-
-instance PrettyM Conjunction where
-  pretty (ClassConj i rs) = pretty i <+> "that" <+> join "and" (NE.toList rs)
-  pretty (PrimConj ps)    = join "and" (NE.toList ps)
+  pretty LENGTH_FACET     = "xsd:length"
+  pretty MIN_LENGTH_FACET = "xsd:minLength"
+  pretty MAX_LENGTH_FACET = "xsd:maxLength"
+  pretty PATTERN_FACET    = "xsd:pattern"
+  pretty LANG_RANGE_FACET = "rdf:langRange"
+  pretty LE_FACET         = "xsd:minInclusive"
+  pretty L_FACET          = "xsd:minExclusive"
+  pretty GE_FACET         = "xsd:maxInclusive"
+  pretty G_FACET          = "xsd:maxExclusive"
 
 instance PrettyM DatatypeFrame where
   pretty (DatatypeF dt ma mdr) = "DatatypFrame:" <+> pretty dt
@@ -216,17 +261,17 @@ instance PrettyM AnnotDataRange where
   pretty (AnnotDataRange a dr) = pretty a <+> pretty dr
 
 instance PrettyM ClassFrame where
-  pretty (ClassF i ces) = "Class:" <+> pretty i
+  pretty (ClassF i ces) = "Declaration" <> parens ("Class" <> parens(pretty i))
                         <> line
-                        <> indent 4 (vsep (pretty <$> ces))
-
-instance PrettyM ClassElement where
-  pretty (AnnotationCE as)          = "Annotations:"     <+> align (pretty as)
-  pretty (SubClassOfCE ds)          = "SubClassOf:"      <+> align (pretty ds)
-  pretty (EquivalentToCE ds)        = "EquivalentTo:"    <+> align (pretty ds)
-  pretty (DisjointToCE ds)          = "DisjointWith:"    <+> align (pretty ds)
-  pretty (DisjointUnionOfCE mas ds) = "DisjointUnionOf:" <-> align (pretty mas <-> pretty (toList ds))
-  pretty (HasKeyCE mas od)          = "HasKey:"          <-> align (pretty mas <-> pretty (NE.toList od))
+                        <> vsep (pretty' <$> ces)
+   where
+    pretty' :: ClassElement -> Doc ann
+    pretty' (AnnotationCE as)          = "Annotations:"      <> parens (pretty i <+> pretty as)
+    pretty' (SubClassOfCE ds)          = "SubClassOf:"       <> parens (pretty i <+> pretty ds)
+    pretty' (EquivalentToCE ds)        = "EquivalentClasses" <> parens (pretty i <+> pretty ds)
+    pretty' (DisjointToCE ds)          = "DisjointWith:"     <> parens (pretty i <+> pretty ds)
+    pretty' (DisjointUnionOfCE mas ds) = "DisjointUnionOf:"  <> parens (pretty i <+> pretty mas <-> pretty (toList ds))
+    pretty' (HasKeyCE mas od)          = "HasKey:"           <> parens (pretty i <+> pretty mas <-> pretty (NE.toList od))
 
 instance PrettyM ObjectOrDataPE where
   pretty (ObjectPE ope) = pretty ope
@@ -368,11 +413,12 @@ join s xs = concatWith (surround (space <> pretty s <> space)) (pretty <$> xs)
 emptyLine :: Doc ann
 emptyLine = line <> line
 
+
 -- | Like @(<+>), with bettrn handling of empty representations, in order to avoid 
 -- having many spaces (e.g. when you _canncatenate_ Docs where are empty
 --
 (<->) :: Doc ann -> Doc ann -> Doc ann
 d1 <-> d2
- | null (show d1) = d2
- | null (show d2) = d1
- | otherwise = d1 <+> d2
+  | null (show d1) = d2
+  | null (show d2) = d1
+  | otherwise = d1 <+> d2

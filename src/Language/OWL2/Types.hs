@@ -3,7 +3,6 @@
 
 module Language.OWL2.Types where
 
-import           Data.List                                ( intercalate )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import           Language.OWL2.Import                     ( Text )
 
@@ -45,8 +44,8 @@ type Descriptions = AnnotatedList Description
 type Exponent = Integer
 type Fact = WithNegation FactElement
 type DataPropertyExpression = DataPropertyIRI
-type ObjectPropertyExpression = WithInversion ObjectPropertyIRI
-type DataPrimary = WithNegation DataAtomic
+data ObjectPropertyExpression = OPE ObjectPropertyIRI | InverseOPE ObjectPropertyIRI deriving (Show)
+type DataPrimary = WithNegation DataAtomic --TODO: replace WithNegation
 type Annotations' = Maybe Annotations
 
 newtype DataRange = DataRange (NonEmpty DataConjunction) deriving (Show)

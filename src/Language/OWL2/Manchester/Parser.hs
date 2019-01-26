@@ -4,14 +4,11 @@
 module Language.OWL2.Manchester.Parser where
 
 import           Prelude                           hiding ( exponent )
-import           Data.Either
 import           Data.Functor                             ( ($>) )
-import           Data.List                                ( intercalate )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Void
-import           System.IO
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer    as L
@@ -19,7 +16,6 @@ import qualified Text.Megaparsec.Char.Lexer    as L
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import          as T
 import           Language.OWL2.Types
-import           Language.OWL2.Manchester.Pretty
 
 -- DocTest setup
 --
@@ -134,9 +130,9 @@ digits = T.pack <$> some digit
 --
 positiveInteger :: Parser Int
 positiveInteger = do
-  fd  <- nonZero
-  rem <- many digit
-  lexeme . pure $ read (fd : rem)
+  fd <- nonZero
+  rm <- many digit
+  lexeme . pure $ read (fd : rm)
 
 -- | It parses non negativeinteger
 --
@@ -405,9 +401,7 @@ lexicalValue = quotedString
 --
 quotedString :: Parser Text
 quotedString = do
-  char '\"'
-  strings <- many chars
-  char '\"'
+  strings <- char '\"' *> (many chars <* char '\"')
   pure . T.pack . concat $ strings
  where
   chars     = fmap pure nonEscape <|> escape
@@ -443,22 +437,20 @@ floatingPointLiteral = do
   sgn  <- sign
   dgts <- dig1 <|> dig2
   mExp <- optional exponent
-  symbol "f" <|> symbol "F"
+  _    <- symbol "f" <|> symbol "F"
   pure $ FloatP (read . T.unpack $ sgn <> dgts) mExp
  where
   dig1 :: Parser Text
   dig1 = do
     dg'  <- digits
     mDec <- optional $ do
-      symbol "."
-      dg <- digits
+      dg <- symbol "." *> digits
       pure $ "." <> dg
     let dc = fromMaybe "" mDec
     pure $ dg' <> dc
   dig2 :: Parser Text
   dig2 = do
-    _    <- symbol "."
-    dgts <- digits
+    dgts <- symbol "." *> digits
     pure $ "0." <> dgts
 
 
@@ -479,7 +471,7 @@ floatingPointLiteral = do
 --
 exponent :: Parser Exponent
 exponent = do
-  symb <- symbol "e" <|> symbol "E"
+  _    <- symbol "e" <|> symbol "E"
   ms   <- sign
   dgts <- digits
   pure . read . T.unpack $ ms <> dgts
@@ -547,9 +539,6 @@ entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
 -- >>> parseTest (annotations *> eof) (T.unlines input)
 -- ()
 --
--- >>> x = parse (annotations <* eof) "" (T.unlines input)
--- >>> y = fromRight undefined x
---
 annotations :: Parser (AnnotatedList Annotation)
 annotations = symbol "Annotations:" *> annotatedList annotation
 
@@ -596,7 +585,7 @@ prefixDeclaration = PrefixD <$> (symbol "Prefix:" *> lexeme prefixName) <*> full
 
 ontology :: Parser Ontology
 ontology = do
-  symbol "Ontology:"
+  _       <- symbol "Ontology:"
   ontoIRI <- optional $ OntologyVersionIRI <$> ontologyIRI <*> optional versionIRI -- Maybe (iri, Maybe iri)
   imports <- many importStmt
   annots  <- many annotations
@@ -634,14 +623,14 @@ frame =  FrameDT <$> datatypeFrame
 -- | It parses an object property expression
 --
 -- >>> parseTest objectPropertyExpression "<http://object-property-iri.com>"
--- Plain (FullIRI "http://object-property-iri.com")
+-- OPE (FullIRI "http://object-property-iri.com")
 --
 -- >>> parseTest objectPropertyExpression "inverse <http://object-property-iri.com>"
--- Inverse (FullIRI "http://object-property-iri.com")
+-- InverseOPE (FullIRI "http://object-property-iri.com")
 --
 objectPropertyExpression :: Parser ObjectPropertyExpression
-objectPropertyExpression =  Plain   <$> objectPropertyIRI
-                        <|> Inverse <$> (symbol "inverse" *> objectPropertyIRI)
+objectPropertyExpression =  OPE        <$> objectPropertyIRI
+                        <|> InverseOPE <$> (symbol "inverse" *> objectPropertyIRI)
 
 -- | It parses a data property expression
 --
@@ -708,9 +697,9 @@ literalList = nonEmptyList literal
 datatypeRestriction :: Parser DatatypeRestriction
 datatypeRestriction = do
   dt <- datatype
-  symbol "["
+  _  <- symbol "["
   rvList <- nonEmptyList (RestrictionExp <$> facet <*> restrictionValue)
-  symbol "]"
+  _  <- symbol "]"
   pure $ DatatypeRestriction dt rvList
 
 facet :: Parser Facet
@@ -801,7 +790,7 @@ primary = do
 -- DPRestriction (DPR (SimpleIRI "hasFirstName") (ValueDPR (StringLiteralNoLang "John")))
 --
 -- >>> parseTest (restriction <* eof) "hasFirstName exactly 1"
--- OPRestriction (OPR (Plain (SimpleIRI "hasFirstName")) (ExactlyOPR 1 Nothing))
+-- OPRestriction (OPR (OPE (SimpleIRI "hasFirstName")) (ExactlyOPR 1 Nothing))
 --
 -- >>> parseTest (restriction *> eof) "hasFirstName only string[minLength 1]"
 -- ()
@@ -1081,9 +1070,9 @@ individualFrame = IndividualF <$> (symbol "Individual:" *> individual) <*> many 
 
 fact :: Parser Fact
 fact = do
-  neg  <- optionalNegation
-  fact <- (ObjectPropertyFE <$> try objectPropertyFact) <|> (DataPropertyFE <$> try dataPropertyFact)
-  pure $ const fact <$> neg
+  neg <- optionalNegation
+  fct <- (ObjectPropertyFE <$> try objectPropertyFact) <|> (DataPropertyFE <$> try dataPropertyFact)
+  pure $ const fct <$> neg
 
 objectPropertyFact :: Parser ObjectPropertyFact
 objectPropertyFact = ObjectPropertyFact <$> objectPropertyIRI <*> individual
