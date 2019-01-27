@@ -45,7 +45,7 @@ type Exponent = Integer
 type Fact = WithNegation FactElement
 type DataPropertyExpression = DataPropertyIRI
 data ObjectPropertyExpression = OPE ObjectPropertyIRI | InverseOPE ObjectPropertyIRI deriving (Show)
-type DataPrimary = WithNegation DataAtomic --TODO: replace WithNegation
+newtype DataPrimary = DataPrimary (WithNegation DataAtomic) deriving (Show)
 type Annotations' = Maybe Annotations
 
 newtype DataRange = DataRange (NonEmpty DataConjunction) deriving (Show)
@@ -175,7 +175,7 @@ data Misc = EquivalentClasses Annotations' (AtLeast2List Description)
           | EquivalentDataProperties Annotations' (AtLeast2List DataPropertyExpression)
           | DisjointDataProperties Annotations' (AtLeast2List DataPropertyExpression)
           | SameIndividual Annotations' (AtLeast2List Individual)
-          | DifferentIndividual Annotations' (AtLeast2List Individual) deriving (Show)
+          | DifferentIndividuals Annotations' (AtLeast2List Individual) deriving (Show)
 data Literal = TypedLiteralC TypedLiteral
              | StringLiteralNoLang Text
              | StringLiteralLang LiteralWithLang

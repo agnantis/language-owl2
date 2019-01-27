@@ -64,7 +64,7 @@ instance PrettyM ImportDeclaration where
 instance PrettyM a => PrettyM (AnnotatedList a) where
   pretty (AnnList nelst) = sep $ punctuate comma xs
     where xs :: [Doc ann]
-          xs = (\(ma, a) -> prependM "Annotations: " ma <-> pretty a) <$> NE.toList nelst
+          xs = (\(ma, a) -> pretty ma <-> pretty a) <$> NE.toList nelst
 
 instance PrettyM Conjunction where
   pretty (ClassConj i rs) = "ObjectIntersectionOf" <> parens (pretty i <+> pretty rs)
@@ -78,7 +78,7 @@ instance PrettyM Description where
     | otherwise          = "ObjectUnionOf" <> parens (pretty nel)
 
 instance PrettyM Annotation where
-  pretty (Annotation i t) = pretty i <+> pretty t
+  pretty (Annotation i t) = "Annotation" <> parens (pretty i <+> pretty t)
 
 instance PrettyM AnnotationTarget where
   pretty (NodeAT n)    = pretty n
@@ -214,11 +214,15 @@ instance PrettyM DataPropertyRestriction where
 --  pretty (MaxDPR i mp)     = "max"     <+> pretty i <-> pretty mp 
 --  pretty (ExactlyDPR i mp) = "exactly" <+> pretty i <-> pretty mp
 
+instance PrettyM DataPrimary where
+  pretty (DataPrimary (Positive d)) = pretty d
+  pretty (DataPrimary (Negative d)) = "DataComplementOf" <> parens (pretty d)
+
 instance PrettyM DataAtomic where
-  pretty (DatatypeDA d) = pretty d
-  pretty (LiteralListDA ls) = braces $ join "," (NE.toList ls)
+  pretty (DatatypeDA d)            = pretty d
+  pretty (LiteralListDA ls)        = "DataOneOf" <> parens (join "," (NE.toList ls))
   pretty (DatatypeRestrictionDA r) = pretty r
-  pretty (DataRangeDA r) = parens (pretty r)
+  pretty (DataRangeDA r)           = pretty r
 
 instance PrettyM DataRange where
   pretty (DataRange dcs)
@@ -231,7 +235,7 @@ instance PrettyM DataConjunction where
     | otherwise          = "DataIntersectionOf" <> parens (pretty dps)
 
 instance PrettyM DatatypeRestriction where
-  pretty (DatatypeRestriction d re) = pretty d <+> brackets (join "," (NE.toList  re))
+  pretty (DatatypeRestriction d re) = "DatatypeRestriction" <> parens (pretty d <+> join "," (NE.toList  re))
 
 instance PrettyM RestrictionExp where
   pretty (RestrictionExp f l) = pretty f <+> pretty l
@@ -363,14 +367,14 @@ instance PrettyM DataPropertyFact where
   pretty (DataPropertyFact i l) = pretty i <+> pretty l
 
 instance PrettyM Misc where
-  pretty (EquivalentClasses as ds)           = "EquivalentClasses:"    <+> pretty as <+> pretty ds
-  pretty (DisjointClasses as ds)             = "DisjointClasses:"      <+> pretty as <+> pretty ds
-  pretty (EquivalentObjectProperties as ope) = "EquivalentProperties:" <+> pretty as <+> pretty ope
-  pretty (DisjointObjectProperties as ope)   = "DisjointProperties:"   <+> pretty as <+> pretty ope
-  pretty (EquivalentDataProperties as dpe)   = "EquivalentProperties:" <+> pretty as <+> pretty dpe
-  pretty (DisjointDataProperties as dpe)     = "DisjointProperties:"   <+> pretty as <+> pretty dpe
-  pretty (SameIndividual as is)              = "SameIndividual:"       <+> pretty as <+> pretty is
-  pretty (DifferentIndividual as is)         = "DifferentIndividual:"  <+> pretty as <+> pretty is
+  pretty (EquivalentClasses as ds)           = "EquivalentClasses"          <> parens (pretty as <+> pretty ds)
+  pretty (DisjointClasses as ds)             = "DisjointClasses"            <> parens (pretty as <+> pretty ds)
+  pretty (EquivalentObjectProperties as ope) = "EquivalentObjectProperties" <> parens (pretty as <+> pretty ope)
+  pretty (DisjointObjectProperties as ope)   = "DisjointObjectProperties"   <> parens (pretty as <+> pretty ope)
+  pretty (EquivalentDataProperties as dpe)   = "EquivalentDataProperties"   <> parens (pretty as <+> pretty dpe)
+  pretty (DisjointDataProperties as dpe)     = "DisjointDataProperties"     <> parens (pretty as <+> pretty dpe)
+  pretty (SameIndividual as is)              = "SameIndividual"             <> parens (pretty as <+> pretty is)
+  pretty (DifferentIndividuals as is)        = "DifferentIndividuals"       <> parens (pretty as <+> pretty is)
 
 instance PrettyM a => PrettyM (AtLeast2List a) where
   pretty = pretty . toList

@@ -169,6 +169,9 @@ instance PrettyM DataPropertyRestrictionType where
   pretty (MaxDPR i mp)     = "max"     <+> pretty i <-> pretty mp 
   pretty (ExactlyDPR i mp) = "exactly" <+> pretty i <-> pretty mp 
 
+instance PrettyM DataPrimary where
+  pretty (DataPrimary d) = pretty d
+
 instance PrettyM DataAtomic where
   pretty (DatatypeDA d) = pretty d
   pretty (LiteralListDA ls) = braces $ join "," (NE.toList ls)
@@ -325,7 +328,7 @@ instance PrettyM Misc where
   pretty (EquivalentDataProperties as dpe)   = "EquivalentProperties:" <+> pretty as <+> pretty dpe
   pretty (DisjointDataProperties as dpe)     = "DisjointProperties:"   <+> pretty as <+> pretty dpe
   pretty (SameIndividual as is)              = "SameIndividual:"       <+> pretty as <+> pretty is
-  pretty (DifferentIndividual as is)         = "DifferentIndividual:"  <+> pretty as <+> pretty is
+  pretty (DifferentIndividuals as is)        = "DifferentIndividuals:" <+> pretty as <+> pretty is
 
 instance PrettyM a => PrettyM (AtLeast2List a) where
   pretty = pretty . toList

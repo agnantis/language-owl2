@@ -659,13 +659,13 @@ dataConjunction = DataConjunction <$> singleOrMany "and" dataPrimary
 -- | It parses a data primary
 --
 -- >>> parseTest dataPrimary "integer[<0]"
--- Positive (DatatypeRestrictionDA (DatatypeRestriction IntegerDT (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| [])))
+-- DataPrimary (Positive (DatatypeRestrictionDA (DatatypeRestriction IntegerDT (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))))
 --
 dataPrimary :: Parser DataPrimary
 dataPrimary = do
   neg <- optionalNegation
   da  <- dataAtomic
-  pure $ fmap (const da) neg
+  pure . DataPrimary $ fmap (const da) neg
 
 -- | It parses an atomic data
 --
@@ -1115,7 +1115,7 @@ misc =
         <$> (symbol "DisjointProperties:" *> optional annotations) <*> listOfAtLeast2 dataPropertyExpression
     <|> SameIndividual
         <$> (symbol "SameIndividual:" *> optional annotations) <*> listOfAtLeast2 individual
-    <|> DifferentIndividual
+    <|> DifferentIndividuals
         <$> (symbol "DifferentIndividuals:" *> optional annotations) <*> listOfAtLeast2 individual
 
 -----------------------
