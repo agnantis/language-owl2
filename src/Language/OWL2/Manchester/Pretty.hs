@@ -94,7 +94,7 @@ instance PrettyM Datatype where
   pretty StringDT  = "string"
 
 instance PrettyM LiteralWithLang where
-  pretty (LiteralWithLang s l) = pretty s <> pretty l
+  pretty (LiteralWithLang s l) = dquotes (pretty s) <> "@" <> pretty l
 
 instance PrettyM IntegerLiteral where
   pretty (IntegerL i) = pretty i
@@ -206,7 +206,7 @@ instance PrettyM Conjunction where
   pretty (PrimConj ps)    = join "and" (NE.toList ps)
 
 instance PrettyM DatatypeFrame where
-  pretty (DatatypeF dt ma mdr) = "DatatypFrame:" <+> pretty dt
+  pretty (DatatypeF dt ma mdr) = "DatatypeFrame:" <+> pretty dt
                                <> line
                                <> pma
                                <> line

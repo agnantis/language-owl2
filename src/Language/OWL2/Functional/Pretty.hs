@@ -3,6 +3,7 @@
 
 module Language.OWL2.Functional.Pretty where
 
+{-
 import           Data.List.NonEmpty                       ( NonEmpty )
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
@@ -97,7 +98,7 @@ instance PrettyM Literal where
   pretty (FloatingLiteralC f)    = pretty f
 
 instance PrettyM TypedLiteral where
-  pretty (TypedL s dt) = pretty s <> "^^" <> pretty dt
+  pretty (TypedL s dt) = dquotes (pretty s) <> "^^" <> pretty dt
 
 instance PrettyM Datatype where
   pretty (IriDT i) = pretty i
@@ -107,7 +108,7 @@ instance PrettyM Datatype where
   pretty StringDT  = "xsd:string"
 
 instance PrettyM LiteralWithLang where
-  pretty (LiteralWithLang s l) = pretty s <> pretty l
+  pretty (LiteralWithLang s l) = dquotes (pretty s) <> "@" <> pretty l
 
 instance PrettyM IntegerLiteral where
   pretty (IntegerL i) = pretty i
@@ -252,30 +253,37 @@ instance PrettyM Facet where
   pretty G_FACET          = "xsd:maxExclusive"
 
 instance PrettyM DatatypeFrame where
-  pretty (DatatypeF dt ma mdr) = "DatatypFrame:" <+> pretty dt
-                               <> line
-                               <> pma
-                               <> line
-                               <> prependM "EquivalentTo: " mdr
-    where pma = if null ma
-                then mempty
-                else "Annotations:" <+> indent 4 (align (vsep (pretty <$> ma)))
+  pretty (DatatypeF dt ma mdr) = vsep [ prettyAnnotationAssertion dt (flattenAnnList ma)
+                                      , "DatatypeDefinition" <> parens (pretty dt <-> pretty mdr) -- TODO: this is wrong
+                                      ]
 
 instance PrettyM AnnotDataRange where
-  pretty (AnnotDataRange a dr) = pretty a <+> pretty dr
+    pretty (AnnotDataRange a dr) = pretty a <-> pretty dr
+
+prettyAnnotationAssertion :: PrettyM a => a -> Maybe Annotations -> Doc ann
+prettyAnnotationAssertion _ Nothing = mempty
+prettyAnnotationAssertion c (Just aList) = vsep (
+        (\(a, Annotation i t) -> pretty "AnnotationAssertion"
+                              <> parens (pretty a <-> pretty i <+> pretty c <+> pretty t))
+        <$> annListToList aList)
 
 instance PrettyM ClassFrame where
-  pretty (ClassF i ces) = "Declaration" <> parens ("Class" <> parens(pretty i))
+  pretty (ClassF cls ces) = "Declaration" <> parens ("Class" <> parens(pretty cls))
                         <> line
                         <> vsep (pretty' <$> ces)
    where
     pretty' :: ClassElement -> Doc ann
-    pretty' (AnnotationCE as)          = "Annotations:"      <> parens (pretty i <+> pretty as)
-    pretty' (SubClassOfCE ds)          = "SubClassOf:"       <> parens (pretty i <+> pretty ds)
-    pretty' (EquivalentToCE ds)        = "EquivalentClasses" <> parens (pretty i <+> pretty ds)
-    pretty' (DisjointToCE ds)          = "DisjointWith:"     <> parens (pretty i <+> pretty ds)
-    pretty' (DisjointUnionOfCE mas ds) = "DisjointUnionOf:"  <> parens (pretty i <+> pretty mas <-> pretty (toList ds))
-    pretty' (HasKeyCE mas od)          = "HasKey:"           <> parens (pretty i <+> pretty mas <-> pretty (NE.toList od))
+    pretty' (AnnotationCE as)          = prettyAnnotationAssertion cls (Just as)
+    pretty' (SubClassOfCE ds)          = multiD ("SubClassOf", ds)
+    pretty' (EquivalentToCE ds)        = multiD ("EquivalentClasses", ds)
+    pretty' (DisjointToCE ds)          = multiD ("DisjointClasses", ds)
+    pretty' (DisjointUnionOfCE mas ds) = "DisjointUnion" <> parens (pretty cls <+> pretty mas <-> pretty (toList ds))
+    pretty' (HasKeyCE mas od)          = "HasKey"        <> parens (pretty cls <+> pretty mas <-> pretty (NE.toList od))
+    multiD :: (T.Text, Descriptions) -> Doc ann
+    multiD (lbl, aList) = vsep (
+        (\(a, x) -> pretty lbl
+                 <> parens (pretty a <-> pretty cls <-> pretty x))
+        <$> annListToList aList)
 
 instance PrettyM ObjectOrDataPE where
   pretty (ObjectPE ope) = pretty ope
@@ -334,9 +342,11 @@ instance PrettyM Frame where
   pretty (FrameM m)    = pretty m 
 
 instance PrettyM AnnotationPropertyFrame where
-  pretty (AnnotationPropertyF i aps) = "AnnotationProperty:" <+> pretty i
-                                     <> line
-                                     <> indent 4 (vsep (pretty <$> aps))
+  pretty (AnnotationPropertyF i aps) = "Declaration" <> parens ("AnnotationProperty" <> parens (pretty i
+                                     <> mLine
+                                     <> indent indt (vsep (pretty <$> aps))))
+   where
+    (mLine, indt)  = if null aps then (mempty, 0) else (line, 4)
 
 instance PrettyM AnnotationPropertyElement where
   pretty (AnnotationAPE a)        = "Annotations:"      <+> pretty a
@@ -380,12 +390,12 @@ instance PrettyM a => PrettyM (AtLeast2List a) where
   pretty = pretty . toList
 
 instance PrettyM Entity where
-  pretty (DatatypeEntity de)           = "Datatype"           <+> "(" <+> pretty de <+> ")"
-  pretty (ClassEntity ce)              = "Class"              <+> "(" <+> pretty ce <+> ")"
-  pretty (ObjectPropertyEntity ie)     = "ObjectProperty"     <+> "(" <+> pretty ie <+> ")"
-  pretty (DataPropertyEntity de)       = "DataProperty"       <+> "(" <+> pretty de <+> ")"
-  pretty (AnnotationPropertyEntity ae) = "AnnotationProperty" <+> "(" <+> pretty ae <+> ")"
-  pretty (IndividualEntity ie)         = "NamedIndividual"    <+> "(" <+> pretty ie <+> ")"
+  pretty (DatatypeEntity de)           = "Declaration" <> parens ("Datatype"           <+> "(" <+> pretty de <+> ")")
+  pretty (ClassEntity ce)              = "Declaration" <> parens ("Class"              <+> "(" <+> pretty ce <+> ")")
+  pretty (ObjectPropertyEntity ie)     = "Declaration" <> parens ("ObjectProperty"     <+> "(" <+> pretty ie <+> ")")
+  pretty (DataPropertyEntity de)       = "Declaration" <> parens ("DataProperty"       <+> "(" <+> pretty de <+> ")")
+  pretty (AnnotationPropertyEntity ae) = "Declaration" <> parens ("AnnotationProperty" <+> "(" <+> pretty ae <+> ")")
+  pretty (IndividualEntity ie)         = "Declaration" <> parens ("NamedIndividual"    <+> "(" <+> pretty ie <+> ")")
 
 -----------------------
 -- Utility functions --
@@ -426,3 +436,5 @@ d1 <-> d2
   | null (show d1) = d2
   | null (show d2) = d1
   | otherwise = d1 <+> d2
+
+-}

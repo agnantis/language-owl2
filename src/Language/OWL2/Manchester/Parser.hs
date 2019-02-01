@@ -399,13 +399,16 @@ lexicalValue = quotedString
 -- >>> parseTest quotedString "\"this is \\\"test \\\" message\""
 -- "this is \\\"test \\\" message"
 --
+-- >>> parseTest quotedString "\"text with\nnewlines\""
+-- "text with\nnewlines"
+--
 quotedString :: Parser Text
 quotedString = do
-  strings <- char '\"' *> (many chars <* char '\"')
+  strings <- char '\"' *> many chars <* char '\"'
   pure . T.pack . concat $ strings
  where
-  chars     = fmap pure nonEscape <|> escape
-  nonEscape = noneOf ("\\\"\0\n\r\v\t\b\f" :: String) -- all the characters that can be escaped
+  chars     = (pure <$> nonEscape) <|> escape
+  nonEscape = noneOf ("\\\"" :: String) -- all the characters that can be escaped
   escape    = do
     d <- char '\\'
     c <- oneOf ("\\\"0nrvtbf" :: String)

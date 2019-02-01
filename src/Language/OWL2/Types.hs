@@ -4,6 +4,7 @@
 module Language.OWL2.Types where
 
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
+import qualified Data.List.NonEmpty            as NE
 import           Language.OWL2.Import                     ( Text )
 
 ---------------
@@ -25,6 +26,8 @@ toList ~((x, y) :# xs) = x : y : xs
 toNonEmptyList :: AtLeast2List a -> NonEmpty a
 toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
 
+annListToList :: AnnotatedList a -> [(Annotations', a)]
+annListToList (AnnList xs) = NE.toList xs
 
 type LangTag = Text
 type ImportIRI = IRI
@@ -200,6 +203,7 @@ data AnnotationTarget = NodeAT NodeID
 flattenAnnList :: [AnnotatedList a] -> Maybe (AnnotatedList a)
 flattenAnnList [] = Nothing
 flattenAnnList xs = Just $ foldl1 (<>) xs
+
 
 -------------------------
 ---- CLASS INSTANCES ----
