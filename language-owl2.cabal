@@ -19,7 +19,8 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     
-                       Language.OWL2.Functional.Pretty
+                       Language.OWL2.Functional.Parser
+                     , Language.OWL2.Functional.Pretty
                      , Language.OWL2.Manchester.Parser
                      , Language.OWL2.Manchester.Pretty
                      , Language.OWL2.Types
