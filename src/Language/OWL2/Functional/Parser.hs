@@ -17,7 +17,10 @@ import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import          as T
 import           Language.OWL2.Types
 
-import           Language.OWL2.Manchester.Parser hiding (prefixDeclaration, ontology, annotation, entity)
+import           Language.OWL2.Manchester.Parser ( Parser, symbol, parens, prefixName, fullIRI
+                                                 , ontologyIRI, versionIRI, iri
+                                                 , literal, nodeID
+                                                 )
 -- DocTest setup
 --
 -- $setup
@@ -121,12 +124,10 @@ axiom =  declaration $> ()
 axiomAnnotations :: Parser [()]
 axiomAnnotations = many annotation
 
-annotationProperty :: Parser IRI
-annotationProperty = iri
-
 annotationValue :: Parser ()
-annotationValue = do
-  pure ()
+annotationValue =  anonymousIndividual $> ()
+               <|> iri $> ()
+               <|> literal $> ()
 
 annotationAxiom :: Parser ()
 annotationAxiom =  annotationAssertion $> ()
@@ -180,18 +181,96 @@ annotationPropertyRange = do
 clazz :: Parser IRI
 clazz = iri
 
+datatype:: Parser IRI
+datatype = iri
+
 objectProperty :: Parser IRI
 objectProperty = iri
 
 dataProperty :: Parser IRI
 dataProperty = iri
 
-namedIndividual :: Parser IRI
-namedIndividual = iri
+annotationProperty :: Parser IRI
+annotationProperty = iri
 
 individual :: Parser ()
 individual =  namedIndividual $> ()
           <|> anonymousIndividual $> ()
+
+namedIndividual :: Parser IRI
+namedIndividual = iri
+
+anonymousIndividual :: Parser NodeID
+anonymousIndividual = nodeID
+
+objectPropertyExpression :: Parser ()
+objectPropertyExpression =  objectProperty $> ()
+                        <|> inverseObjectProperty $> ()
+
+inverseObjectProperty :: Parser ()
+inverseObjectProperty = do
+  symbol "ObjectInverseOf"
+  parens objectProperty
+  pure ()
+
+dataPropertyExpression :: Parser IRI
+dataPropertyExpression = dataProperty
+
+dataRange :: Parser ()
+dataRange =  datatype $> ()
+         <|> dataIntersectionOf $> ()
+         <|> dataUnionOf $> ()
+         <|> dataComplementOf $> ()
+         <|> dataOneOf $> ()
+         <|> datatypeRestriction $> ()
+
+dataIntersectionOf :: Parser ()
+dataIntersectionOf = do
+  symbol "DataIntersectionOf"
+  parens $ do
+    dataRange
+    dataRange
+    many dataRange
+  pure ()
+
+dataUnionOf :: Parser ()
+dataUnionOf = do
+  symbol "DataUnionOf"
+  parens $ do
+    dataRange
+    dataRange
+    many dataRange
+  pure ()
+
+dataComplementOf :: Parser ()
+dataComplementOf = do
+  symbol "DataComplementOf"
+  parens dataRange
+  pure ()
+
+dataOneOf :: Parser ()
+dataOneOf = do
+  symbol "DataOneOf"
+  parens $ some literal
+  pure ()
+
+datatypeRestriction :: Parser ()
+datatypeRestriction = do
+  symbol "DatatypeRestriction"
+  parens $ do
+    datatype
+    constrainingFacet
+    restrictionValue
+    many $ do 
+      constrainingFacet
+      restrictionValue
+  pure ()
+
+constrainingFacet :: Parser IRI
+constrainingFacet = iri
+
+restrictionValue :: Parser Literal
+restrictionValue = literal
 
 classAxiom :: Parser ()
 classAxiom =  subclassOf $> ()
@@ -200,45 +279,247 @@ classAxiom =  subclassOf $> ()
           <|> disjointUnion $> ()
 
 objectPropertyAxiom :: Parser ()
-objectPropertyAxiom = do
-  pure ()
+objectPropertyAxiom =  subOjectPropertyOf $> ()
+                   <|> equivalentObjectProperties $> ()
+                   <|> disjointObjectProperties $> ()
+                   <|> inverseObjectProperties $> ()
+                   <|> objectPropertyDomain $> ()
+                   <|> objectPropertyRange $> ()
+                   <|> functionalObjectProperty $> ()
+                   <|> inverseFunctionalObjectProperty $> ()
+                   <|> reflexiveObjectProperty $> ()
+                   <|> irreflexiveObjectProperty $> ()
+                   <|> symmetricObjectProperty $> ()
+                   <|> asymmetricObjectProperty $> ()
+                   <|> transitiveObjectProperty $> ()
 
 dataPropertyAxiom :: Parser ()
-dataPropertyAxiom = do
-  pure ()
+dataPropertyAxiom =  subDataPropertyOf $> ()
+                 <|> equivalentDataProperties $> ()
+                 <|> disjointDataProperties $> ()
+                 <|> dataPropertyDomain $> ()
+                 <|> dataPropertyRange $> ()
+                 <|> functionalDataProperty $> ()
 
 datatypeDefinition :: Parser ()
 datatypeDefinition = do
+  symbol "DatatypeDefinition"
+  parens $ do
+    axiomAnnotations
+    datatype
+    dataRange
   pure ()
 
 hasKey :: Parser ()
 hasKey = do
+  symbol "HasKey"
+  parens $ do
+    axiomAnnotations
+    classExpression
+    parens $ many objectPropertyExpression
+    parens $ many dataPropertyExpression
   pure ()
 
 assertion :: Parser ()
-assertion = do
-  pure ()
+assertion =  sameIndividual $> ()
+         <|> differentIndividuals $> ()
+         <|> classAssertion $> ()
+         <|> objectPropertyAssertion $> ()
+         <|> negativeObjectPropertyAssertion $> ()
+         <|> dataPropertyAssertion $> ()
+         <|> negativeDataPropertyAssertion $> ()
 
 subclassOf :: Parser ()
 subclassOf = do
+  symbol "SubClassOf"
+  parens $ do
+    axiomAnnotations
+    subClassExpression
+    superClassExpression
   pure ()
+
+subClassExpression :: Parser ()
+subClassExpression = classExpression
+
+superClassExpression :: Parser ()
+superClassExpression = classExpression
 
 equivalentClasses :: Parser ()
 equivalentClasses = do
+  symbol "EquivalentClasses"
+  parens $ do
+    axiomAnnotations
+    classExpression
+    classExpression
+    many classExpression
   pure ()
 
 disjointClasses :: Parser ()
 disjointClasses = do
+  symbol "DisjointClasses"
+  parens $ do
+    axiomAnnotations
+    classExpression
+    classExpression
+    many classExpression
   pure ()
 
 disjointUnion :: Parser ()
 disjointUnion = do
+  symbol "DisjointUnion"
+  parens $ do
+    axiomAnnotations
+    clazz
+    disjointClassExpressions
   pure ()
 
 annotationSubject:: Parser ()
-annotationSubject= do
+annotationSubject =  iri $> ()
+                 <|> anonymousIndividual $> ()
+
+subOjectPropertyOf :: Parser ()
+subOjectPropertyOf = do
+  symbol "SubObjectPropertyOf"
+  parens $ do
+    axiomAnnotations
+    subObjectPropertyExpression
+    superObjectPropertyExpression
   pure ()
 
-anonymousIndividual :: Parser NodeID
-anonymousIndividual = nodeID
+subObjectPropertyExpression :: Parser ()
+subObjectPropertyExpression =  objectPropertyExpression $> ()
+                           <|> propertyExpressionChain $> ()
+
+propertyExpressionChain :: Parser ()
+propertyExpressionChain = do
+  symbol "ObjectPropertyChain"
+  parens $ do
+    objectPropertyExpression
+    objectPropertyExpression
+    many objectPropertyExpression
+  pure ()
+
+superObjectPropertyExpression :: Parser ()
+superObjectPropertyExpression = undefined -- objectPropertyExpression
+
+equivalentObjectProperties :: Parser ()
+equivalentObjectProperties = do
+  symbol "EquivalentObjectProperties"
+  parens $ do
+    axiomAnnotations
+    objectPropertyExpression
+    objectPropertyExpression
+    many objectPropertyExpression
+  pure ()
+
+disjointObjectProperties :: Parser ()
+disjointObjectProperties = do
+  symbol "DisjointObjectProperties"
+  parens $ do
+    axiomAnnotations
+    objectPropertyExpression
+    objectPropertyExpression
+    many objectPropertyExpression
+  pure ()
+
+objectPropertyDomain :: Parser ()
+objectPropertyDomain = do
+  symbol "ObjectPropertyDomain"
+  parens $ do
+    axiomAnnotations
+    objectPropertyExpression
+    classExpression
+  pure ()
+
+objectPropertyRange :: Parser ()
+objectPropertyRange = do
+  symbol "ObjectPropertyRange"
+  parens $ do
+    axiomAnnotations
+    objectPropertyExpression
+    classExpression
+  pure ()
+
+inverseObjectProperties :: Parser ()
+inverseObjectProperties = do
+  symbol "InverseObjectProperties"
+  parens $ do
+    axiomAnnotations
+    objectPropertyExpression
+    objectPropertyExpression
+  pure ()
+
+genericObjectProperty :: Text -> Parser ()
+genericObjectProperty p = do
+  symbol p
+  parens $ do
+    axiomAnnotations
+    objectPropertyExpression
+  pure ()
+
+functionalObjectProperty :: Parser ()
+functionalObjectProperty = genericObjectProperty "FunctionalObjectProperty"
+
+inverseFunctionalObjectProperty :: Parser ()
+inverseFunctionalObjectProperty = genericObjectProperty "InverseFunctionalObjectProperty"
+
+reflexiveObjectProperty :: Parser ()
+reflexiveObjectProperty = genericObjectProperty "ReflexiveObjectProperty"
+
+irreflexiveObjectProperty :: Parser ()
+irreflexiveObjectProperty = genericObjectProperty "IrreflexiveObjectProperty"
+
+symmetricObjectProperty :: Parser ()
+symmetricObjectProperty = genericObjectProperty "SymmetricObjectProperty"
+
+asymmetricObjectProperty :: Parser ()
+asymmetricObjectProperty = genericObjectProperty "AsymmetricObjectProperty"
+
+transitiveObjectProperty :: Parser ()
+transitiveObjectProperty = genericObjectProperty "TransitiveObjectProperty"
+
+subDataPropertyOf :: Parser ()
+subDataPropertyOf = pure ()
+
+equivalentDataProperties :: Parser ()
+equivalentDataProperties = pure ()
+
+disjointDataProperties :: Parser ()
+disjointDataProperties = pure ()
+
+dataPropertyDomain :: Parser ()
+dataPropertyDomain = pure ()
+
+dataPropertyRange :: Parser ()
+dataPropertyRange = pure ()
+
+functionalDataProperty :: Parser ()
+functionalDataProperty = pure ()
+
+classExpression :: Parser ()
+classExpression = pure ()
+
+sameIndividual :: Parser ()
+sameIndividual = pure ()
+
+differentIndividuals :: Parser ()
+differentIndividuals = pure ()
+
+classAssertion :: Parser ()
+classAssertion = pure ()
+
+objectPropertyAssertion :: Parser ()
+objectPropertyAssertion = pure ()
+
+negativeObjectPropertyAssertion :: Parser ()
+negativeObjectPropertyAssertion = pure ()
+
+dataPropertyAssertion :: Parser ()
+dataPropertyAssertion = pure ()
+
+negativeDataPropertyAssertion :: Parser ()
+negativeDataPropertyAssertion = pure ()
+
+disjointClassExpressions :: Parser ()
+disjointClassExpressions = pure ()
 
