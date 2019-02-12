@@ -7,20 +7,11 @@ import           Data.Functor                             ( ($>) )
 import           Text.Megaparsec
 
 import           Language.OWL2.Import                     ( Text )
+import qualified Language.OWL2.Import          as T
 import           Language.OWL2.Types
 
-import           Language.OWL2.Manchester.Parser          ( Parser
-                                                          , symbol
-                                                          , parens
-                                                          , prefixName
-                                                          , fullIRI
-                                                          , ontologyIRI
-                                                          , versionIRI
-                                                          , iri
-                                                          , literal
-                                                          , nodeID
-                                                          , nonNegativeInteger
-                                                          )
+import           Language.OWL2.Internal.Parser
+
 -- DocTest setup
 --
 -- $setup
@@ -29,6 +20,49 @@ import           Language.OWL2.Manchester.Parser          ( Parser
 --------------------------
 -- Parser related types --
 --------------------------
+
+-- | It parses literals
+--
+-- >>> parseTest (literal *> eof) "\"32\"^^integer"
+-- ...
+-- unexpected '^'
+-- ...
+--
+-- >>> parseTest (literal *> eof) "\"32\"^^xsd:integer"
+-- ()
+--
+-- >>> parseTest (literal *> eof) "\"stringLiteralNoLanguage\""
+-- ()
+--
+-- >>> parseTest (literal *> eof) "\"stringLiteralWithLang\"@en"
+-- ()
+--
+literal :: Parser ()
+literal =  lexeme $ try typedLiteral $> ()
+       <|> try stringLiteralWithLanguage $> ()
+       <|> stringLiteralNoLanguage $> ()
+
+-- | It parses a typed literal
+--
+-- >>> parseTest typedLiteral "\"32\"^^integer"
+-- ...
+-- keyword "integer" cannot be an identifier
+--
+-- >>> parseTest (literal *> eof) "\"32\"^^xsd:integer"
+-- ()
+--
+-- >>> parseTest (typedLiteral *> eof) "\"Jack\"^^xsd:string"
+-- ()
+--
+typedLiteral :: Parser ()
+typedLiteral = do
+  lexicalValue
+  symbol "^^"
+  datatype
+  pure ()
+
+-- parens :: Parser a -> Parser a
+-- parens = lexeme . P.parens
 
 ontologyDocument :: Parser ()
 ontologyDocument = do
@@ -53,13 +87,25 @@ prefixDeclaration = do
     fullIRI
   pure ()
 
+ontology' :: Parser ()
+ontology' = do
+  symbol "Ontology"
+  parens $ do
+    optional $ do
+      ontologyIRI
+      optional versionIRI -- Maybe (iri, Maybe iri)
+    many directImport
+    ontologyAnnotations
+    axioms
+  pure ()
+
 ontology :: Parser ()
 ontology = do
   symbol "Ontology"
   parens $ do
     optional $ do
       ontologyIRI
-      optional versionIRI -- Maybe (iri, Maybe iri)
+      try (optional versionIRI) -- Maybe (iri, Maybe iri)
     many directImport
     ontologyAnnotations
     axioms
@@ -83,6 +129,11 @@ ontologyAnnotations = many annotation
 axioms :: Parser [()]
 axioms = many axiom
 
+-- | It parses  declarations
+--
+-- >>> parseTest (declaration *> eof) "Declaration(Class(<http://www.uom.gr/ai/TestOntology.owl#Child>))"
+-- ()
+--
 declaration :: Parser ()
 declaration = do
   symbol "Declaration"
@@ -109,7 +160,7 @@ annotationValue =  anonymousIndividual $> ()
                <|> literal $> ()
 
 axiomAnnotations :: Parser [()]
-axiomAnnotations = many annotation
+axiomAnnotations = many . try $ annotation
 
 annotation :: Parser ()
 annotation = do
@@ -261,15 +312,16 @@ datatypeRestriction = do
 constrainingFacet :: Parser IRI
 constrainingFacet = iri
 
-restrictionValue :: Parser Literal
+restrictionValue :: Parser ()
 restrictionValue = literal
 
 classExpression :: Parser ()
-classExpression =  clazz $> ()
+classExpression = lexeme alternatives
+ where
+  alternatives =   objectOneOf $> ()
                <|> objectIntersectionOf $> ()
                <|> objectUnionOf $> ()
                <|> objectComplementOf $> ()
-               <|> objectOneOf $> ()
                <|> objectSomeValuesFrom $> ()
                <|> objectAllValuesFrom $> ()
                <|> objectHasValue $> ()
@@ -283,6 +335,8 @@ classExpression =  clazz $> ()
                <|> dataMinCardinality $> ()
                <|> dataMaxCardinality $> ()
                <|> dataExactCardinality$> ()
+               <|> clazz $> ()
+
 
 objectIntersectionOf :: Parser ()
 objectIntersectionOf = do
@@ -309,7 +363,7 @@ objectComplementOf = do
 objectOneOf :: Parser ()
 objectOneOf = do
   symbol "ObjectOneOf"
-  some individual
+  parens $ some individual
   pure ()
 
 objectSomeValuesFrom :: Parser ()
@@ -503,7 +557,7 @@ propertyExpressionChain = do
   pure ()
 
 superObjectPropertyExpression :: Parser ()
-superObjectPropertyExpression = undefined -- objectPropertyExpression
+superObjectPropertyExpression = objectPropertyExpression
 
 equivalentObjectProperties :: Parser ()
 equivalentObjectProperties = do
@@ -680,7 +734,7 @@ sourceIndividual = individual
 targetIndividual :: Parser ()
 targetIndividual = individual
 
-targetValue :: Parser Literal
+targetValue :: Parser ()
 targetValue = literal
 
 sameIndividual :: Parser ()
@@ -732,7 +786,7 @@ negativeObjectPropertyAssertion = do
 
 dataPropertyAssertion :: Parser ()
 dataPropertyAssertion = do
-  symbol "dataPropertyAssertion"
+  symbol "DataPropertyAssertion"
   parens $ do
     axiomAnnotations
     dataPropertyExpression
@@ -745,9 +799,24 @@ negativeDataPropertyAssertion = do
   symbol "NegativeDataPropertyAssertion"
   parens $ do
     axiomAnnotations
-    objectPropertyExpression
+    dataPropertyExpression
     sourceIndividual
     targetIndividual
   pure ()
 
+
+parseOntologyDoc :: FilePath -> IO (Maybe ())
+parseOntologyDoc file =
+  putStrLn ("Parsing ontology document: '" <> file <> "'") >>
+  T.readFile file >>= parseContent
+  where
+    parseContent content =
+      case parse (ontologyDocument <* eof) file content of
+        Left bundle -> do
+          putStrLn "Unable to parse file. Reason: "
+          putStrLn (errorBundlePretty bundle)
+          pure Nothing
+        Right doc -> do
+          putStrLn "File parsed succesfully"
+          pure (Just ())
 

@@ -26,6 +26,7 @@ library
                      , Language.OWL2.Types
   other-modules:
                        Language.OWL2.Import
+                     , Language.OWL2.Internal.Parser
   -- other-extensions:    
   build-depends:       base >=4.11 && <4.12
                      , megaparsec >= 7.0
