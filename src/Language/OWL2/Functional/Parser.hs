@@ -37,10 +37,10 @@ import           Language.OWL2.Internal.Parser
 -- >>> parseTest (literal *> eof) "\"stringLiteralWithLang\"@en"
 -- ()
 --
-literal :: Parser ()
-literal =  lexeme $ try typedLiteral $> ()
-       <|> try stringLiteralWithLanguage $> ()
-       <|> stringLiteralNoLanguage $> ()
+literal :: Parser Literal
+literal =  lexeme $ TypedLiteralC <$> try typedLiteral 
+       <|> StringLiteralLang      <$> try stringLiteralWithLanguage
+       <|> StringLiteralNoLang    <$> try stringLiteralNoLanguage
 
 -- | It parses a typed literal
 --
@@ -54,15 +54,9 @@ literal =  lexeme $ try typedLiteral $> ()
 -- >>> parseTest (typedLiteral *> eof) "\"Jack\"^^xsd:string"
 -- ()
 --
-typedLiteral :: Parser ()
-typedLiteral = do
-  lexicalValue
-  symbol "^^"
-  datatype
-  pure ()
-
--- parens :: Parser a -> Parser a
--- parens = lexeme . P.parens
+typedLiteral :: Parser TypedLiteral
+typedLiteral = TypedL <$> lexicalValue
+                      <*> (symbol "^^" *> (IriDT <$> datatype))
 
 ontologyDocument :: Parser ()
 ontologyDocument = do
@@ -78,26 +72,10 @@ ontologyDocument = do
 -- >>> parseTest (prefixDeclaration *> eof) "Prefix(:=<http://www.w3.org/2002/07/owl#>)"
 -- ()
 --
-prefixDeclaration :: Parser ()
+prefixDeclaration :: Parser PrefixDeclaration
 prefixDeclaration = do
   symbol "Prefix"
-  parens $ do
-    prefixName
-    symbol "="
-    fullIRI
-  pure ()
-
-ontology' :: Parser ()
-ontology' = do
-  symbol "Ontology"
-  parens $ do
-    optional $ do
-      ontologyIRI
-      optional versionIRI -- Maybe (iri, Maybe iri)
-    many directImport
-    ontologyAnnotations
-    axioms
-  pure ()
+  parens $ PrefixD <$> prefixName <*> (symbol "=" *> fullIRI)
 
 ontology :: Parser ()
 ontology = do
@@ -111,17 +89,13 @@ ontology = do
     axioms
   pure ()
 
-
 -- | It parses import ontology declarations
 --
 -- >>> parseTest (directImport *> eof) "Import(<http://www.w3.org/2002/07/owl#>)"
 -- ()
 --
-directImport :: Parser ()
-directImport = do
-  symbol "Import"
-  parens iri
-  pure ()
+directImport :: Parser ImportDeclaration
+directImport = ImportD <$> (symbol "Import" *> parens iri)
 
 ontologyAnnotations :: Parser [()]
 ontologyAnnotations = many annotation
@@ -312,7 +286,7 @@ datatypeRestriction = do
 constrainingFacet :: Parser IRI
 constrainingFacet = iri
 
-restrictionValue :: Parser ()
+restrictionValue :: Parser Literal
 restrictionValue = literal
 
 classExpression :: Parser ()
@@ -734,7 +708,7 @@ sourceIndividual = individual
 targetIndividual :: Parser ()
 targetIndividual = individual
 
-targetValue :: Parser ()
+targetValue :: Parser Literal
 targetValue = literal
 
 sameIndividual :: Parser ()
