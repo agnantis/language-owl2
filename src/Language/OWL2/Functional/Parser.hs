@@ -4,11 +4,14 @@ module Language.OWL2.Functional.Parser where
 
 import           Prelude                           hiding ( exponent )
 import           Data.Functor                             ( ($>) )
+import           Data.List.NonEmpty                       ( NonEmpty(..) )
+import qualified Data.List.NonEmpty            as NE
 import           Text.Megaparsec
 
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import          as T
 import           Language.OWL2.Types
+import           Language.OWL2.FTypes
 
 import           Language.OWL2.Internal.Parser
 
@@ -97,8 +100,8 @@ ontology = do
 directImport :: Parser ImportDeclaration
 directImport = ImportD <$> (symbol "Import" *> parens iri)
 
-ontologyAnnotations :: Parser [()]
-ontologyAnnotations = many annotation
+ontologyAnnotations :: Parser Annotations'
+ontologyAnnotations = annotationAnnotations
 
 axioms :: Parser [()]
 axioms = many axiom
@@ -128,25 +131,32 @@ annotationSubject :: Parser ()
 annotationSubject =  iri $> ()
                  <|> anonymousIndividual $> ()
 
-annotationValue :: Parser ()
-annotationValue =  anonymousIndividual $> ()
-               <|> iri $> ()
-               <|> literal $> ()
+annotationValue :: Parser AnnotationTarget
+annotationValue =  NodeAT    <$> anonymousIndividual
+               <|> IriAT     <$> iri
+               <|> LiteralAT <$> literal
 
-axiomAnnotations :: Parser [()]
-axiomAnnotations = many . try $ annotation
+axiomAnnotations :: Parser Annotations'
+axiomAnnotations = annotationAnnotations
 
-annotation :: Parser ()
+annotation :: Parser (Annotations', Annotation)
 annotation = do
   symbol "Annotation"
   parens $ do
-    annotationAnnotations
-    annotationProperty
-    annotationValue
-  pure ()
+    annots   <- annotationAnnotations
+    property <- annotationProperty
+    value    <- annotationValue
+    let ann = Annotation property value
+    pure (annots, Annotation property value)
 
-annotationAnnotations :: Parser [()]
-annotationAnnotations = many annotation
+annotationAnnotations :: Parser Annotations'
+annotationAnnotations = do
+  annots <- many annotation
+  pure $ if null annots
+           then Nothing
+           else Just . AnnList . NE.fromList $ annots
+ 
+
 
 annotationAxiom :: Parser ()
 annotationAxiom =  annotationAssertion $> ()
