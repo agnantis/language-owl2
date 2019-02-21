@@ -87,11 +87,11 @@ instance PrettyM TypedLiteral where
   pretty (TypedL s dt) = pretty s <> "^^" <> pretty dt
 
 instance PrettyM Datatype where
-  pretty (IriDT i) = pretty i
-  pretty IntegerDT = "integer"
-  pretty DecimalDT = "decimal"
-  pretty FloatDT   = "float"
-  pretty StringDT  = "string"
+  pretty (Datatype (AbbreviatedIRI "xsd" "integer")) = "integer"
+  pretty (Datatype (AbbreviatedIRI "xsd" "float"))   = "float"
+  pretty (Datatype (AbbreviatedIRI "xsd" "decimal")) = "decimal"
+  pretty (Datatype (AbbreviatedIRI "xsd" "string"))  = "string"
+  pretty (Datatype i)                                = pretty i
 
 instance PrettyM LiteralWithLang where
   pretty (LiteralWithLang s l) = dquotes (pretty s) <> "@" <> pretty l
@@ -139,8 +139,8 @@ instance PrettyM Atomic where
   pretty (AtomicDescription d) = parens . pretty $ d 
 
 instance PrettyM Individual where
-  pretty (IRIIndividual i) = pretty i
-  pretty (NodeIndividual n) = pretty n
+  pretty (NamedIndividual i) = pretty i
+  pretty (AnonymousIndividual n) = pretty n
 
 instance PrettyM Restriction where
   pretty (OPRestriction o) = pretty o

@@ -401,6 +401,16 @@ exponent = do
 lexicalValue :: Parser Text
 lexicalValue = quotedString
 
+individual :: Parser Individual
+individual =  NamedIndividual     <$> namedIndividual
+          <|> AnonymousIndividual <$> anonymousIndividual
+
+namedIndividual :: Parser IndividualIRI
+namedIndividual = iri
+
+anonymousIndividual :: Parser NodeID
+anonymousIndividual = nodeID
+
 -- | Reserved keywords
 allKeywords :: [Text]
 allKeywords = concat [manchesterKeywords, functionalKeywords]

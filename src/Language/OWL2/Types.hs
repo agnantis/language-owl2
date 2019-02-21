@@ -47,7 +47,9 @@ type Descriptions = AnnotatedList Description
 type Exponent = Integer
 type Fact = WithNegation FactElement
 type DataPropertyExpression = DataPropertyIRI
-data ObjectPropertyExpression = OPE ObjectPropertyIRI | InverseOPE ObjectPropertyIRI deriving (Show)
+data ObjectPropertyExpression
+    = OPE ObjectPropertyIRI
+    | InverseOPE ObjectPropertyIRI deriving (Show)
 newtype DataPrimary = DataPrimary (WithNegation DataAtomic) deriving (Show)
 type Annotations' = Maybe Annotations
 
@@ -60,9 +62,10 @@ newtype NodeID = NodeID Text deriving (Show)
 newtype AnnotatedList a = AnnList (NonEmpty (Annotations', a)) deriving (Show)
 newtype ImportDeclaration = ImportD IRI deriving (Show)
 
-data IRI = FullIRI Text
-         | AbbreviatedIRI PrefixName Text
-         | SimpleIRI Text deriving (Show)
+data IRI
+    = FullIRI Text
+    | AbbreviatedIRI PrefixName Text
+    | SimpleIRI Text deriving (Show)
 data TypedLiteral = TypedL Text Datatype deriving (Show)
 data FloatPoint = FloatP Double (Maybe Exponent) deriving (Show)
 data LiteralWithLang = LiteralWithLang Text LangTag deriving (Show)
@@ -71,129 +74,158 @@ data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show)
 data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [AnnotatedList Annotation] [Frame] deriving (Show)
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Show)
 data Annotation = Annotation AnnotationPropertyIRI AnnotationTarget deriving (Show)
-data Frame = FrameDT DatatypeFrame
-           | FrameC ClassFrame
-           | FrameOP ObjectPropertyFrame
-           | FrameDP DataPropertyFrame
-           | FrameAP AnnotationPropertyFrame
-           | FrameI IndividualFrame
-           | FrameM Misc deriving (Show)
+data Frame
+    = FrameDT DatatypeFrame
+    | FrameC ClassFrame
+    | FrameOP ObjectPropertyFrame
+    | FrameDP DataPropertyFrame
+    | FrameAP AnnotationPropertyFrame
+    | FrameI IndividualFrame
+    | FrameM Misc deriving (Show)
 data DatatypeFrame = DatatypeF Datatype [Annotations] (Maybe AnnotDataRange) deriving (Show)
 data AnnotDataRange = AnnotDataRange Annotations' DataRange deriving (Show)
-data Datatype = IriDT IRI
-              | IntegerDT
-              | DecimalDT
-              | FloatDT
-              | StringDT deriving (Show)
-data DataAtomic = DatatypeDA Datatype
-                | LiteralListDA (NonEmpty Literal)
-                | DatatypeRestrictionDA DatatypeRestriction
-                | DataRangeDA DataRange deriving (Show)
+newtype Datatype = Datatype IRI deriving (Show)
+data DataAtomic
+    = DatatypeDA Datatype
+    | LiteralListDA (NonEmpty Literal)
+    | DatatypeRestrictionDA DatatypeRestriction
+    | DataRangeDA DataRange deriving (Show)
 data DatatypeRestriction = DatatypeRestriction Datatype (NonEmpty RestrictionExp) deriving (Show)
 data RestrictionExp = RestrictionExp Facet Literal deriving (Show)
-data Facet = LENGTH_FACET
-           | MIN_LENGTH_FACET
-           | MAX_LENGTH_FACET
-           | PATTERN_FACET
-           | LANG_RANGE_FACET
-           | LE_FACET
-           | L_FACET
-           | GE_FACET
-           | G_FACET deriving (Show)
+data Facet
+    = LENGTH_FACET
+    | MIN_LENGTH_FACET
+    | MAX_LENGTH_FACET
+    | PATTERN_FACET
+    | LANG_RANGE_FACET
+    | LE_FACET
+    | L_FACET
+    | GE_FACET
+    | G_FACET deriving (Show)
 data ClassFrame = ClassF IRI [ClassElement] deriving (Show)
-data ClassElement = AnnotationCE Annotations
-                  | SubClassOfCE Descriptions
-                  | EquivalentToCE Descriptions
-                  | DisjointToCE Descriptions
-                  | DisjointUnionOfCE Annotations' (AtLeast2List Description)
-                  | HasKeyCE Annotations' (NonEmpty ObjectOrDataPE) deriving (Show)
-data ObjectOrDataPE = ObjectPE ObjectPropertyExpression
-                    | DataPE DataPropertyExpression deriving (Show)
-data WithNegation a = Positive a | Negative a deriving (Show, Functor)
-data WithInversion a = Plain a | Inverse a deriving (Show, Functor)
-data Conjunction = ClassConj IRI (NonEmpty (WithNegation Restriction)) | PrimConj (NonEmpty Primary) deriving (Show)
-data Primary = PrimaryR (WithNegation Restriction) | PrimaryA (WithNegation Atomic) deriving (Show)
-data Restriction = OPRestriction ObjectPropertyRestriction | DPRestriction DataPropertyRestriction deriving (Show)
-data ObjectPropertyRestrictionType = SelfOPR
-                                   | SomeOPR Primary
-                                   | OnlyOPR Primary
-                                   | ValueOPR Individual
-                                   | MinOPR Int (Maybe Primary) -- TODO: Int -> Nat
-                                   | MaxOPR Int (Maybe Primary) -- TODO: Int -> Nat
-                                   | ExactlyOPR Int (Maybe Primary) deriving (Show) -- TODO: Int -> Nat
-data DataPropertyRestrictionType = SomeDPR DataPrimary
-                                 | OnlyDPR DataPrimary
-                                 | ValueDPR Literal
-                                 | MinDPR Int (Maybe DataPrimary) -- TODO: Int -> Nat
-                                 | MaxDPR Int (Maybe DataPrimary) -- TODO: Int -> Nat
-                                 | ExactlyDPR Int (Maybe DataPrimary) deriving (Show) -- TODO: Int -> Nat
+data ClassElement
+    = AnnotationCE Annotations
+    | SubClassOfCE Descriptions
+    | EquivalentToCE Descriptions
+    | DisjointToCE Descriptions
+    | DisjointUnionOfCE Annotations' (AtLeast2List Description)
+    | HasKeyCE Annotations' (NonEmpty ObjectOrDataPE) deriving (Show)
+data ObjectOrDataPE
+    = ObjectPE ObjectPropertyExpression
+    | DataPE DataPropertyExpression deriving (Show)
+data WithNegation a
+    = Positive a
+    | Negative a deriving (Show, Functor)
+data WithInversion a
+    = Plain a
+    | Inverse a deriving (Show, Functor)
+data Conjunction
+    = ClassConj IRI (NonEmpty (WithNegation Restriction))
+    | PrimConj (NonEmpty Primary) deriving (Show)
+data Primary
+    = PrimaryR (WithNegation Restriction)
+    | PrimaryA (WithNegation Atomic) deriving (Show)
+data Restriction
+    = OPRestriction ObjectPropertyRestriction
+    | DPRestriction DataPropertyRestriction deriving (Show)
+data ObjectPropertyRestrictionType
+    = SelfOPR
+    | SomeOPR Primary
+    | OnlyOPR Primary
+    | ValueOPR Individual
+    | MinOPR Int (Maybe Primary) -- TODO: Int -> Nat
+    | MaxOPR Int (Maybe Primary) -- TODO: Int -> Nat
+    | ExactlyOPR Int (Maybe Primary) deriving (Show) -- TODO: Int -> Nat
+data DataPropertyRestrictionType
+    = SomeDPR DataPrimary
+    | OnlyDPR DataPrimary
+    | ValueDPR Literal
+    | MinDPR Int (Maybe DataPrimary) -- TODO: Int -> Nat
+    | MaxDPR Int (Maybe DataPrimary) -- TODO: Int -> Nat
+    | ExactlyDPR Int (Maybe DataPrimary) deriving (Show) -- TODO: Int -> Nat
 data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRestrictionType deriving (Show)
 data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType deriving (Show)
-data Individual = IRIIndividual IndividualIRI | NodeIndividual NodeID deriving (Show)
-data Atomic = AtomicClass ClassIRI | AtomicIndividuals (NonEmpty Individual) | AtomicDescription Description deriving (Show)
+data Individual
+    = NamedIndividual IndividualIRI
+    | AnonymousIndividual NodeID deriving (Show)
+data Atomic
+    = AtomicClass ClassIRI
+    | AtomicIndividuals (NonEmpty Individual)
+    | AtomicDescription Description deriving (Show)
 data ObjectPropertyFrame = ObjectPropertyF ObjectPropertyIRI [ObjectPropertyElement] deriving (Show)
-data ObjectPropertyElement = AnnotationOPE Annotations
-                           | DomainOPE Descriptions
-                           | RangeOPE Descriptions
-                           | CharacteristicsOPE (AnnotatedList ObjectPropertyCharacteristics)
-                           | SubPropertyOfOPE (AnnotatedList ObjectPropertyExpression)
-                           | EquivalentToOPE (AnnotatedList ObjectPropertyExpression)
-                           | DisjointWithOPE (AnnotatedList ObjectPropertyExpression)
-                           | InverseOfOPE (AnnotatedList ObjectPropertyExpression)
-                           | SubPropertyChainOPE Annotations' (AtLeast2List ObjectPropertyExpression) deriving (Show)
-data ObjectPropertyCharacteristics = FUNCTIONAL
-                                   | INVERSE_FUNCTIONAL
-                                   | REFLEXIVE
-                                   | IRREFLEXIVE
-                                   | SYMMETRIC
-                                   | ASYMMETRIC
-                                   | TRANSITIVE deriving (Show)
+data ObjectPropertyElement
+    = AnnotationOPE Annotations
+    | DomainOPE Descriptions
+    | RangeOPE Descriptions
+    | CharacteristicsOPE (AnnotatedList ObjectPropertyCharacteristics)
+    | SubPropertyOfOPE (AnnotatedList ObjectPropertyExpression)
+    | EquivalentToOPE (AnnotatedList ObjectPropertyExpression)
+    | DisjointWithOPE (AnnotatedList ObjectPropertyExpression)
+    | InverseOfOPE (AnnotatedList ObjectPropertyExpression)
+    | SubPropertyChainOPE Annotations' (AtLeast2List ObjectPropertyExpression) deriving (Show)
+data ObjectPropertyCharacteristics
+    = FUNCTIONAL
+    | INVERSE_FUNCTIONAL
+    | REFLEXIVE
+    | IRREFLEXIVE
+    | SYMMETRIC
+    | ASYMMETRIC
+    | TRANSITIVE deriving (Show)
 data DataPropertyFrame = DataPropertyF DataPropertyIRI [DataPropertyElement] deriving (Show)
-data DataPropertyElement = AnnotationDPE Annotations
-                         | DomainDPE Descriptions
-                         | RangeDPE (AnnotatedList DataRange)
-                         | CharacteristicsDPE (AnnotatedList DataPropertyCharacteristics)
-                         | SubPropertyOfDPE (AnnotatedList DataPropertyExpression)
-                         | EquivalentToDPE (AnnotatedList DataPropertyExpression)
-                         | DisjointWithDPE (AnnotatedList DataPropertyExpression) deriving (Show)
+data DataPropertyElement
+    = AnnotationDPE Annotations
+    | DomainDPE Descriptions
+    | RangeDPE (AnnotatedList DataRange)
+    | CharacteristicsDPE (AnnotatedList DataPropertyCharacteristics)
+    | SubPropertyOfDPE (AnnotatedList DataPropertyExpression)
+    | EquivalentToDPE (AnnotatedList DataPropertyExpression)
+    | DisjointWithDPE (AnnotatedList DataPropertyExpression) deriving (Show)
 data DataPropertyCharacteristics = FUNCTIONAL_DPE deriving (Show)
 data AnnotationPropertyFrame = AnnotationPropertyF AnnotationPropertyIRI [AnnotationPropertyElement] deriving (Show)
-data AnnotationPropertyElement = AnnotationAPE Annotations
-                               | DomainAPE (AnnotatedList IRI)
-                               | RangeAPE (AnnotatedList IRI)
-                               | SubPropertyOfAPE (AnnotatedList AnnotationPropertyIRI) deriving (Show)
+data AnnotationPropertyElement
+    = AnnotationAPE Annotations
+    | DomainAPE (AnnotatedList IRI)
+    | RangeAPE (AnnotatedList IRI)
+    | SubPropertyOfAPE (AnnotatedList AnnotationPropertyIRI) deriving (Show)
 data IndividualFrame = IndividualF Individual [IndividualElement] deriving (Show)
-data IndividualElement = AnnotationIE Annotations
-                       | TypeIE Descriptions
-                       | FactIE (AnnotatedList Fact)
-                       | SameAsIE (AnnotatedList Individual)
-                       | DifferentFromIE (AnnotatedList Individual) deriving (Show)
-data FactElement = ObjectPropertyFE ObjectPropertyFact | DataPropertyFE DataPropertyFact deriving (Show)
+data IndividualElement
+    = AnnotationIE Annotations
+    | TypeIE Descriptions
+    | FactIE (AnnotatedList Fact)
+    | SameAsIE (AnnotatedList Individual)
+    | DifferentFromIE (AnnotatedList Individual) deriving (Show)
+data FactElement
+    = ObjectPropertyFE ObjectPropertyFact
+    | DataPropertyFE DataPropertyFact deriving (Show)
 data ObjectPropertyFact = ObjectPropertyFact ObjectPropertyIRI Individual deriving (Show)
 data DataPropertyFact = DataPropertyFact DataPropertyIRI Literal deriving (Show)
-data Misc = EquivalentClasses Annotations' (AtLeast2List Description)
-          | DisjointClasses Annotations' (AtLeast2List Description)
-          | EquivalentObjectProperties Annotations' (AtLeast2List ObjectPropertyExpression)
-          | DisjointObjectProperties Annotations' (AtLeast2List ObjectPropertyExpression)
-          | EquivalentDataProperties Annotations' (AtLeast2List DataPropertyExpression)
-          | DisjointDataProperties Annotations' (AtLeast2List DataPropertyExpression)
-          | SameIndividual Annotations' (AtLeast2List Individual)
-          | DifferentIndividuals Annotations' (AtLeast2List Individual) deriving (Show)
-data Literal = TypedLiteralC TypedLiteral
-             | StringLiteralNoLang Text
-             | StringLiteralLang LiteralWithLang
-             | IntegerLiteralC IntegerLiteral
-             | DecimalLiteralC DecimalLiteral
-             | FloatingLiteralC FloatPoint deriving (Show)
-data Entity = DatatypeEntity Datatype
-            | ClassEntity ClassIRI
-            | ObjectPropertyEntity ObjectPropertyIRI
-            | DataPropertyEntity DataPropertyIRI
-            | AnnotationPropertyEntity AnnotationPropertyIRI
-            | IndividualEntity IndividualIRI deriving (Show)
-data AnnotationTarget = NodeAT NodeID
-                      | IriAT IRI
-                      | LiteralAT Literal deriving (Show)
+data Misc
+    = EquivalentClasses Annotations' (AtLeast2List Description)
+    | DisjointClasses Annotations' (AtLeast2List Description)
+    | EquivalentObjectProperties Annotations' (AtLeast2List ObjectPropertyExpression)
+    | DisjointObjectProperties Annotations' (AtLeast2List ObjectPropertyExpression)
+    | EquivalentDataProperties Annotations' (AtLeast2List DataPropertyExpression)
+    | DisjointDataProperties Annotations' (AtLeast2List DataPropertyExpression)
+    | SameIndividual Annotations' (AtLeast2List Individual)
+    | DifferentIndividuals Annotations' (AtLeast2List Individual) deriving (Show)
+data Literal
+    = TypedLiteralC TypedLiteral
+    | StringLiteralNoLang Text
+    | StringLiteralLang LiteralWithLang
+    | IntegerLiteralC IntegerLiteral
+    | DecimalLiteralC DecimalLiteral
+    | FloatingLiteralC FloatPoint deriving (Show)
+data Entity
+    = DatatypeEntity Datatype
+    | ClassEntity ClassIRI
+    | ObjectPropertyEntity ObjectPropertyIRI
+    | DataPropertyEntity DataPropertyIRI
+    | AnnotationPropertyEntity AnnotationPropertyIRI
+    | IndividualEntity IndividualIRI deriving (Show)
+data AnnotationTarget
+    = NodeAT NodeID
+    | IriAT IRI
+    | LiteralAT Literal deriving (Show)
 -- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic
 
 

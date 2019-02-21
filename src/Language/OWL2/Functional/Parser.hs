@@ -59,7 +59,7 @@ literal =  lexeme $ TypedLiteralC <$> try typedLiteral
 --
 typedLiteral :: Parser TypedLiteral
 typedLiteral = TypedL <$> lexicalValue
-                      <*> (symbol "^^" *> (IriDT <$> datatype))
+                      <*> (symbol "^^" *> datatype)
 
 ontologyDocument :: Parser ()
 ontologyDocument = do
@@ -118,6 +118,14 @@ declaration = do
     axiomAnnotations
     entity
   pure ()
+
+data Entity
+    = EntityClass ClassIRI
+    | EntityDatatype DatatypeIRI
+    | EntityOP ObjectPropertyIRI
+    | EntityDP DataPropertyIRI
+    | EntityAP AnnotationPropertyIRI
+    | EntityNI IndividualIRI
 
 entity :: Parser ()
 entity =  symbol "Class" *> parens clazz $> ()
@@ -207,30 +215,20 @@ annotationPropertyRange = do
     iri
   pure ()
 
-clazz :: Parser IRI
+clazz :: Parser ClassIRI
 clazz = iri
 
-datatype:: Parser IRI
-datatype = iri
+datatype:: Parser Datatype
+datatype = Datatype <$> iri
 
-objectProperty :: Parser IRI
+objectProperty :: Parser ObjectPropertyIRI
 objectProperty = iri
 
-dataProperty :: Parser IRI
+dataProperty :: Parser DataPropertyIRI
 dataProperty = iri
 
-annotationProperty :: Parser IRI
+annotationProperty :: Parser AnnotationPropertyIRI
 annotationProperty = iri
-
-individual :: Parser ()
-individual =  namedIndividual $> ()
-          <|> anonymousIndividual $> ()
-
-namedIndividual :: Parser IRI
-namedIndividual = iri
-
-anonymousIndividual :: Parser NodeID
-anonymousIndividual = nodeID
 
 objectPropertyExpression :: Parser ()
 objectPropertyExpression =  objectProperty $> ()
@@ -712,10 +710,10 @@ assertion =  sameIndividual $> ()
          <|> dataPropertyAssertion $> ()
          <|> negativeDataPropertyAssertion $> ()
 
-sourceIndividual :: Parser ()
+sourceIndividual :: Parser Individual
 sourceIndividual = individual
 
-targetIndividual :: Parser ()
+targetIndividual :: Parser Individual
 targetIndividual = individual
 
 targetValue :: Parser Literal

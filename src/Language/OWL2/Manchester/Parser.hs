@@ -28,7 +28,7 @@ import           Language.OWL2.Internal.Parser
 -- | It parses literals
 --
 -- >>> parseTest literal "\"32\"^^integer"
--- TypedLiteralC (TypedL "32" IntegerDT)
+-- TypedLiteralC (TypedL "32" (Datatype (AbbreviatedIRI "xsd" "integer")))
 --
 -- >>> parseTest literal "\"stringLiteralNoLanguage\""
 -- StringLiteralNoLang "stringLiteralNoLanguage"
@@ -47,10 +47,10 @@ literal =  lexeme $ TypedLiteralC <$> try typedLiteral
 -- | It parses a typed literal
 --
 -- >>> parseTest typedLiteral "\"32\"^^integer"
--- TypedL "32" IntegerDT
+-- TypedL "32" (Datatype (AbbreviatedIRI "xsd" "integer"))
 --
 -- >>> parseTest typedLiteral "\"Jack\"^^xsd:string"
--- TypedL "Jack" (IriDT (AbbreviatedIRI "xsd" "string"))
+-- TypedL "Jack" (Datatype (AbbreviatedIRI "xsd" "string"))
 --
 typedLiteral :: Parser TypedLiteral
 typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" *> datatype)
@@ -62,20 +62,22 @@ classIRI = iri
 -- | It parses datatypes
 --
 -- >>> parseTest datatype "<http://example.iri>"
--- IriDT (FullIRI "http://example.iri")
+-- Datatype (FullIRI "http://example.iri")
 --
 -- >>> parseTest datatype "integer"
--- IntegerDT
+-- Datatype (AbbreviatedIRI "xsd" "integer")
 --
 -- >>> parseTest datatype "xsd:string"
--- IriDT (AbbreviatedIRI "xsd" "string")
+-- Datatype (AbbreviatedIRI "xsd" "string")
 --
 datatype :: Parser Datatype
-datatype =  IriDT <$> try datatypeIRI
-        <|> IntegerDT   <$ symbol "integer"
-        <|> DecimalDT   <$ symbol "decimal"
-        <|> FloatDT     <$ symbol "float"
-        <|> StringDT    <$ symbol "string"
+datatype =  Datatype <$> (try datatypeIRI <|> knownDTs)
+ where
+  knownDTs :: Parser IRI
+  knownDTs =  AbbreviatedIRI "xsd" "integer" <$ symbol "integer"
+          <|> AbbreviatedIRI "xsd" "decimal" <$ symbol "decimal"
+          <|> AbbreviatedIRI "xsd" "float"   <$ symbol "float"
+          <|> AbbreviatedIRI "xsd" "string"  <$ symbol "string"
 
 datatypeIRI :: Parser IRI
 datatypeIRI = iri
@@ -89,14 +91,6 @@ dataPropertyIRI = iri
 annotationPropertyIRI :: Parser IRI
 annotationPropertyIRI = iri
 
-
-individual :: Parser Individual
-individual =  IRIIndividual  <$> individualIRI
-          <|> NodeIndividual <$> nodeID
-
-individualIRI :: Parser IndividualIRI
-individualIRI = iri
-
 entity :: Parser Entity
 entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
  where
@@ -107,7 +101,7 @@ entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
     , ("ObjectProperty"    , ObjectPropertyEntity <$> objectPropertyIRI)
     , ("DataProperty"      , DataPropertyEntity <$> dataPropertyIRI)
     , ("AnnotationProperty", AnnotationPropertyEntity <$> annotationPropertyIRI)
-    , ("NamedIndividual"   , IndividualEntity <$> individualIRI)
+    , ("NamedIndividual"   , IndividualEntity <$> namedIndividual)
     ]
 
 
@@ -243,7 +237,7 @@ dataConjunction = DataConjunction <$> singleOrMany "and" dataPrimary
 -- | It parses a data primary
 --
 -- >>> parseTest dataPrimary "integer[<0]"
--- DataPrimary (Positive (DatatypeRestrictionDA (DatatypeRestriction IntegerDT (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))))
+-- DataPrimary (Positive (DatatypeRestrictionDA (DatatypeRestriction (Datatype (AbbreviatedIRI "xsd" "integer")) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))))
 --
 dataPrimary :: Parser DataPrimary
 dataPrimary = do
@@ -276,7 +270,7 @@ literalList = nonEmptyList literal
 -- ()
 --
 -- >>> parseTest datatypeRestriction "integer[< 0]"
--- DatatypeRestriction IntegerDT (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| [])
+-- DatatypeRestriction (Datatype (AbbreviatedIRI "xsd" "integer")) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| [])
 --
 datatypeRestriction :: Parser DatatypeRestriction
 datatypeRestriction = do
@@ -406,7 +400,7 @@ restriction =  OPRestriction <$> try (OPR <$> objectPropertyExpression <*> objec
 -- AtomicClass (SimpleIRI "Person")
 --
 -- >>> parseTest atomic "{ <class.iri#ind1>, <class.iri#ind2> }"
--- AtomicIndividuals (IRIIndividual (FullIRI "class.iri#ind1") :| [IRIIndividual (FullIRI "class.iri#ind2")])
+-- AtomicIndividuals (NamedIndividual (FullIRI "class.iri#ind1") :| [NamedIndividual (FullIRI "class.iri#ind2")])
 --
 atomic :: Parser Atomic
 atomic =  AtomicClass       <$> classIRI
