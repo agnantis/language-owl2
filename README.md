@@ -26,7 +26,13 @@ Its current version is able to parse and pretty print the [Manchester](https://w
     - `misc` -> all cases
 - Based on the grammar, a `classFrame` is defined by either a `HasKey` _construct_ or by many _sub-constructs_ of a list of 5 different _sub-constructs_. However, in the example, there is the `Class: Person` which contains both `HasKey` and the other _sub-constructs_ as well. This means that the `HasKey` in the grammar should not be an _alternative_ (i.e. `|`) but it should be an optional (i.e. `[...]`) 
 - The list of alternatives in the `annotationPropertyFrame` is probably wrong: The closing '}' should include all alternatives and not only the _annotations_ 
-- Should `annotations <NT>2List` be equal to `<NT>AnnotatedList` where there are at least 2 `<NT>` in it?
-  - If that is the case, ten the AST is not correct, as the first example will be able to parse a list of `NT`s which may be accompanied by a list of annotations (i.e. the annotations are applied to the list), while in the second example, *each* `NT` can be accompanied by a list of annotations
-  - If this os not the case, then I think that the `annotations` should be optional (i.e. `[annotations]`). As it is now all the annotations included in the types are required!
+- Should `annotations <NT>2List` be equal to `<NT>AnnotatedList` where there are at least 2 `<NT>` in it? **NO** (see [Update](#update1))
+  - If that is the case, then the AST is not correct, as the first example will be able to parse a list of `NT`s which may be accompanied by a list of annotations (i.e. the annotations are applied to the list), while in the second example, *each* `NT` can be accompanied by a list of annotations
+  - If this is not the case, then I think that the `annotations` should be optional (i.e. `[annotations]`). As it is now all the annotations included in the types are required!
   - In my parser, I followed the second solution and converted all `annotations to optional
+  - <a name="update1"></a>*Update*: It seems that `annotations <NT>2List` is not equal to `<NT>AnnotatedList`; The elements that use the first syntax (e.g. all the `misc`) define the annotations for the element itself and not its members, so there must be only a single annotation list (i.e. `annotations`) and not an annotation per member. However the `annottation` should have been inside square brakets as annotaitons are optional (tested in Protege)
+
+
+## Possible issues in Functional syntax specification
+
+- Nothing yet ;)
