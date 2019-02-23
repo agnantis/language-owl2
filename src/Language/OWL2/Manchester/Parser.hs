@@ -28,7 +28,7 @@ import           Language.OWL2.Internal.Parser
 -- | It parses literals
 --
 -- >>> parseTest literal "\"32\"^^integer"
--- TypedLiteralC (TypedL "32" (Datatype (AbbreviatedIRI "xsd" "integer")))
+-- TypedLiteralC (TypedL "32" (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}))
 --
 -- >>> parseTest literal "\"stringLiteralNoLanguage\""
 -- StringLiteralNoLang "stringLiteralNoLanguage"
@@ -47,10 +47,10 @@ literal =  lexeme $ TypedLiteralC <$> try typedLiteral
 -- | It parses a typed literal
 --
 -- >>> parseTest typedLiteral "\"32\"^^integer"
--- TypedL "32" (Datatype (AbbreviatedIRI "xsd" "integer"))
+-- TypedL "32" (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"})
 --
 -- >>> parseTest typedLiteral "\"Jack\"^^xsd:string"
--- TypedL "Jack" (Datatype (AbbreviatedIRI "xsd" "string"))
+-- TypedL "Jack" (Datatype {unDatatype = AbbreviatedIRI "xsd" "string"})
 --
 typedLiteral :: Parser TypedLiteral
 typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" *> datatype)
@@ -62,13 +62,13 @@ classIRI = iri
 -- | It parses datatypes
 --
 -- >>> parseTest datatype "<http://example.iri>"
--- Datatype (FullIRI "http://example.iri")
+-- Datatype {unDatatype = FullIRI "http://example.iri"}
 --
 -- >>> parseTest datatype "integer"
--- Datatype (AbbreviatedIRI "xsd" "integer")
+-- Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}
 --
 -- >>> parseTest datatype "xsd:string"
--- Datatype (AbbreviatedIRI "xsd" "string")
+-- Datatype {unDatatype = AbbreviatedIRI "xsd" "string"}
 --
 datatype :: Parser Datatype
 datatype =  Datatype <$> (try datatypeIRI <|> knownDTs)
@@ -96,18 +96,21 @@ entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
  where
   alts :: [(Text, Parser Entity)]
   alts =
-    [ ("Datatype"          , DatatypeEntity <$> datatype)
-    , ("Class"             , ClassEntity <$> classIRI)
-    , ("ObjectProperty"    , ObjectPropertyEntity <$> objectPropertyIRI)
-    , ("DataProperty"      , DataPropertyEntity <$> dataPropertyIRI)
-    , ("AnnotationProperty", AnnotationPropertyEntity <$> annotationPropertyIRI)
-    , ("NamedIndividual"   , IndividualEntity <$> namedIndividual)
+    [ ("Datatype"          , EntityDatatype                                <$> datatype)
+    , ("Class"             , EntityClass . Class                           <$> classIRI)
+    , ("ObjectProperty"    , EntityObjectProperty . ObjectProperty         <$> objectPropertyIRI)
+    , ("DataProperty"      , EntityDataProperty . DataProperty             <$> dataPropertyIRI)
+    , ("AnnotationProperty", EntityAnnotationProperty . AnnotationProperty <$> annotationPropertyIRI)
+    , ("NamedIndividual"   , EntityIndividual                              <$> namedIndividual)
     ]
 
 
 ------------------------------
 -- Ontology and Annotations --
 ------------------------------
+
+mAnnotation :: Parser Annotation
+mAnnotation = annotation literal
 
 -- | It parses annotations
 --
@@ -124,34 +127,7 @@ entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
 -- ()
 --
 annotations :: Parser (AnnotatedList Annotation)
-annotations = symbol "Annotations:" *> annotatedList annotation
-
--- | It parses a single annotation
---
--- >>> parseTest annotation ":creator \"john\""
--- Annotation (AbbreviatedIRI "" "creator") (LiteralAT (StringLiteralNoLang "john"))
---
-annotation :: Parser Annotation
-annotation = Annotation <$> annotationPropertyIRI <*> annotationTarget
-
--- | It parser node ids, iris or literals
---
--- >>> parseTest annotationTarget "\"john\""
--- LiteralAT (StringLiteralNoLang "john")
---
--- >>> parseTest annotationTarget "John"
--- IriAT (SimpleIRI "John")
---
--- >>> parseTest annotationTarget "_:node"
--- NodeAT (NodeID "node")
---
--- >>> parseTest annotationTarget "<http://some.iri>"
--- IriAT (FullIRI "http://some.iri")
---
-annotationTarget :: Parser AnnotationTarget
-annotationTarget =  NodeAT    <$> try nodeID
-                <|> IriAT     <$> try iri
-                <|> LiteralAT <$> try literal
+annotations = symbol "Annotations:" *> annotatedList mAnnotation
 
 ontologyDocument :: Parser OntologyDocument
 ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
@@ -237,7 +213,7 @@ dataConjunction = DataConjunction <$> singleOrMany "and" dataPrimary
 -- | It parses a data primary
 --
 -- >>> parseTest dataPrimary "integer[<0]"
--- DataPrimary (Positive (DatatypeRestrictionDA (DatatypeRestriction (Datatype (AbbreviatedIRI "xsd" "integer")) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))))
+-- DataPrimary (Positive (DatatypeRestrictionDA (DatatypeRestriction (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))))
 --
 dataPrimary :: Parser DataPrimary
 dataPrimary = do
@@ -270,7 +246,7 @@ literalList = nonEmptyList literal
 -- ()
 --
 -- >>> parseTest datatypeRestriction "integer[< 0]"
--- DatatypeRestriction (Datatype (AbbreviatedIRI "xsd" "integer")) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| [])
+-- DatatypeRestriction (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| [])
 --
 datatypeRestriction :: Parser DatatypeRestriction
 datatypeRestriction = do
@@ -430,9 +406,9 @@ atomic =  AtomicClass       <$> classIRI
 datatypeFrame :: Parser DatatypeFrame
 datatypeFrame = do
   dtype   <- symbol "Datatype:" *> datatype
-  annots  <- many $ symbol "Annotations:" *> annotatedList annotation
+  annots  <- many $ symbol "Annotations:" *> annotatedList mAnnotation
   equiv   <- optional $ AnnotDataRange <$> (symbol "EquivalentTo:" *> optional annotations) <*> dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
-  annots' <- many $ symbol "Annotations:" *> annotatedList annotation
+  annots' <- many $ symbol "Annotations:" *> annotatedList mAnnotation
   pure $ DatatypeF dtype (annots <> annots') equiv
 
 -- | It parses a class frame
@@ -470,7 +446,7 @@ classFrame = do
   pure $ ClassF clsIRI blob
  where
   choices :: Parser ClassElement
-  choices =  AnnotationCE      <$> (symbol "Annotations:" *> annotatedList annotation)
+  choices =  AnnotationCE      <$> (symbol "Annotations:" *> annotatedList mAnnotation)
          <|> SubClassOfCE      <$> (symbol "SubClassOf:" *> annotatedList description)
          <|> EquivalentToCE    <$> (symbol "EquivalentTo:" *> annotatedList description)
          <|> DisjointToCE      <$> (symbol "DisjointWith:" *> annotatedList description)
@@ -510,7 +486,7 @@ classFrame = do
 objectPropertyFrame :: Parser ObjectPropertyFrame
 objectPropertyFrame = ObjectPropertyF <$> (symbol "ObjectProperty:" *> objectPropertyIRI) <*> many altr
  where
-  altr =  AnnotationOPE       <$> (symbol "Annotations:"      *> annotatedList annotation)
+  altr =  AnnotationOPE       <$> (symbol "Annotations:"      *> annotatedList mAnnotation)
       <|> DomainOPE           <$> (symbol "Domain:"           *> annotatedList description)
       <|> RangeOPE            <$> (symbol "Range:"            *> annotatedList description)
       <|> CharacteristicsOPE  <$> (symbol "Characteristics:"  *> annotatedList objectPropertyCharacteristic)
@@ -570,7 +546,7 @@ objectPropertyCharacteristic =
 dataPropertyFrame :: Parser DataPropertyFrame
 dataPropertyFrame = DataPropertyF <$> (symbol "DataProperty:" *> dataPropertyIRI) <*> many altr
  where
-  altr =  AnnotationDPE       <$> (symbol "Annotations:"     *> annotatedList annotation)
+  altr =  AnnotationDPE       <$> (symbol "Annotations:"     *> annotatedList mAnnotation)
       <|> DomainDPE           <$> (symbol "Domain:"          *> annotatedList description)
       <|> RangeDPE            <$> (symbol "Range:"           *> annotatedList dataRange)
       <|> CharacteristicsDPE  <$> (symbol "Characteristics:" *> annotatedList dataPropertyCharacteristic)
@@ -610,7 +586,7 @@ annotationPropertyFrame :: Parser AnnotationPropertyFrame
 annotationPropertyFrame = AnnotationPropertyF <$> (symbol "AnnotationProperty:" *> annotationPropertyIRI)
                                               <*> many altr
  where
-  altr =  AnnotationAPE       <$> (symbol "Annotations:"     *> annotatedList annotation)
+  altr =  AnnotationAPE       <$> (symbol "Annotations:"     *> annotatedList mAnnotation)
       <|> DomainAPE           <$> (symbol "Domain:"          *> annotatedList iri)
       <|> RangeAPE            <$> (symbol "Range:"           *> annotatedList iri)
       <|> SubPropertyOfAPE    <$> (symbol "SubPropertyOf:"   *> annotatedList annotationPropertyIRI)
@@ -640,7 +616,7 @@ annotationPropertyFrame = AnnotationPropertyF <$> (symbol "AnnotationProperty:" 
 individualFrame :: Parser IndividualFrame
 individualFrame = IndividualF <$> (symbol "Individual:" *> individual) <*> many altr
  where
-  altr =  AnnotationIE    <$> (symbol "Annotations:"   *> annotatedList annotation)
+  altr =  AnnotationIE    <$> (symbol "Annotations:"   *> annotatedList mAnnotation)
       <|> TypeIE          <$> (symbol "Types:"         *> annotatedList description)
       <|> FactIE          <$> (symbol "Facts:"         *> annotatedList fact)
       <|> SameAsIE        <$> (symbol "SameAs:"        *> annotatedList individual)

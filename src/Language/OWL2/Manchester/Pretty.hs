@@ -65,7 +65,7 @@ instance PrettyM Description where
   pretty (Description nel) = sep . punctuate " or " $ pretty <$> NE.toList nel
 
 instance PrettyM Annotation where
-  pretty (Annotation i t) = pretty i <+> pretty t
+  pretty (Annotation i t) = pretty (unAnnotationProperty i) <+> pretty t
 
 instance PrettyM AnnotationTarget where
   pretty (NodeAT n)    = pretty n
@@ -334,12 +334,12 @@ instance PrettyM a => PrettyM (AtLeast2List a) where
   pretty = pretty . toList
 
 instance PrettyM Entity where
-  pretty (DatatypeEntity de)           = "Datatype"           <+> "(" <+> pretty de <+> ")"
-  pretty (ClassEntity ce)              = "Class"              <+> "(" <+> pretty ce <+> ")"
-  pretty (ObjectPropertyEntity ie)     = "ObjectProperty"     <+> "(" <+> pretty ie <+> ")"
-  pretty (DataPropertyEntity de)       = "DataProperty"       <+> "(" <+> pretty de <+> ")"
-  pretty (AnnotationPropertyEntity ae) = "AnnotationProperty" <+> "(" <+> pretty ae <+> ")"
-  pretty (IndividualEntity ie)         = "NamedIndividual"    <+> "(" <+> pretty ie <+> ")"
+  pretty (EntityDatatype de)           = "Datatype"           <+> "(" <+> pretty (unDatatype de) <+> ")"
+  pretty (EntityClass ce)              = "Class"              <+> "(" <+> pretty (unClass ce) <+> ")"
+  pretty (EntityObjectProperty ie)     = "ObjectProperty"     <+> "(" <+> pretty (unObjectProperty ie) <+> ")"
+  pretty (EntityDataProperty de)       = "DataProperty"       <+> "(" <+> pretty (unDataProperty de) <+> ")"
+  pretty (EntityAnnotationProperty ae) = "AnnotationProperty" <+> "(" <+> pretty (unAnnotationProperty ae) <+> ")"
+  pretty (EntityIndividual ie)         = "NamedIndividual"    <+> "(" <+> pretty ie <+> ")"
 
 -----------------------
 -- Utility functions --

@@ -73,7 +73,7 @@ data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving (Show)
 data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show)
 data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [AnnotatedList Annotation] [Frame] deriving (Show)
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Show)
-data Annotation = Annotation AnnotationPropertyIRI AnnotationTarget deriving (Show)
+data Annotation = Annotation AnnotationProperty AnnotationTarget deriving (Show)
 data Frame
     = FrameDT DatatypeFrame
     | FrameC ClassFrame
@@ -84,7 +84,11 @@ data Frame
     | FrameM Misc deriving (Show)
 data DatatypeFrame = DatatypeF Datatype [Annotations] (Maybe AnnotDataRange) deriving (Show)
 data AnnotDataRange = AnnotDataRange Annotations' DataRange deriving (Show)
-newtype Datatype = Datatype IRI deriving (Show)
+newtype Datatype = Datatype { unDatatype :: DatatypeIRI } deriving (Show)
+newtype Class = Class { unClass :: ClassIRI } deriving (Show)
+newtype ObjectProperty = ObjectProperty{ unObjectProperty :: ObjectPropertyIRI } deriving (Show)
+newtype DataProperty = DataProperty{ unDataProperty :: DataPropertyIRI } deriving (Show)
+newtype AnnotationProperty = AnnotationProperty{ unAnnotationProperty :: AnnotationPropertyIRI } deriving (Show)
 data DataAtomic
     = DatatypeDA Datatype
     | LiteralListDA (NonEmpty Literal)
@@ -216,12 +220,12 @@ data Literal
     | DecimalLiteralC DecimalLiteral
     | FloatingLiteralC FloatPoint deriving (Show)
 data Entity
-    = DatatypeEntity Datatype
-    | ClassEntity ClassIRI
-    | ObjectPropertyEntity ObjectPropertyIRI
-    | DataPropertyEntity DataPropertyIRI
-    | AnnotationPropertyEntity AnnotationPropertyIRI
-    | IndividualEntity IndividualIRI deriving (Show)
+    = EntityDatatype Datatype
+    | EntityClass Class
+    | EntityObjectProperty ObjectProperty
+    | EntityDataProperty DataProperty
+    | EntityAnnotationProperty AnnotationProperty
+    | EntityIndividual IndividualIRI deriving (Show)
 data AnnotationTarget
     = NodeAT NodeID
     | IriAT IRI

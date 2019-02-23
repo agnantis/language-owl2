@@ -233,6 +233,47 @@ ontologyIRI = iri
 versionIRI :: Parser IRI
 versionIRI = iri
 
+clazz :: Parser Class
+clazz = Class <$> iri
+
+objectProperty :: Parser ObjectProperty
+objectProperty = ObjectProperty <$> iri
+
+dataProperty :: Parser DataProperty
+dataProperty = DataProperty <$> iri
+
+annotationProperty :: Parser AnnotationProperty
+annotationProperty = AnnotationProperty <$> iri
+
+-- | It parser node ids, iris or literals
+-- TODO: Test should be ignored as the literal parser can vary
+--
+-- >> parseTest annotationTarget "\"john\""
+-- LiteralAT (StringLiteralNoLang "john")
+--
+-- >> parseTest annotationTarget "John"
+-- IriAT (SimpleIRI "John")
+--
+-- >> parseTest annotationTarget "_:node"
+-- NodeAT (NodeID "node")
+--
+-- >> parseTest annotationTarget "<http://some.iri>"
+-- IriAT (FullIRI "http://some.iri")
+--
+annotationTarget :: Parser Literal -> Parser AnnotationTarget
+annotationTarget l =  NodeAT    <$> try nodeID
+                  <|> IriAT     <$> try iri
+                  <|> LiteralAT <$> try l
+
+-- | It parses a single annotation
+-- TODO: Test should be ignored as the literal parser can vary
+--
+-- >> parseTest annotation ":creator \"john\""
+-- Annotation (AnnotationProperty {unAnnotationProperty = AbbreviatedIRI "" "creator"}) (LiteralAT (StringLiteralNoLang "john"))
+--
+annotation :: Parser Literal -> Parser Annotation
+annotation l = Annotation <$> annotationProperty <*> annotationTarget l
+
 -- | It parses blank nodes
 --
 -- >>> parseTest nodeID "_:blank"

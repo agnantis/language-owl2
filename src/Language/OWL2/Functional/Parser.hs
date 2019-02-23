@@ -119,53 +119,52 @@ declaration = do
     entity
   pure ()
 
-data Entity
+{-data Entity
     = EntityClass ClassIRI
     | EntityDatatype DatatypeIRI
     | EntityOP ObjectPropertyIRI
     | EntityDP DataPropertyIRI
     | EntityAP AnnotationPropertyIRI
     | EntityNI IndividualIRI
+-}
+entity :: Parser Entity
+entity =  EntityClass              <$> (symbol "Class"              *> parens clazz)
+      <|> EntityDatatype           <$> (symbol "Datatype"           *> parens datatype)
+      <|> EntityObjectProperty     <$> (symbol "ObjectProperty"     *> parens objectProperty)
+      <|> EntityDataProperty       <$> (symbol "DataProperty"       *> parens dataProperty)
+      <|> EntityAnnotationProperty <$> (symbol "AnnotationProperty" *> parens annotationProperty)
+      <|> EntityIndividual         <$> (symbol "NamedIndividual"    *> parens namedIndividual)
 
-entity :: Parser ()
-entity =  symbol "Class" *> parens clazz $> ()
-      <|> symbol "Datatype" *> parens datatype $> ()
-      <|> symbol "ObjectProperty" *> parens objectProperty $> ()
-      <|> symbol "DataProperty" *> parens dataProperty $> ()
-      <|> symbol "AnnotationProperty" *> parens annotationProperty $> ()
-      <|> symbol "NamedIndividual" *> parens namedIndividual $> ()
-
-annotationSubject :: Parser ()
+{-annotationSubject :: Parser ()
 annotationSubject =  iri $> ()
                  <|> anonymousIndividual $> ()
 
 annotationValue :: Parser AnnotationTarget
-annotationValue =  NodeAT    <$> anonymousIndividual
-               <|> IriAT     <$> iri
-               <|> LiteralAT <$> literal
-
+annotationValue = annotationTarget literal
+-}
 axiomAnnotations :: Parser Annotations'
 axiomAnnotations = annotationAnnotations
 
-annotation :: Parser (Annotations', Annotation)
-annotation = do
+fannotation :: Parser (Annotations', Annotation)
+fannotation = do
   symbol "Annotation"
-  parens $ do
-    annots   <- annotationAnnotations
-    property <- annotationProperty
-    value    <- annotationValue
-    let ann = Annotation property value
-    pure (annots, Annotation property value)
+  parens $ (,) <$> annotationAnnotations <*> annotation literal
 
 annotationAnnotations :: Parser Annotations'
 annotationAnnotations = do
-  annots <- many annotation
+  annots <- many fannotation
   pure $ if null annots
            then Nothing
            else Just . AnnList . NE.fromList $ annots
- 
 
-
+{-
+data AnnotationPropertyFrame = AnnotationPropertyF AnnotationPropertyIRI [AnnotationPropertyElement] deriving (Show)
+data AnnotationPropertyElement
+  = AnnotationAPE Annotations
+  | DomainAPE (AnnotatedList IRI)
+  | RangeAPE (AnnotatedList IRI)
+  | SubPropertyOfAPE (AnnotatedList AnnotationPropertyIRI) deriving (Show)
+-}
 annotationAxiom :: Parser ()
 annotationAxiom =  annotationAssertion $> ()
                <|> subAnnotationPropertyOf $> ()
@@ -176,25 +175,25 @@ annotationAssertion :: Parser ()
 annotationAssertion = do
   symbol "AnnotationAssertion"
   parens $ do
-    axiomAnnotations
+    annots <- axiomAnnotations
     annotationProperty
     annotationSubject
     annotationValue
   pure ()
 
-subAnnotationPropertyOf :: Parser ()
+subAnnotationPropertyOf :: Parser (AnnotationPropertyIRI, AnnotationPropertyElement)
 subAnnotationPropertyOf = do
   symbol "SubAnnotationPropertyOf"
   parens $ do
-    axiomAnnotations
-    subAnnotationProperty
-    superAnnotationProperty
-  pure ()
+    annots   <- axiomAnnotations
+    subAnn   <- subAnnotationProperty
+    superAnn <- SubPropertyOfAPE <$> superAnnotationProperty
+    pure (subAnn, superAnn)
 
-subAnnotationProperty :: Parser IRI
+subAnnotationProperty :: Parser AnnotationProperty
 subAnnotationProperty = annotationProperty
 
-superAnnotationProperty :: Parser IRI
+superAnnotationProperty :: Parser AnnotationProperty
 superAnnotationProperty = annotationProperty
 
 annotationPropertyDomain :: Parser ()
@@ -215,20 +214,8 @@ annotationPropertyRange = do
     iri
   pure ()
 
-clazz :: Parser ClassIRI
-clazz = iri
-
 datatype:: Parser Datatype
 datatype = Datatype <$> iri
-
-objectProperty :: Parser ObjectPropertyIRI
-objectProperty = iri
-
-dataProperty :: Parser DataPropertyIRI
-dataProperty = iri
-
-annotationProperty :: Parser AnnotationPropertyIRI
-annotationProperty = iri
 
 objectPropertyExpression :: Parser ()
 objectPropertyExpression =  objectProperty $> ()
@@ -240,7 +227,7 @@ inverseObjectProperty = do
   parens objectProperty
   pure ()
 
-dataPropertyExpression :: Parser IRI
+dataPropertyExpression :: Parser DataProperty
 dataPropertyExpression = dataProperty
 
 dataRange :: Parser ()
@@ -632,10 +619,10 @@ subDataPropertyOf = do
     superDataPropertyExpression
   pure ()
 
-subDataPropertyExpression :: Parser IRI
+subDataPropertyExpression :: Parser DataProperty
 subDataPropertyExpression = dataPropertyExpression
 
-superDataPropertyExpression :: Parser IRI
+superDataPropertyExpression :: Parser DataProperty
 superDataPropertyExpression = dataPropertyExpression
 
 equivalentDataProperties :: Parser ()
