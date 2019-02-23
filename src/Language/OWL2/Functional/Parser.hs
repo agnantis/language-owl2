@@ -10,8 +10,7 @@ import           Text.Megaparsec
 
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import          as T
-import           Language.OWL2.Types
-import           Language.OWL2.FTypes
+import           Language.OWL2.Types               hiding (AnnList)
 
 import           Language.OWL2.Internal.Parser
 
@@ -100,8 +99,8 @@ ontology = do
 directImport :: Parser ImportDeclaration
 directImport = ImportD <$> (symbol "Import" *> parens iri)
 
-ontologyAnnotations :: Parser Annotations'
-ontologyAnnotations = annotationAnnotations
+ontologyAnnotations :: Parser [Annotated Annotation]
+ontologyAnnotations = fannotations
 
 axioms :: Parser [()]
 axioms = many axiom
@@ -119,14 +118,6 @@ declaration = do
     entity
   pure ()
 
-{-data Entity
-    = EntityClass ClassIRI
-    | EntityDatatype DatatypeIRI
-    | EntityOP ObjectPropertyIRI
-    | EntityDP DataPropertyIRI
-    | EntityAP AnnotationPropertyIRI
-    | EntityNI IndividualIRI
--}
 entity :: Parser Entity
 entity =  EntityClass              <$> (symbol "Class"              *> parens clazz)
       <|> EntityDatatype           <$> (symbol "Datatype"           *> parens datatype)
@@ -135,36 +126,26 @@ entity =  EntityClass              <$> (symbol "Class"              *> parens cl
       <|> EntityAnnotationProperty <$> (symbol "AnnotationProperty" *> parens annotationProperty)
       <|> EntityIndividual         <$> (symbol "NamedIndividual"    *> parens namedIndividual)
 
-{-annotationSubject :: Parser ()
-annotationSubject =  iri $> ()
-                 <|> anonymousIndividual $> ()
+axiomAnnotations :: Parser [Annotated Annotation]
+axiomAnnotations = fannotations
 
-annotationValue :: Parser AnnotationTarget
-annotationValue = annotationTarget literal
--}
-axiomAnnotations :: Parser Annotations'
-axiomAnnotations = annotationAnnotations
+newtype Annotated a = Annotated { unAnnotated :: ([Annotated Annotation], a) }
 
-fannotation :: Parser (Annotations', Annotation)
+fannotation :: Parser (Annotated Annotation)
 fannotation = do
   symbol "Annotation"
-  parens $ (,) <$> annotationAnnotations <*> annotation literal
+  parens $  do
+     annots <- fannotations
+     a      <- annotation literal
+     pure $ Annotated (annots, a)
 
-annotationAnnotations :: Parser Annotations'
-annotationAnnotations = do
-  annots <- many fannotation
-  pure $ if null annots
-           then Nothing
-           else Just . AnnList . NE.fromList $ annots
+fannotations :: Parser [Annotated Annotation]
+fannotations = many fannotation
 
-{-
-data AnnotationPropertyFrame = AnnotationPropertyF AnnotationPropertyIRI [AnnotationPropertyElement] deriving (Show)
-data AnnotationPropertyElement
-  = AnnotationAPE Annotations
-  | DomainAPE (AnnotatedList IRI)
-  | RangeAPE (AnnotatedList IRI)
-  | SubPropertyOfAPE (AnnotatedList AnnotationPropertyIRI) deriving (Show)
--}
+
+annotationAnnotations :: Parser [Annotated Annotation]
+annotationAnnotations = fannotations
+
 annotationAxiom :: Parser ()
 annotationAxiom =  annotationAssertion $> ()
                <|> subAnnotationPropertyOf $> ()
@@ -178,16 +159,19 @@ annotationAssertion = do
     annots <- axiomAnnotations
     annotationProperty
     annotationSubject
-    annotationValue
+    annotationTarget literal
   pure ()
 
-subAnnotationPropertyOf :: Parser (AnnotationPropertyIRI, AnnotationPropertyElement)
+annotationSubject :: Parser ()
+annotationSubject = undefined
+
+subAnnotationPropertyOf :: Parser (AnnotationProperty, AnnotationPropertyElement)
 subAnnotationPropertyOf = do
   symbol "SubAnnotationPropertyOf"
   parens $ do
     annots   <- axiomAnnotations
     subAnn   <- subAnnotationProperty
-    superAnn <- SubPropertyOfAPE <$> superAnnotationProperty
+    superAnn <- SubPropertyOfAPE <$> undefined -- superAnnotationProperty
     pure (subAnn, superAnn)
 
 subAnnotationProperty :: Parser AnnotationProperty
