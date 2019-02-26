@@ -1,8 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Language.OWL2.Manchester.Pretty where
 
+--import           Data.List.NonEmpty            (NonEmpty)
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
 import           Data.Text.Prettyprint.Doc         hiding ( pretty, prettyList )
@@ -56,10 +58,19 @@ instance PrettyM PrefixDeclaration where
 instance PrettyM ImportDeclaration where
   pretty (ImportD i) = "Import:" <+> pretty i
 
-instance PrettyM a => PrettyM (AnnotatedList a) where
-  pretty (AnnList nelst) = sep $ punctuate comma xs
+-- instance PrettyM a => PrettyM (AnnotatedList a) where
+--   pretty (AnnList nelst) = sep $ punctuate comma xs
+--     where xs :: [Doc ann]
+--           xs = (\(ma, a) -> prependM "Annotations: " ma <-> pretty a) <$> NE.toList nelst
+          
+instance PrettyM a => PrettyM (NE.NonEmpty (Annotated a)) where
+  pretty nelst = sep $ punctuate comma xs
     where xs :: [Doc ann]
-          xs = (\(ma, a) -> prependM "Annotations: " ma <-> pretty a) <$> NE.toList nelst
+          xs =  pretty <$> NE.toList nelst
+
+instance PrettyM a => PrettyM (Annotated a) where
+  pretty (Annotated ([], a)) = pretty a
+  pretty (Annotated (xs, a)) = "Annotations:" <+> pretty xs <+> pretty a
           
 instance PrettyM Description where
   pretty (Description nel) = sep . punctuate " or " $ pretty <$> NE.toList nel
@@ -364,6 +375,10 @@ instance PrettyM Entity where
 --
 prependM :: PrettyM a => T.Text -> Maybe a -> Doc ann
 prependM t ma = let pma = (pretty t <>) . pretty <$> ma in fromMaybe mempty pma
+
+prependL :: PrettyM a => T.Text -> [a] -> Doc ann
+prependL _ [] = mempty
+prependL t xs = pretty t <> pretty xs 
 
 join :: PrettyM a => T.Text -> [a] -> Doc ann
 join s xs = concatWith (surround (space <> pretty s <> space)) (pretty <$> xs)

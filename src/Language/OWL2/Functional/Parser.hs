@@ -4,13 +4,11 @@ module Language.OWL2.Functional.Parser where
 
 import           Prelude                           hiding ( exponent )
 import           Data.Functor                             ( ($>) )
-import           Data.List.NonEmpty                       ( NonEmpty(..) )
-import qualified Data.List.NonEmpty            as NE
 import           Text.Megaparsec
 
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import          as T
-import           Language.OWL2.Types               hiding (AnnList)
+import           Language.OWL2.Types
 
 import           Language.OWL2.Internal.Parser
 
@@ -129,7 +127,6 @@ entity =  EntityClass              <$> (symbol "Class"              *> parens cl
 axiomAnnotations :: Parser [Annotated Annotation]
 axiomAnnotations = fannotations
 
-newtype Annotated a = Annotated { unAnnotated :: ([Annotated Annotation], a) }
 
 fannotation :: Parser (Annotated Annotation)
 fannotation = do

@@ -4,7 +4,6 @@
 module Language.OWL2.Types where
 
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
-import qualified Data.List.NonEmpty            as NE
 import           Language.OWL2.Import                     ( Text )
 
 ---------------
@@ -26,8 +25,8 @@ toList ~((x, y) :# xs) = x : y : xs
 toNonEmptyList :: AtLeast2List a -> NonEmpty a
 toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
 
-annListToList :: AnnotatedList a -> [(Annotations', a)]
-annListToList (AnnList xs) = NE.toList xs
+-- annListToList :: AnnotatedList a -> [Annotated a]
+-- annListToList (AnnList xs) = NE.toList xs
 
 type LangTag = Text
 type ImportIRI = IRI
@@ -42,7 +41,7 @@ type DataPropertyIRI = IRI
 type IndividualIRI = IRI
 --type Frame = Text
 type PrefixName = Text
-type Annotations = AnnotatedList Annotation
+type SomeAnnotations = AnnotatedList Annotation
 type Descriptions = AnnotatedList Description
 type Exponent = Integer
 type Fact = WithNegation FactElement
@@ -51,7 +50,7 @@ data ObjectPropertyExpression
     = OPE ObjectPropertyIRI
     | InverseOPE ObjectPropertyIRI deriving (Show)
 newtype DataPrimary = DataPrimary (WithNegation DataAtomic) deriving (Show)
-type Annotations' = Maybe Annotations
+type Annotations = [Annotated Annotation]
 
 newtype DataRange = DataRange (NonEmpty DataConjunction) deriving (Show)
 newtype DataConjunction = DataConjunction (NonEmpty DataPrimary) deriving (Show)
@@ -59,7 +58,8 @@ newtype DecimalLiteral = DecimalL Double deriving (Show)
 newtype Description = Description (NonEmpty Conjunction) deriving (Show)
 newtype IntegerLiteral = IntegerL Integer deriving (Show)
 newtype NodeID = NodeID Text deriving (Show)
-newtype AnnotatedList a = AnnList (NonEmpty (Annotations', a)) deriving (Show)
+newtype Annotated a = Annotated { unAnnotated :: ([Annotated Annotation], a) } deriving (Show)
+type AnnotatedList a = NonEmpty (Annotated a)
 newtype ImportDeclaration = ImportD IRI deriving (Show)
 
 data IRI
@@ -71,7 +71,7 @@ data FloatPoint = FloatP Double (Maybe Exponent) deriving (Show)
 data LiteralWithLang = LiteralWithLang Text LangTag deriving (Show)
 data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving (Show)
 data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show)
-data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [AnnotatedList Annotation] [Frame] deriving (Show)
+data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [Annotated Annotation] [Frame] deriving (Show)
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Show)
 data Annotation = Annotation AnnotationProperty AnnotationTarget deriving (Show)
 data Frame
@@ -82,8 +82,8 @@ data Frame
     | FrameAP AnnotationPropertyFrame
     | FrameI IndividualFrame
     | FrameM Misc deriving (Show)
-data DatatypeFrame = DatatypeF Datatype [Annotations] (Maybe AnnotDataRange) deriving (Show)
-data AnnotDataRange = AnnotDataRange Annotations' DataRange deriving (Show)
+data DatatypeFrame = DatatypeF Datatype [SomeAnnotations] (Maybe AnnotDataRange) deriving (Show)
+data AnnotDataRange = AnnotDataRange Annotations DataRange deriving (Show)
 newtype Datatype = Datatype { unDatatype :: DatatypeIRI } deriving (Show)
 newtype Class = Class { unClass :: ClassIRI } deriving (Show)
 newtype ObjectProperty = ObjectProperty{ unObjectProperty :: ObjectPropertyIRI } deriving (Show)
@@ -108,12 +108,12 @@ data Facet
     | G_FACET deriving (Show)
 data ClassFrame = ClassF IRI [ClassElement] deriving (Show)
 data ClassElement
-    = AnnotationCE Annotations
+    = AnnotationCE SomeAnnotations
     | SubClassOfCE Descriptions
     | EquivalentToCE Descriptions
     | DisjointToCE Descriptions
-    | DisjointUnionOfCE Annotations' (AtLeast2List Description)
-    | HasKeyCE Annotations' (NonEmpty ObjectOrDataPE) deriving (Show)
+    | DisjointUnionOfCE Annotations (AtLeast2List Description)
+    | HasKeyCE Annotations (NonEmpty ObjectOrDataPE) deriving (Show)
 data ObjectOrDataPE
     = ObjectPE ObjectPropertyExpression
     | DataPE DataPropertyExpression deriving (Show)
@@ -158,7 +158,7 @@ data Atomic
     | AtomicDescription Description deriving (Show)
 data ObjectPropertyFrame = ObjectPropertyF ObjectPropertyIRI [ObjectPropertyElement] deriving (Show)
 data ObjectPropertyElement
-    = AnnotationOPE Annotations
+    = AnnotationOPE SomeAnnotations
     | DomainOPE Descriptions
     | RangeOPE Descriptions
     | CharacteristicsOPE (AnnotatedList ObjectPropertyCharacteristics)
@@ -166,7 +166,7 @@ data ObjectPropertyElement
     | EquivalentToOPE (AnnotatedList ObjectPropertyExpression)
     | DisjointWithOPE (AnnotatedList ObjectPropertyExpression)
     | InverseOfOPE (AnnotatedList ObjectPropertyExpression)
-    | SubPropertyChainOPE Annotations' (AtLeast2List ObjectPropertyExpression) deriving (Show)
+    | SubPropertyChainOPE Annotations (AtLeast2List ObjectPropertyExpression) deriving (Show)
 data ObjectPropertyCharacteristics
     = FUNCTIONAL
     | INVERSE_FUNCTIONAL
@@ -177,7 +177,7 @@ data ObjectPropertyCharacteristics
     | TRANSITIVE deriving (Show)
 data DataPropertyFrame = DataPropertyF DataPropertyIRI [DataPropertyElement] deriving (Show)
 data DataPropertyElement
-    = AnnotationDPE Annotations
+    = AnnotationDPE SomeAnnotations
     | DomainDPE Descriptions
     | RangeDPE (AnnotatedList DataRange)
     | CharacteristicsDPE (AnnotatedList DataPropertyCharacteristics)
@@ -187,13 +187,13 @@ data DataPropertyElement
 data DataPropertyCharacteristics = FUNCTIONAL_DPE deriving (Show)
 data AnnotationPropertyFrame = AnnotationPropertyF AnnotationPropertyIRI [AnnotationPropertyElement] deriving (Show)
 data AnnotationPropertyElement
-    = AnnotationAPE Annotations
+    = AnnotationAPE SomeAnnotations
     | DomainAPE (AnnotatedList IRI)
     | RangeAPE (AnnotatedList IRI)
     | SubPropertyOfAPE (AnnotatedList AnnotationPropertyIRI) deriving (Show)
 data IndividualFrame = IndividualF Individual [IndividualElement] deriving (Show)
 data IndividualElement
-    = AnnotationIE Annotations
+    = AnnotationIE SomeAnnotations
     | TypeIE Descriptions
     | FactIE (AnnotatedList Fact)
     | SameAsIE (AnnotatedList Individual)
@@ -204,14 +204,14 @@ data FactElement
 data ObjectPropertyFact = ObjectPropertyFact ObjectPropertyIRI Individual deriving (Show)
 data DataPropertyFact = DataPropertyFact DataPropertyIRI Literal deriving (Show)
 data Misc
-    = EquivalentClasses Annotations' (AtLeast2List Description)
-    | DisjointClasses Annotations' (AtLeast2List Description)
-    | EquivalentObjectProperties Annotations' (AtLeast2List ObjectPropertyExpression)
-    | DisjointObjectProperties Annotations' (AtLeast2List ObjectPropertyExpression)
-    | EquivalentDataProperties Annotations' (AtLeast2List DataPropertyExpression)
-    | DisjointDataProperties Annotations' (AtLeast2List DataPropertyExpression)
-    | SameIndividual Annotations' (AtLeast2List Individual)
-    | DifferentIndividuals Annotations' (AtLeast2List Individual) deriving (Show)
+    = EquivalentClasses Annotations (AtLeast2List Description)
+    | DisjointClasses Annotations (AtLeast2List Description)
+    | EquivalentObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
+    | DisjointObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
+    | EquivalentDataProperties Annotations (AtLeast2List DataPropertyExpression)
+    | DisjointDataProperties Annotations (AtLeast2List DataPropertyExpression)
+    | SameIndividual Annotations (AtLeast2List Individual)
+    | DifferentIndividuals Annotations (AtLeast2List Individual) deriving (Show)
 data Literal
     = TypedLiteralC TypedLiteral
     | StringLiteralNoLang Text
@@ -245,8 +245,8 @@ flattenAnnList xs = Just $ foldl1 (<>) xs
 ---- CLASS INSTANCES ----
 -------------------------
 
-instance Semigroup (AnnotatedList a) where
-  (AnnList xs) <> (AnnList ys) = AnnList (xs <> ys)  
+-- instance Semigroup (AnnotatedList a) where
+--   (AnnList xs) <> (AnnList ys) = AnnList (xs <> ys)  
 
 -- data AtLeast2List a = (a, a) :# [a] deriving (Eq, Ord, Read, Functor)
 -- instance Show a => Show (AtLeast2List a) where

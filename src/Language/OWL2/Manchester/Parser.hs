@@ -5,11 +5,7 @@ module Language.OWL2.Manchester.Parser where
 import           Data.Functor                             ( ($>) )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import qualified Data.List.NonEmpty            as NE
-import           Data.Maybe                               ( fromMaybe )
-import           Data.Void
 import           Text.Megaparsec
-import           Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer    as L
 
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import          as T
@@ -112,7 +108,7 @@ entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
 mAnnotation :: Parser Annotation
 mAnnotation = annotation literal
 
--- | It parses annotations
+-- | It parses annotation sections
 --
 -- >>> :{
 -- let input :: [Text]
@@ -123,11 +119,12 @@ mAnnotation = annotation literal
 --      ]
 -- :}
 --
--- >>> parseTest (annotations *> eof) (T.unlines input)
+-- >>> parseTest (annotationSection *> eof) (T.unlines input)
 -- ()
 --
-annotations :: Parser (AnnotatedList Annotation)
-annotations = symbol "Annotations:" *> annotatedList mAnnotation
+annotationSection :: Parser [Annotated Annotation]
+annotationSection = let p = symbol "Annotations:" *> annotatedList mAnnotation
+                    in maybe [] NE.toList <$> optional p
 
 ontologyDocument :: Parser OntologyDocument
 ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
@@ -148,7 +145,7 @@ ontology = do
   _       <- symbol "Ontology:"
   ontoIRI <- optional $ OntologyVersionIRI <$> ontologyIRI <*> optional versionIRI -- Maybe (iri, Maybe iri)
   imports <- many importStmt
-  annots  <- many annotations
+  annots  <- concat <$> many annotationSection
   frames  <- many frame
   pure $ Ontology ontoIRI imports annots frames
 
@@ -407,7 +404,7 @@ datatypeFrame :: Parser DatatypeFrame
 datatypeFrame = do
   dtype   <- symbol "Datatype:" *> datatype
   annots  <- many $ symbol "Annotations:" *> annotatedList mAnnotation
-  equiv   <- optional $ AnnotDataRange <$> (symbol "EquivalentTo:" *> optional annotations) <*> dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
+  equiv   <- optional $ AnnotDataRange <$> (symbol "EquivalentTo:" *> annotationSection) <*> dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
   annots' <- many $ symbol "Annotations:" *> annotatedList mAnnotation
   pure $ DatatypeF dtype (annots <> annots') equiv
 
@@ -450,9 +447,9 @@ classFrame = do
          <|> SubClassOfCE      <$> (symbol "SubClassOf:" *> annotatedList description)
          <|> EquivalentToCE    <$> (symbol "EquivalentTo:" *> annotatedList description)
          <|> DisjointToCE      <$> (symbol "DisjointWith:" *> annotatedList description)
-         <|> DisjointUnionOfCE <$> (symbol "DisjointUnionOf:" *> optional annotations)
+         <|> DisjointUnionOfCE <$> (symbol "DisjointUnionOf:" *> annotationSection)
                                <*> listOfAtLeast2 description
-         <|> HasKeyCE          <$> (symbol "HasKey:" *> optional annotations)
+         <|> HasKeyCE          <$> (symbol "HasKey:" *> annotationSection)
                                <*> (NE.fromList <$> some ((ObjectPE <$> objectPropertyExpression)
                                               <|> (DataPE   <$> dataPropertyExpression)))
 --  nonEmptyDPE = NonEmptyD <$> many objectPropertyExpression <*> nonEmptyList dataPropertyExpression
@@ -494,7 +491,7 @@ objectPropertyFrame = ObjectPropertyF <$> (symbol "ObjectProperty:" *> objectPro
       <|> EquivalentToOPE     <$> (symbol "EquivalentTo:"     *> annotatedList objectPropertyExpression)
       <|> DisjointWithOPE     <$> (symbol "DisjointWith:"     *> annotatedList objectPropertyExpression)
       <|> InverseOfOPE        <$> (symbol "InverseOf:"        *> annotatedList objectPropertyExpression)
-      <|> SubPropertyChainOPE <$> (symbol "SubPropertyChain:" *> optional annotations) <*>
+      <|> SubPropertyChainOPE <$> (symbol "SubPropertyChain:" *> annotationSection) <*>
                                     (atLeast2List' <$> objectPropertyExpression
                                                    <*> nonEmptyList (symbol "o" *> objectPropertyExpression))
 
@@ -656,21 +653,21 @@ dataPropertyFact = DataPropertyFact <$> dataPropertyIRI <*> literal
 misc :: Parser Misc
 misc =
     EquivalentClasses
-        <$> (symbol "EquivalentClasses:" *> optional annotations) <*> listOfAtLeast2 description
+        <$> (symbol "EquivalentClasses:" *> annotationSection) <*> listOfAtLeast2 description
     <|> DisjointClasses
-        <$> (symbol "DisjointClasses:"   *> optional annotations) <*> listOfAtLeast2 description
+        <$> (symbol "DisjointClasses:"   *> annotationSection) <*> listOfAtLeast2 description
     <|> EquivalentObjectProperties
-        <$> (symbol "EquivalentProperties:" *> optional annotations) <*> listOfAtLeast2 objectPropertyExpression
+        <$> (symbol "EquivalentProperties:" *> annotationSection) <*> listOfAtLeast2 objectPropertyExpression
     <|> DisjointObjectProperties
-        <$> (symbol "DisjointProperties:" *> optional annotations) <*> listOfAtLeast2 objectPropertyExpression
+        <$> (symbol "DisjointProperties:" *> annotationSection) <*> listOfAtLeast2 objectPropertyExpression
     <|> EquivalentDataProperties
-        <$> (symbol "EquivalentProperties:" *> optional annotations) <*> listOfAtLeast2 dataPropertyExpression
+        <$> (symbol "EquivalentProperties:" *> annotationSection) <*> listOfAtLeast2 dataPropertyExpression
     <|> DisjointDataProperties
-        <$> (symbol "DisjointProperties:" *> optional annotations) <*> listOfAtLeast2 dataPropertyExpression
+        <$> (symbol "DisjointProperties:" *> annotationSection) <*> listOfAtLeast2 dataPropertyExpression
     <|> SameIndividual
-        <$> (symbol "SameIndividual:" *> optional annotations) <*> listOfAtLeast2 individual
+        <$> (symbol "SameIndividual:" *> annotationSection) <*> listOfAtLeast2 individual
     <|> DifferentIndividuals
-        <$> (symbol "DifferentIndividuals:" *> optional annotations) <*> listOfAtLeast2 individual
+        <$> (symbol "DifferentIndividuals:" *> annotationSection) <*> listOfAtLeast2 individual
 
 -----------------------
 --- Generic parsers ---
@@ -724,8 +721,9 @@ listOfAtLeast2 p = atLeast2List' <$> p <*> (symbol "," *> nonEmptyList p)
 --
 annotatedList :: Parser p -> Parser (AnnotatedList p)
 annotatedList p =
-  let annotationList = (,) <$> optional annotations <*> p
-  in  AnnList <$> nonEmptyList annotationList
+  let annotatedElement = Annotated <$> ((,) <$> annotationSection <*> p)
+  in  nonEmptyList annotatedElement
+
 
 predifinedPrefixes :: [PrefixDeclaration]
 predifinedPrefixes =
