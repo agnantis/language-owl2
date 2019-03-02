@@ -30,7 +30,7 @@ toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
 
 type LangTag = Text
 type ImportIRI = IRI
-type AnnotationPropertyIRI = IRI
+type AnnotationPropertyIRI = TotalIRI
 type VersionIRI = IRI
 type OntologyIRI = IRI
 -- type FullIRI = IRI
@@ -73,7 +73,7 @@ data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving (Show)
 data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show)
 data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [Annotated Annotation] [Frame] deriving (Show)
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Show)
-data Annotation = Annotation AnnotationProperty AnnotationTarget deriving (Show)
+data Annotation = Annotation AnnotationPropertyIRI AnnotationTarget deriving (Show)
 data Frame
     = FrameDT DatatypeFrame
     | FrameC ClassFrame
@@ -85,10 +85,9 @@ data Frame
 data DatatypeFrame = DatatypeF Datatype [SomeAnnotations] (Maybe AnnotDataRange) deriving (Show)
 data AnnotDataRange = AnnotDataRange Annotations DataRange deriving (Show)
 newtype Datatype = Datatype { unDatatype :: DatatypeIRI } deriving (Show)
-newtype Class = Class { unClass :: ClassIRI } deriving (Show)
-newtype ObjectProperty = ObjectProperty{ unObjectProperty :: ObjectPropertyIRI } deriving (Show)
-newtype DataProperty = DataProperty{ unDataProperty :: DataPropertyIRI } deriving (Show)
-newtype AnnotationProperty = AnnotationProperty{ unAnnotationProperty :: AnnotationPropertyIRI } deriving (Show)
+-- newtype Class = Class { unClass :: ClassIRI } deriving (Show)
+-- newtype ObjectProperty = ObjectProperty{ unObjectProperty :: ObjectPropertyIRI } deriving (Show)
+-- newtype DataProperty = DataProperty{ unDataProperty :: DataPropertyIRI } deriving (Show)
 data DataAtomic
     = DatatypeDA Datatype
     | LiteralListDA (NonEmpty Literal)
@@ -149,9 +148,10 @@ data DataPropertyRestrictionType
     | ExactlyDPR Int (Maybe DataPrimary) deriving (Show) -- TODO: Int -> Nat
 data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRestrictionType deriving (Show)
 data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType deriving (Show)
-data Individual
-    = NamedIndividual IndividualIRI
-    | AnonymousIndividual NodeID deriving (Show)
+data TotalIRI
+    = NamedIRI IRI
+    | AnonymousIRI NodeID deriving (Show)
+type Individual = TotalIRI
 data Atomic
     = AtomicClass ClassIRI
     | AtomicIndividuals (NonEmpty Individual)
@@ -221,10 +221,10 @@ data Literal
     | FloatingLiteralC FloatPoint deriving (Show)
 data Entity
     = EntityDatatype Datatype
-    | EntityClass Class
-    | EntityObjectProperty ObjectProperty
-    | EntityDataProperty DataProperty
-    | EntityAnnotationProperty AnnotationProperty
+    | EntityClass ClassIRI
+    | EntityObjectProperty ObjectPropertyIRI
+    | EntityDataProperty DataPropertyIRI
+    | EntityAnnotationProperty AnnotationPropertyIRI
     | EntityIndividual IndividualIRI deriving (Show)
 data AnnotationTarget
     = NodeAT NodeID
@@ -239,7 +239,6 @@ data AnnotationTarget
 flattenAnnList :: [AnnotatedList a] -> Maybe (AnnotatedList a)
 flattenAnnList [] = Nothing
 flattenAnnList xs = Just $ foldl1 (<>) xs
-
 
 -------------------------
 ---- CLASS INSTANCES ----

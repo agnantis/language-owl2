@@ -150,7 +150,7 @@ identifier_ = try (anyIdentifier_ >>= check)
 
 -- | It parses arbitrary alpharithmetics. It does not parse any space after the identifier
 anyIdentifier_ :: Parser Text
-anyIdentifier_ = T.pack <$> try ((:) <$> letterChar <*> many (alphaNumChar <|> char '_'))
+anyIdentifier_ = T.pack <$> try ((:) <$> letterChar <*> many (alphaNumChar <|> char '_' <|> char '-'))
 
 -- | It parses arbitrary alpharithmetics. It parses any space after the identifier
 anyIdentifier :: Parser Text
@@ -233,17 +233,28 @@ ontologyIRI = iri
 versionIRI :: Parser IRI
 versionIRI = iri
 
-clazz :: Parser Class
-clazz = Class <$> iri
+clazz :: Parser ClassIRI
+clazz = iri
 
-objectProperty :: Parser ObjectProperty
-objectProperty = ObjectProperty <$> iri
+objectProperty :: Parser ObjectPropertyIRI
+objectProperty = iri
 
-dataProperty :: Parser DataProperty
-dataProperty = DataProperty <$> iri
+dataProperty :: Parser DataPropertyIRI
+dataProperty = iri
 
-annotationProperty :: Parser AnnotationProperty
-annotationProperty = AnnotationProperty <$> iri
+annotationProperty :: Parser AnnotationPropertyIRI
+annotationProperty = annotationPropertyIRI
+
+-- | It parses an annotation property name. The annotation property can be either a IRI or an node id
+--
+-- >>> parseTest (annotationPropertyIRI) "<http://example.com/ontology#name>"
+-- NamedIRI (FullIRI "http://example.com/ontology#name")
+--
+-- >>> parseTest (annotationPropertyIRI) "_:randomNode"
+-- AnonymousIRI (NodeID "randomNode")
+--
+annotationPropertyIRI :: Parser TotalIRI
+annotationPropertyIRI = AnonymousIRI <$> nodeID <|> NamedIRI <$> iri
 
 -- | It parser node ids, iris or literals
 -- TODO: Test should be ignored as the literal parser can vary
@@ -442,9 +453,9 @@ exponent = do
 lexicalValue :: Parser Text
 lexicalValue = quotedString
 
-individual :: Parser Individual
-individual =  NamedIndividual     <$> namedIndividual
-          <|> AnonymousIndividual <$> anonymousIndividual
+individual :: Parser TotalIRI
+individual =  NamedIRI     <$> namedIndividual
+          <|> AnonymousIRI <$> anonymousIndividual
 
 namedIndividual :: Parser IndividualIRI
 namedIndividual = iri

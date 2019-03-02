@@ -7,3 +7,71 @@
   - Create module `Language.Owl2.Functional.Pretty`
 - [ ] User `modern-uri` library for uri parsing. It supports URI (but not IRI) parsing through the megaparsec library
 
+
+# Comments
+
+- Axioms
+  - Declaration (?f)
+    - Class
+    - Datatype
+    - ObjectProperty
+    - DataProperty
+    - AnnotationProperty
+    - NamedIndividual
+  - ClassAxiom
+    - SubClassOf
+    - EquivalentClasses
+    - DisjointClasses
+    - DisjointUnion
+  - ObjectProperyAxiom
+    - SubObjectPropertyOf 
+    - EquivalentObjectProperties 
+    - DisjointObjectProperties 
+    - InverseObjectProperties 
+    - ObjectPropertyDomain 
+    - ObjectPropertyRange 
+    - FunctionalObjectProperty 
+    - InverseFunctionalObjectProperty 
+    - ReflexiveObjectProperty 
+    - IrreflexiveObjectProperty 
+    - SymmetricObjectProperty 
+    - AsymmetricObjectProperty 
+    - TransitiveObjectProperty
+  - DataPropertyAxiom
+    - SubDataPropertyOf 
+    - EquivalentDataProperties 
+    - DisjointDataProperties 
+    - DataPropertyDomain 
+    - DataPropertyRange 
+    - FunctionalDataProperty
+  - DatatypeDefinition
+  - HasKey
+  - Assertion
+    - SameIndividual 
+    - DifferentIndividuals 
+    - ClassAssertion 
+    - ObjectPropertyAssertion 
+    - NegativeObjectPropertyAssertion 
+    - DataPropertyAssertion 
+    - NegativeDataPropertyAssertion
+  - AnnotationAxiom
+    - AnnotationAssertion 
+    - SubAnnotationPropertyOf 
+    - AnnotationPropertyDomain 
+    - AnnotationPropertyRange
+  - Individual (?m)
+    - Types
+    - Facts
+    - SameAs
+    - DifferentFrom
+  - misc (?m)
+    - EquivalentClasses
+    - DisjointClasses
+    - EquivalentProperties
+      - Data
+      - Object
+    - DisjointProperties
+      - Data
+      - Object
+    - SameIndividual
+    - DifferentIndividuals

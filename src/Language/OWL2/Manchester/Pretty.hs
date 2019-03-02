@@ -76,7 +76,7 @@ instance PrettyM Description where
   pretty (Description nel) = sep . punctuate " or " $ pretty <$> NE.toList nel
 
 instance PrettyM Annotation where
-  pretty (Annotation i t) = pretty (unAnnotationProperty i) <+> pretty t
+  pretty (Annotation i t) = pretty i <+> pretty t
 
 instance PrettyM AnnotationTarget where
   pretty (NodeAT n)    = pretty n
@@ -149,9 +149,9 @@ instance PrettyM Atomic where
   pretty (AtomicIndividuals is) = braces . pretty . NE.toList $ is 
   pretty (AtomicDescription d) = parens . pretty $ d 
 
-instance PrettyM Individual where
-  pretty (NamedIndividual i) = pretty i
-  pretty (AnonymousIndividual n) = pretty n
+instance PrettyM TotalIRI where
+  pretty (NamedIRI i) = pretty i
+  pretty (AnonymousIRI n) = pretty n
 
 instance PrettyM Restriction where
   pretty (OPRestriction o) = pretty o
@@ -346,10 +346,10 @@ instance PrettyM a => PrettyM (AtLeast2List a) where
 
 instance PrettyM Entity where
   pretty (EntityDatatype de)           = "Datatype"           <+> "(" <+> pretty (unDatatype de) <+> ")"
-  pretty (EntityClass ce)              = "Class"              <+> "(" <+> pretty (unClass ce) <+> ")"
-  pretty (EntityObjectProperty ie)     = "ObjectProperty"     <+> "(" <+> pretty (unObjectProperty ie) <+> ")"
-  pretty (EntityDataProperty de)       = "DataProperty"       <+> "(" <+> pretty (unDataProperty de) <+> ")"
-  pretty (EntityAnnotationProperty ae) = "AnnotationProperty" <+> "(" <+> pretty (unAnnotationProperty ae) <+> ")"
+  pretty (EntityClass ce)              = "Class"              <+> "(" <+> pretty ce <+> ")"
+  pretty (EntityObjectProperty ie)     = "ObjectProperty"     <+> "(" <+> pretty ie <+> ")"
+  pretty (EntityDataProperty de)       = "DataProperty"       <+> "(" <+> pretty de <+> ")"
+  pretty (EntityAnnotationProperty ae) = "AnnotationProperty" <+> "(" <+> pretty ae <+> ")"
   pretty (EntityIndividual ie)         = "NamedIndividual"    <+> "(" <+> pretty ie <+> ")"
 
 -----------------------

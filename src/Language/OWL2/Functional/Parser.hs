@@ -4,6 +4,7 @@ module Language.OWL2.Functional.Parser where
 
 import           Prelude                           hiding ( exponent )
 import           Data.Functor                             ( ($>) )
+import qualified Data.List.NonEmpty            as NE
 import           Text.Megaparsec
 
 import           Language.OWL2.Import                     ( Text )
@@ -127,7 +128,6 @@ entity =  EntityClass              <$> (symbol "Class"              *> parens cl
 axiomAnnotations :: Parser [Annotated Annotation]
 axiomAnnotations = fannotations
 
-
 fannotation :: Parser (Annotated Annotation)
 fannotation = do
   symbol "Annotation"
@@ -143,57 +143,73 @@ fannotations = many fannotation
 annotationAnnotations :: Parser [Annotated Annotation]
 annotationAnnotations = fannotations
 
-annotationAxiom :: Parser ()
-annotationAxiom =  annotationAssertion $> ()
-               <|> subAnnotationPropertyOf $> ()
-               <|> annotationPropertyDomain $> ()
-               <|> annotationPropertyRange $> ()
+annotationAxiom :: Parser AnnotationPropertyFrame
+annotationAxiom =  annotationAssertion
+               <|> subAnnotationPropertyOf
+               <|> annotationPropertyDomain
+               <|> annotationPropertyRange
 
-annotationAssertion :: Parser ()
+-- | It parses annotation assertions
+--
+-- >>> parseTest (annotationAssertion *> eof) "AnnotationAssertion(rdfs:comment test-ont:kostasAnnot \"comment\")"
+-- ()
+-- >>> parseTest (annotationAssertion *> eof) "AnnotationAssertion(owl:priorVersion _:node1 _:node2)"
+-- ()
+--
+annotationAssertion :: Parser AnnotationPropertyFrame
 annotationAssertion = do
   symbol "AnnotationAssertion"
   parens $ do
-    annots <- axiomAnnotations
-    annotationProperty
-    annotationSubject
-    annotationTarget literal
-  pure ()
+    annots   <- axiomAnnotations
+    property <- annotationProperty
+    subject  <- annotationSubject
+    target   <- annotationTarget literal
+    let annotList = NE.fromList [Annotated (annots, Annotation property target)]
+    pure $ AnnotationPropertyF subject [AnnotationAPE annotList]
 
-annotationSubject :: Parser ()
-annotationSubject = undefined
+annotationSubject :: Parser AnnotationPropertyIRI
+annotationSubject = annotationPropertyIRI
 
-subAnnotationPropertyOf :: Parser (AnnotationProperty, AnnotationPropertyElement)
+-- | It parses sub property annotation assertions
+--
+-- >>> parseTest (subAnnotationPropertyOf *> eof) "SubAnnotationPropertyOf(test-ont:kostasAnnot rdfs:comment)"
+-- ()
+--
+subAnnotationPropertyOf :: Parser AnnotationPropertyFrame
 subAnnotationPropertyOf = do
   symbol "SubAnnotationPropertyOf"
   parens $ do
     annots   <- axiomAnnotations
     subAnn   <- subAnnotationProperty
-    superAnn <- SubPropertyOfAPE <$> undefined -- superAnnotationProperty
-    pure (subAnn, superAnn)
+    superAnn <- superAnnotationProperty
+    let annotList = NE.fromList [Annotated (annots, superAnn)] 
+    pure $ AnnotationPropertyF subAnn [SubPropertyOfAPE annotList]
 
-subAnnotationProperty :: Parser AnnotationProperty
+subAnnotationProperty :: Parser AnnotationPropertyIRI
 subAnnotationProperty = annotationProperty
 
-superAnnotationProperty :: Parser AnnotationProperty
+superAnnotationProperty :: Parser AnnotationPropertyIRI
 superAnnotationProperty = annotationProperty
 
-annotationPropertyDomain :: Parser ()
+annotationPropertyDomain :: Parser AnnotationPropertyFrame
 annotationPropertyDomain = do
   symbol "AnnotationPropertyDomain"
   parens $ do
-    axiomAnnotations
-    annotationProperty
-    iri
-  pure ()
+    annots <- axiomAnnotations
+    prop   <- annotationProperty
+    iri'   <- iri
+    let annotList = NE.fromList [Annotated (annots, iri')] 
+    pure $ AnnotationPropertyF prop [DomainAPE annotList]
 
-annotationPropertyRange :: Parser ()
+annotationPropertyRange :: Parser AnnotationPropertyFrame
 annotationPropertyRange = do
   symbol "AnnotationPropertyRange"
   parens $ do
-    axiomAnnotations
-    annotationProperty
-    iri
-  pure ()
+    annots <- axiomAnnotations
+    prop   <- annotationProperty
+    iri'   <- iri
+    let annotList = NE.fromList [Annotated (annots, iri')] 
+    pure $ AnnotationPropertyF prop [RangeAPE annotList]
 
 datatype:: Parser Datatype
 datatype = Datatype <$> iri
@@ -208,7 +224,7 @@ inverseObjectProperty = do
   parens objectProperty
   pure ()
 
-dataPropertyExpression :: Parser DataProperty
+dataPropertyExpression :: Parser DataPropertyIRI
 dataPropertyExpression = dataProperty
 
 dataRange :: Parser ()
@@ -600,10 +616,10 @@ subDataPropertyOf = do
     superDataPropertyExpression
   pure ()
 
-subDataPropertyExpression :: Parser DataProperty
+subDataPropertyExpression :: Parser DataPropertyIRI
 subDataPropertyExpression = dataPropertyExpression
 
-superDataPropertyExpression :: Parser DataProperty
+superDataPropertyExpression :: Parser DataPropertyIRI
 superDataPropertyExpression = dataPropertyExpression
 
 equivalentDataProperties :: Parser ()

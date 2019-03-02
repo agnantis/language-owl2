@@ -16,6 +16,7 @@ import           Language.OWL2.Internal.Parser
 --
 -- $setup
 -- >>> :set -XOverloadedStrings
+-- >>> import Text.Megaparsec.Char (string)
 
 --------------------------
 -- Parser related types --
@@ -84,20 +85,17 @@ objectPropertyIRI = iri
 dataPropertyIRI :: Parser IRI
 dataPropertyIRI = iri
 
-annotationPropertyIRI :: Parser IRI
-annotationPropertyIRI = iri
-
 entity :: Parser Entity
 entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
  where
   alts :: [(Text, Parser Entity)]
   alts =
-    [ ("Datatype"          , EntityDatatype                                <$> datatype)
-    , ("Class"             , EntityClass . Class                           <$> classIRI)
-    , ("ObjectProperty"    , EntityObjectProperty . ObjectProperty         <$> objectPropertyIRI)
-    , ("DataProperty"      , EntityDataProperty . DataProperty             <$> dataPropertyIRI)
-    , ("AnnotationProperty", EntityAnnotationProperty . AnnotationProperty <$> annotationPropertyIRI)
-    , ("NamedIndividual"   , EntityIndividual                              <$> namedIndividual)
+    [ ("Datatype"          , EntityDatatype           <$> datatype)
+    , ("Class"             , EntityClass              <$> classIRI)
+    , ("ObjectProperty"    , EntityObjectProperty     <$> objectPropertyIRI)
+    , ("DataProperty"      , EntityDataProperty       <$> dataPropertyIRI)
+    , ("AnnotationProperty", EntityAnnotationProperty <$> annotationPropertyIRI)
+    , ("NamedIndividual"   , EntityIndividual         <$> namedIndividual)
     ]
 
 
@@ -373,7 +371,7 @@ restriction =  OPRestriction <$> try (OPR <$> objectPropertyExpression <*> objec
 -- AtomicClass (SimpleIRI "Person")
 --
 -- >>> parseTest atomic "{ <class.iri#ind1>, <class.iri#ind2> }"
--- AtomicIndividuals (NamedIndividual (FullIRI "class.iri#ind1") :| [NamedIndividual (FullIRI "class.iri#ind2")])
+-- AtomicIndividuals (NamedIRI (FullIRI "class.iri#ind1") :| [NamedIRI (FullIRI "class.iri#ind2")])
 --
 atomic :: Parser Atomic
 atomic =  AtomicClass       <$> classIRI
@@ -570,6 +568,7 @@ dataPropertyCharacteristic = symbol "Functional" $> FUNCTIONAL_DPE
 --     input =
 --       [ "AnnotationProperty: creator"
 --       , "Annotations: rdfs:comment \"General domain\", creator John"
+--       , "Annotations: rdfs:label _:someNode"
 --       , "Domain: Person , Woman"
 --       , "Range: <integer>" -- FIX www: range cannot be a datatype -> it's IRI
 --       , "SubPropertyOf: hasVerifiedAge , hasSomeAge"
