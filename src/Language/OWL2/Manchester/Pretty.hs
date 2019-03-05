@@ -180,6 +180,15 @@ instance PrettyM DataPropertyRestrictionType where
   pretty (MaxDPR i mp)     = "max"     <+> pretty i <-> pretty mp 
   pretty (ExactlyDPR i mp) = "exactly" <+> pretty i <-> pretty mp 
 
+instance PrettyM DataRange' where
+  pretty (DatatypeDR dt)      = pretty dt
+  pretty (IntersectionDR drs) = join "and" (toList drs)
+  pretty (UnionDR drs)        = join "or" (toList drs)
+  pretty (ComplementDR dr)    = "not" <+> pretty dr
+  pretty (OneOfDR ls)         = braces $ join "," (NE.toList ls)
+  pretty (RestrictionDR r)    = pretty r
+
+
 instance PrettyM DataPrimary where
   pretty (DataPrimary d) = pretty d
 

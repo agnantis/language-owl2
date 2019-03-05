@@ -52,6 +52,15 @@ data ObjectPropertyExpression
 newtype DataPrimary = DataPrimary (WithNegation DataAtomic) deriving (Show)
 type Annotations = [Annotated Annotation]
 
+-------
+data DataRange'
+    = DatatypeDR Datatype
+    | IntersectionDR (AtLeast2List DataRange')
+    | UnionDR (AtLeast2List DataRange')
+    | ComplementDR DataRange'
+    | OneOfDR (NonEmpty Literal)
+    | RestrictionDR DatatypeRestriction deriving (Show)
+-------
 newtype DataRange = DataRange (NonEmpty DataConjunction) deriving (Show)
 newtype DataConjunction = DataConjunction (NonEmpty DataPrimary) deriving (Show)
 newtype DecimalLiteral = DecimalL Double deriving (Show)
@@ -83,7 +92,7 @@ data Frame
     | FrameI IndividualFrame
     | FrameM Misc deriving (Show)
 data DatatypeFrame = DatatypeF Datatype [SomeAnnotations] (Maybe AnnotDataRange) deriving (Show)
-data AnnotDataRange = AnnotDataRange Annotations DataRange deriving (Show)
+data AnnotDataRange = AnnotDataRange Annotations DataRange' deriving (Show)
 newtype Datatype = Datatype { unDatatype :: DatatypeIRI } deriving (Show)
 -- newtype Class = Class { unClass :: ClassIRI } deriving (Show)
 -- newtype ObjectProperty = ObjectProperty{ unObjectProperty :: ObjectPropertyIRI } deriving (Show)
@@ -140,12 +149,12 @@ data ObjectPropertyRestrictionType
     | MaxOPR Int (Maybe Primary) -- TODO: Int -> Nat
     | ExactlyOPR Int (Maybe Primary) deriving (Show) -- TODO: Int -> Nat
 data DataPropertyRestrictionType
-    = SomeDPR DataPrimary
-    | OnlyDPR DataPrimary
+    = SomeDPR DataRange'
+    | OnlyDPR DataRange'
     | ValueDPR Literal
-    | MinDPR Int (Maybe DataPrimary) -- TODO: Int -> Nat
-    | MaxDPR Int (Maybe DataPrimary) -- TODO: Int -> Nat
-    | ExactlyDPR Int (Maybe DataPrimary) deriving (Show) -- TODO: Int -> Nat
+    | MinDPR Int (Maybe DataRange') -- TODO: Int -> Nat
+    | MaxDPR Int (Maybe DataRange') -- TODO: Int -> Nat
+    | ExactlyDPR Int (Maybe DataRange') deriving (Show) -- TODO: Int -> Nat
 data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRestrictionType deriving (Show)
 data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType deriving (Show)
 data TotalIRI
@@ -179,7 +188,7 @@ data DataPropertyFrame = DataPropertyF DataPropertyIRI [DataPropertyElement] der
 data DataPropertyElement
     = AnnotationDPE SomeAnnotations
     | DomainDPE Descriptions
-    | RangeDPE (AnnotatedList DataRange)
+    | RangeDPE (AnnotatedList DataRange')
     | CharacteristicsDPE (AnnotatedList DataPropertyCharacteristics)
     | SubPropertyOfDPE (AnnotatedList DataPropertyExpression)
     | EquivalentToDPE (AnnotatedList DataPropertyExpression)
@@ -239,6 +248,9 @@ data AnnotationTarget
 flattenAnnList :: [AnnotatedList a] -> Maybe (AnnotatedList a)
 flattenAnnList [] = Nothing
 flattenAnnList xs = Just $ foldl1 (<>) xs
+
+singleton :: a -> NonEmpty a
+singleton x = x :| []
 
 -------------------------
 ---- CLASS INSTANCES ----

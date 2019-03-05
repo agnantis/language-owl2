@@ -214,69 +214,71 @@ annotationPropertyRange = do
 datatype:: Parser Datatype
 datatype = Datatype <$> iri
 
-objectPropertyExpression :: Parser ()
-objectPropertyExpression =  objectProperty $> ()
-                        <|> inverseObjectProperty $> ()
-
-inverseObjectProperty :: Parser ()
-inverseObjectProperty = do
-  symbol "ObjectInverseOf"
-  parens objectProperty
-  pure ()
+-- | It parses an object property expression
+--
+-- >>> parseTest objectPropertyExpression "<http://object-property-iri.com>"
+-- OPE (FullIRI "http://object-property-iri.com")
+--
+-- >>> parseTest objectPropertyExpression "ObjectInverseOf(<http://object-property-iri.com>)"
+-- InverseOPE (FullIRI "http://object-property-iri.com")
+--
+objectPropertyExpression :: Parser ObjectPropertyExpression
+objectPropertyExpression =  OPE        <$> objectProperty
+                        <|> InverseOPE <$> (symbol "ObjectInverseOf" *> parens objectProperty)
 
 dataPropertyExpression :: Parser DataPropertyIRI
 dataPropertyExpression = dataProperty
 
-dataRange :: Parser ()
-dataRange =  datatype $> ()
-         <|> dataIntersectionOf $> ()
-         <|> dataUnionOf $> ()
-         <|> dataComplementOf $> ()
-         <|> dataOneOf $> ()
-         <|> datatypeRestriction $> ()
+dataRange :: Parser DataRange'
+dataRange =  DatatypeDR <$> datatype
+         <|> dataIntersectionOf
+         <|> dataUnionOf
+         <|> dataComplementOf
+         <|> dataOneOf
+         <|> datatypeRestriction
 
-dataIntersectionOf :: Parser ()
+dataIntersectionOf :: Parser DataRange'
 dataIntersectionOf = do
   symbol "DataIntersectionOf"
-  parens $ do
-    dataRange
-    some dataRange
-  pure ()
+  elems <- parens $ atLeast2List' <$> dataRange <*> (NE.fromList <$> some dataRange)
+  pure $ IntersectionDR elems
 
-dataUnionOf :: Parser ()
+dataUnionOf :: Parser DataRange'
 dataUnionOf = do
   symbol "DataUnionOf"
-  parens $ do
-    dataRange
-    some dataRange
-  pure ()
+  elems <- parens $ atLeast2List' <$> dataRange <*> (NE.fromList <$> some dataRange)
+  pure $ UnionDR elems
 
-dataComplementOf :: Parser ()
+dataComplementOf :: Parser DataRange'
 dataComplementOf = do
   symbol "DataComplementOf"
-  parens dataRange
-  pure ()
+  parens $ ComplementDR <$> dataRange
 
-dataOneOf :: Parser ()
+dataOneOf :: Parser DataRange'
 dataOneOf = do
   symbol "DataOneOf"
-  parens $ some literal
-  pure ()
+  elem <- parens $ NE.fromList <$> some literal
+  pure $ OneOfDR elem
 
-datatypeRestriction :: Parser ()
+datatypeRestriction :: Parser DataRange'
 datatypeRestriction = do
   symbol "DatatypeRestriction"
   parens $ do
-    datatype
-    constrainingFacet
-    restrictionValue
-    many $ do 
-      constrainingFacet
-      restrictionValue
-  pure ()
+    dt <- datatype
+    lst <- some $ RestrictionExp <$> constrainingFacet <*> restrictionValue
+    pure . RestrictionDR $ DatatypeRestriction dt (NE.fromList lst)
 
-constrainingFacet :: Parser IRI
-constrainingFacet = iri
+constrainingFacet :: Parser Facet
+constrainingFacet
+    =  symbol "xsd:length"       $> LENGTH_FACET
+   <|> symbol "xsd:maxLength"    $> MAX_LENGTH_FACET
+   <|> symbol "xsd:minLength"    $> MIN_LENGTH_FACET
+   <|> symbol "xsd:pattern"      $> PATTERN_FACET
+   <|> symbol "xsd:langRange"    $> LANG_RANGE_FACET
+   <|> symbol "xsd:maxInclusive" $> LE_FACET
+   <|> symbol "xsd:maxExclusive" $> L_FACET
+   <|> symbol "xsd:minInclusive" $> GE_FACET
+   <|> symbol "xsd:minExclusive" $> G_FACET
 
 restrictionValue :: Parser Literal
 restrictionValue = literal
@@ -522,7 +524,7 @@ propertyExpressionChain = do
     some objectPropertyExpression
   pure ()
 
-superObjectPropertyExpression :: Parser ()
+superObjectPropertyExpression :: Parser ObjectPropertyExpression
 superObjectPropertyExpression = objectPropertyExpression
 
 equivalentObjectProperties :: Parser ()

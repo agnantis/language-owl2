@@ -194,46 +194,57 @@ dataPropertyExpression = dataPropertyIRI
 -- >>> parseTest (dataRange *> eof) "integer[>10] and integer[<20] or integer[>100]"
 -- ()
 --
-dataRange :: Parser DataRange
-dataRange = DataRange <$> singleOrMany "or" dataConjunction
+dataRange :: Parser DataRange'
+dataRange = do
+  lst <- singleOrMany "or" dataConjunction
+  pure $ case lst of
+    (x :| []) -> x
+    (x :| (y:ys)) -> UnionDR $ (x,y) :# ys
+
 
 -- | It parses a data conjunction (i.e. 'and')
 --
 -- >>> parseTest (dataConjunction *> eof) "integer[<10] and integer[>0]"
 -- ()
 --
-dataConjunction :: Parser DataConjunction
-dataConjunction = DataConjunction <$> singleOrMany "and" dataPrimary
+dataConjunction :: Parser DataRange'
+dataConjunction = do
+  lst <- singleOrMany "and" dataPrimary
+  pure $ case lst of
+    (x :| []) -> x
+    (x :| (y:ys)) -> IntersectionDR $ (x,y) :# ys
 
 -- | It parses a data primary
 --
 -- >>> parseTest dataPrimary "integer[<0]"
--- DataPrimary (Positive (DatatypeRestrictionDA (DatatypeRestriction (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))))
+-- RestrictionDR (DatatypeRestriction (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))
 --
-dataPrimary :: Parser DataPrimary
+dataPrimary :: Parser DataRange'
 dataPrimary = do
   neg <- optionalNegation
   da  <- dataAtomic
-  pure . DataPrimary $ fmap (const da) neg
+  pure $ case neg of
+    Negative _ -> ComplementDR da
+    Positive _ -> da
 
 -- | It parses an atomic data
 --
 -- >>> parseTest (dataAtomic *> eof)  "integer[<0]"
 -- ()
 --
-dataAtomic :: Parser DataAtomic
-dataAtomic =  DatatypeRestrictionDA <$> try datatypeRestriction
-          <|> DatatypeDA            <$> try datatype
-          <|> LiteralListDA         <$> enclosedS '{' literalList
-          <|> DataRangeDA           <$> enclosedS '(' dataRange
+dataAtomic :: Parser DataRange'
+dataAtomic =  try datatypeRestriction
+          <|> DatatypeDR <$> try datatype
+          <|> enclosedS '{' literalList
+          <|> enclosedS '(' dataRange
 
 -- | It parsers a non empty list of literal
 --
 -- >>> parseTest literalList "\"kostas\", 32, \"true\""
--- StringLiteralNoLang "kostas" :| [IntegerLiteralC (IntegerL 32),StringLiteralNoLang "true"]
+-- OneOfDR (StringLiteralNoLang "kostas" :| [IntegerLiteralC (IntegerL 32),StringLiteralNoLang "true"])
 --
-literalList :: Parser (NonEmpty Literal)
-literalList = nonEmptyList literal
+literalList :: Parser DataRange'
+literalList = OneOfDR <$> nonEmptyList literal
 
 -- | It parses datatype restrictions
 --
@@ -241,15 +252,15 @@ literalList = nonEmptyList literal
 -- ()
 --
 -- >>> parseTest datatypeRestriction "integer[< 0]"
--- DatatypeRestriction (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| [])
+-- RestrictionDR (DatatypeRestriction (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))
 --
-datatypeRestriction :: Parser DatatypeRestriction
+datatypeRestriction :: Parser DataRange'
 datatypeRestriction = do
   dt <- datatype
   _  <- symbol "["
   rvList <- nonEmptyList (RestrictionExp <$> facet <*> restrictionValue)
   _  <- symbol "]"
-  pure $ DatatypeRestriction dt rvList
+  pure . RestrictionDR $ DatatypeRestriction dt rvList
 
 facet :: Parser Facet
 facet =  symbol "length"    $> LENGTH_FACET
@@ -355,12 +366,12 @@ restriction =  OPRestriction <$> try (OPR <$> objectPropertyExpression <*> objec
                    <|> try (MinOPR     <$> (symbol "min"     *> nonNegativeInteger) <*> optional primary)
                    <|> try (MaxOPR     <$> (symbol "max"     *> nonNegativeInteger) <*> optional primary)
                    <|> try (ExactlyOPR <$> (symbol "exactly" *> nonNegativeInteger) <*> optional primary)
-  dataRestriction =  try (SomeDPR    <$> (symbol "some"    *> dataPrimary))
-                 <|> try (OnlyDPR    <$> (symbol "only"    *> dataPrimary))
-                 <|> try (ValueDPR   <$> (symbol "value"   *> literal))
-                 <|> try (MinDPR     <$> (symbol "min"     *> nonNegativeInteger) <*> optional dataPrimary)
-                 <|> try (MaxDPR     <$> (symbol "max"     *> nonNegativeInteger) <*> optional dataPrimary)
-                 <|> try (ExactlyDPR <$> (symbol "exactly" *> nonNegativeInteger) <*> optional dataPrimary)
+  dataRestriction   =  try (SomeDPR    <$> (symbol "some"    *> dataPrimary))
+                   <|> try (OnlyDPR    <$> (symbol "only"    *> dataPrimary))
+                   <|> try (ValueDPR   <$> (symbol "value"   *> literal))
+                   <|> try (MinDPR     <$> (symbol "min"     *> nonNegativeInteger) <*> optional dataPrimary)
+                   <|> try (MaxDPR     <$> (symbol "max"     *> nonNegativeInteger) <*> optional dataPrimary)
+                   <|> try (ExactlyDPR <$> (symbol "exactly" *> nonNegativeInteger) <*> optional dataPrimary)
 
 -- | It parses a class IRI or a list of individual IRIs
 --
