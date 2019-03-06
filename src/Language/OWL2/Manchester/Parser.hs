@@ -194,7 +194,7 @@ dataPropertyExpression = dataPropertyIRI
 -- >>> parseTest (dataRange *> eof) "integer[>10] and integer[<20] or integer[>100]"
 -- ()
 --
-dataRange :: Parser DataRange'
+dataRange :: Parser DataRange
 dataRange = do
   lst <- singleOrMany "or" dataConjunction
   pure $ case lst of
@@ -207,7 +207,7 @@ dataRange = do
 -- >>> parseTest (dataConjunction *> eof) "integer[<10] and integer[>0]"
 -- ()
 --
-dataConjunction :: Parser DataRange'
+dataConjunction :: Parser DataRange
 dataConjunction = do
   lst <- singleOrMany "and" dataPrimary
   pure $ case lst of
@@ -219,7 +219,7 @@ dataConjunction = do
 -- >>> parseTest dataPrimary "integer[<0]"
 -- RestrictionDR (DatatypeRestriction (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))
 --
-dataPrimary :: Parser DataRange'
+dataPrimary :: Parser DataRange
 dataPrimary = do
   neg <- optionalNegation
   da  <- dataAtomic
@@ -232,7 +232,7 @@ dataPrimary = do
 -- >>> parseTest (dataAtomic *> eof)  "integer[<0]"
 -- ()
 --
-dataAtomic :: Parser DataRange'
+dataAtomic :: Parser DataRange
 dataAtomic =  try datatypeRestriction
           <|> DatatypeDR <$> try datatype
           <|> enclosedS '{' literalList
@@ -243,7 +243,7 @@ dataAtomic =  try datatypeRestriction
 -- >>> parseTest literalList "\"kostas\", 32, \"true\""
 -- OneOfDR (StringLiteralNoLang "kostas" :| [IntegerLiteralC (IntegerL 32),StringLiteralNoLang "true"])
 --
-literalList :: Parser DataRange'
+literalList :: Parser DataRange
 literalList = OneOfDR <$> nonEmptyList literal
 
 -- | It parses datatype restrictions
@@ -254,7 +254,7 @@ literalList = OneOfDR <$> nonEmptyList literal
 -- >>> parseTest datatypeRestriction "integer[< 0]"
 -- RestrictionDR (DatatypeRestriction (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))
 --
-datatypeRestriction :: Parser DataRange'
+datatypeRestriction :: Parser DataRange
 datatypeRestriction = do
   dt <- datatype
   _  <- symbol "["

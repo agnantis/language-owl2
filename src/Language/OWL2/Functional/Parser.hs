@@ -229,7 +229,7 @@ objectPropertyExpression =  OPE        <$> objectProperty
 dataPropertyExpression :: Parser DataPropertyIRI
 dataPropertyExpression = dataProperty
 
-dataRange :: Parser DataRange'
+dataRange :: Parser DataRange
 dataRange =  DatatypeDR <$> datatype
          <|> dataIntersectionOf
          <|> dataUnionOf
@@ -237,30 +237,30 @@ dataRange =  DatatypeDR <$> datatype
          <|> dataOneOf
          <|> datatypeRestriction
 
-dataIntersectionOf :: Parser DataRange'
+dataIntersectionOf :: Parser DataRange
 dataIntersectionOf = do
   symbol "DataIntersectionOf"
   elems <- parens $ atLeast2List' <$> dataRange <*> (NE.fromList <$> some dataRange)
   pure $ IntersectionDR elems
 
-dataUnionOf :: Parser DataRange'
+dataUnionOf :: Parser DataRange
 dataUnionOf = do
   symbol "DataUnionOf"
   elems <- parens $ atLeast2List' <$> dataRange <*> (NE.fromList <$> some dataRange)
   pure $ UnionDR elems
 
-dataComplementOf :: Parser DataRange'
+dataComplementOf :: Parser DataRange
 dataComplementOf = do
   symbol "DataComplementOf"
   parens $ ComplementDR <$> dataRange
 
-dataOneOf :: Parser DataRange'
+dataOneOf :: Parser DataRange
 dataOneOf = do
   symbol "DataOneOf"
   elem <- parens $ NE.fromList <$> some literal
   pure $ OneOfDR elem
 
-datatypeRestriction :: Parser DataRange'
+datatypeRestriction :: Parser DataRange
 datatypeRestriction = do
   symbol "DatatypeRestriction"
   parens $ do

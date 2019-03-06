@@ -49,20 +49,15 @@ type DataPropertyExpression = DataPropertyIRI
 data ObjectPropertyExpression
     = OPE ObjectPropertyIRI
     | InverseOPE ObjectPropertyIRI deriving (Show)
-newtype DataPrimary = DataPrimary (WithNegation DataAtomic) deriving (Show)
 type Annotations = [Annotated Annotation]
 
--------
-data DataRange'
+data DataRange
     = DatatypeDR Datatype
-    | IntersectionDR (AtLeast2List DataRange')
-    | UnionDR (AtLeast2List DataRange')
-    | ComplementDR DataRange'
+    | IntersectionDR (AtLeast2List DataRange)
+    | UnionDR (AtLeast2List DataRange)
+    | ComplementDR DataRange
     | OneOfDR (NonEmpty Literal)
     | RestrictionDR DatatypeRestriction deriving (Show)
--------
-newtype DataRange = DataRange (NonEmpty DataConjunction) deriving (Show)
-newtype DataConjunction = DataConjunction (NonEmpty DataPrimary) deriving (Show)
 newtype DecimalLiteral = DecimalL Double deriving (Show)
 newtype Description = Description (NonEmpty Conjunction) deriving (Show)
 newtype IntegerLiteral = IntegerL Integer deriving (Show)
@@ -92,16 +87,8 @@ data Frame
     | FrameI IndividualFrame
     | FrameM Misc deriving (Show)
 data DatatypeFrame = DatatypeF Datatype [SomeAnnotations] (Maybe AnnotDataRange) deriving (Show)
-data AnnotDataRange = AnnotDataRange Annotations DataRange' deriving (Show)
+data AnnotDataRange = AnnotDataRange Annotations DataRange deriving (Show)
 newtype Datatype = Datatype { unDatatype :: DatatypeIRI } deriving (Show)
--- newtype Class = Class { unClass :: ClassIRI } deriving (Show)
--- newtype ObjectProperty = ObjectProperty{ unObjectProperty :: ObjectPropertyIRI } deriving (Show)
--- newtype DataProperty = DataProperty{ unDataProperty :: DataPropertyIRI } deriving (Show)
-data DataAtomic
-    = DatatypeDA Datatype
-    | LiteralListDA (NonEmpty Literal)
-    | DatatypeRestrictionDA DatatypeRestriction
-    | DataRangeDA DataRange deriving (Show)
 data DatatypeRestriction = DatatypeRestriction Datatype (NonEmpty RestrictionExp) deriving (Show)
 data RestrictionExp = RestrictionExp Facet Literal deriving (Show)
 data Facet
@@ -149,12 +136,12 @@ data ObjectPropertyRestrictionType
     | MaxOPR Int (Maybe Primary) -- TODO: Int -> Nat
     | ExactlyOPR Int (Maybe Primary) deriving (Show) -- TODO: Int -> Nat
 data DataPropertyRestrictionType
-    = SomeDPR DataRange'
-    | OnlyDPR DataRange'
+    = SomeDPR DataRange
+    | OnlyDPR DataRange
     | ValueDPR Literal
-    | MinDPR Int (Maybe DataRange') -- TODO: Int -> Nat
-    | MaxDPR Int (Maybe DataRange') -- TODO: Int -> Nat
-    | ExactlyDPR Int (Maybe DataRange') deriving (Show) -- TODO: Int -> Nat
+    | MinDPR Int (Maybe DataRange) -- TODO: Int -> Nat
+    | MaxDPR Int (Maybe DataRange) -- TODO: Int -> Nat
+    | ExactlyDPR Int (Maybe DataRange) deriving (Show) -- TODO: Int -> Nat
 data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRestrictionType deriving (Show)
 data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType deriving (Show)
 data TotalIRI
@@ -188,7 +175,7 @@ data DataPropertyFrame = DataPropertyF DataPropertyIRI [DataPropertyElement] der
 data DataPropertyElement
     = AnnotationDPE SomeAnnotations
     | DomainDPE Descriptions
-    | RangeDPE (AnnotatedList DataRange')
+    | RangeDPE (AnnotatedList DataRange)
     | CharacteristicsDPE (AnnotatedList DataPropertyCharacteristics)
     | SubPropertyOfDPE (AnnotatedList DataPropertyExpression)
     | EquivalentToDPE (AnnotatedList DataPropertyExpression)
