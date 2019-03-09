@@ -127,6 +127,27 @@ data Primary
 data Restriction
     = OPRestriction ObjectPropertyRestriction
     | DPRestriction DataPropertyRestriction deriving (Show)
+---
+data ClassExpression
+  = CExpClass ClassIRI
+  | CExpObjectIntersectionOf (AtLeast2List ClassExpression)
+  | CExpObjectUnionOf (AtLeast2List ClassExpression)
+  | CExpObjectComplementOf ClassExpression
+  | CExpObjectOneOf (NonEmpty Individual)
+  | CExpObjectSomeValuesFrom ObjectPropertyExpression ClassExpression
+  | CExpObjectAllValuesFrom ObjectPropertyExpression ClassExpression
+  | CExpObjectHasValue ObjectPropertyExpression Individual
+  | CExpObjectHasSelf ObjectPropertyExpression
+  | CExpObjectMinCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
+  | CExpObjectMaxCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
+  | CExpObjectExactCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
+  | CExpDataSomeValuesFrom (NonEmpty DataPropertyExpression) DataRange 
+  | CExpDataAllValuesFrom (NonEmpty DataPropertyExpression) DataRange
+  | CExpDataHasValue DataPropertyExpression Literal
+  | CExpDataMinCardinality Int DataPropertyExpression (Maybe DataRange)
+  | CExpDataMaxCardinality Int DataPropertyExpression (Maybe DataRange)
+  | CExpDataExactCardinality Int DataPropertyExpression (Maybe DataRange) deriving (Show)
+---
 data ObjectPropertyRestrictionType
     = SelfOPR
     | SomeOPR Primary

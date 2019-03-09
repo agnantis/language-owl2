@@ -4,6 +4,8 @@
 module Language.OWL2.Internal.Parser where
 
 import           Data.Maybe                               ( fromMaybe )
+import           Data.List.NonEmpty                       ( NonEmpty(..) )
+import qualified Data.List.NonEmpty            as NE
 import           Data.Void
 import           Prelude                           hiding ( exponent )
 import           Text.Megaparsec
@@ -466,6 +468,72 @@ anonymousIndividual = nodeID
 -- | Reserved keywords
 allKeywords :: [Text]
 allKeywords = concat [manchesterKeywords, functionalKeywords]
+
+-----------------------
+--- Generic parsers ---
+-----------------------
+
+optionalNegation :: Parser (WithNegation ())
+optionalNegation = maybe (Positive ()) (const (Negative ())) <$> (optional . symbol $ "not")
+
+-- | It parser one or more elements parsed by the input parser p and separated by the input string
+--
+-- >>> parseTest (singleOrMany "," . string $ "test") "test"
+-- "test" :| []
+--
+-- >>> parseTest (singleOrMany "or" . lexeme . string $ "test") "test or test or test"
+-- "test" :| ["test","test"]
+--
+-- >>> parseTest (singleOrMany "" identifier) "some  random text"
+-- "some" :| ["random","text"]
+--
+singleOrMany :: Text -> Parser p -> Parser (NonEmpty p)
+singleOrMany sep p =
+  let multipleP = (:|) <$> p <*> some (symbol sep *> p) in try multipleP <|> (pure <$> p)
+
+-- | It parses non empty lists
+--
+-- >>> parseTest (nonEmptyList languageTag) "@en, @el, @test"
+-- "en" :| ["el","test"]
+--
+-- >>> parseTest (nonEmptyList languageTag) ""
+-- ...
+-- unexpected end of input
+-- expecting '@'
+--
+nonEmptyList :: Parser p -> Parser (NonEmpty p)
+nonEmptyList p = singleOrMany "," (lexeme p)
+--nonEmptyList p = (:|) <$> lexeme p <*> many (symbol "," *> lexeme p)
+
+
+-- | It parser two or more elements parsed by the input parser p and separated by the input string
+--
+-- >>> parseTest (doubleOrMany "" . string $ "test") "test"
+-- ...
+-- unexpected end of input
+-- expecting "test"
+--
+-- >>> parseTest (doubleOrMany "" identifier) "some random"
+-- ("some","random") :# []
+--
+-- >>> parseTest (doubleOrMany "" identifier) "some  random text"
+-- ("some","random") :# ["text"]
+--
+doubleOrMany :: Text -> Parser p -> Parser (AtLeast2List p)
+doubleOrMany sep p = atLeast2List' <$> p <*> (symbol sep *> singleOrMany sep p)
+
+-- | It parses lists with at least two elements
+--
+-- >>> parseTest (listOfAtLeast2 languageTag) "@en, @el, @test"
+-- ("en","el") :# ["test"]
+--
+-- >>> parseTest (listOfAtLeast2 languageTag) "@en"
+-- ...
+-- unexpected end of input
+-- ...
+--
+listOfAtLeast2 :: Parser p -> Parser (AtLeast2List p)
+listOfAtLeast2 = doubleOrMany "," -- atLeast2List' <$> p <*> (symbol "," *> nonEmptyList p)
 
 manchesterKeywords :: [Text]
 manchesterKeywords =

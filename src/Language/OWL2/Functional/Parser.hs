@@ -139,7 +139,6 @@ fannotation = do
 fannotations :: Parser [Annotated Annotation]
 fannotations = many fannotation
 
-
 annotationAnnotations :: Parser [Annotated Annotation]
 annotationAnnotations = fannotations
 
@@ -283,146 +282,117 @@ constrainingFacet
 restrictionValue :: Parser Literal
 restrictionValue = literal
 
-classExpression :: Parser ()
+classExpression :: Parser ClassExpression
 classExpression = lexeme alternatives
  where
-  alternatives =   objectOneOf $> ()
-               <|> objectIntersectionOf $> ()
-               <|> objectUnionOf $> ()
-               <|> objectComplementOf $> ()
-               <|> objectSomeValuesFrom $> ()
-               <|> objectAllValuesFrom $> ()
-               <|> objectHasValue $> ()
-               <|> objectHasSelf $> ()
-               <|> objectMinCardinality $> ()
-               <|> objectMaxCardinality $> ()
-               <|> objectExactCardinality $> ()
-               <|> dataSomeValuesFrom $> ()
-               <|> dataAllValuesFrom $> ()
-               <|> dataHasValue $> ()
-               <|> dataMinCardinality $> ()
-               <|> dataMaxCardinality $> ()
-               <|> dataExactCardinality$> ()
-               <|> clazz $> ()
+  alternatives =   objectOneOf
+               <|> objectIntersectionOf
+               <|> objectUnionOf
+               <|> objectComplementOf     
+               <|> objectSomeValuesFrom   
+               <|> objectAllValuesFrom    
+               <|> objectHasValue         
+               <|> objectHasSelf          
+               <|> objectMinCardinality   
+               <|> objectMaxCardinality   
+               <|> objectExactCardinality 
+               <|> dataSomeValuesFrom     
+               <|> dataAllValuesFrom      
+               <|> dataHasValue           
+               <|> dataMinCardinality     
+               <|> dataMaxCardinality     
+               <|> dataExactCardinality   
+               <|> CExpClass <$> clazz 
 
 
-objectIntersectionOf :: Parser ()
+objectIntersectionOf :: Parser ClassExpression
 objectIntersectionOf = do
   symbol "ObjectIntersectionOf"
-  parens $ do
-    classExpression
-    some classExpression
-  pure ()
+  parens $ CExpObjectIntersectionOf <$> doubleOrMany "" classExpression
 
-objectUnionOf :: Parser ()
+objectUnionOf :: Parser ClassExpression
 objectUnionOf = do
   symbol "ObjectUnionOf"
-  parens $ do
-    classExpression
-    some classExpression
-  pure ()
+  parens $ CExpObjectUnionOf <$> doubleOrMany "" classExpression
 
-objectComplementOf :: Parser ()
+objectComplementOf :: Parser ClassExpression
 objectComplementOf = do
   symbol "ObjectComplementOf"
-  parens classExpression
-  pure ()
+  parens $ CExpObjectComplementOf <$> classExpression
 
-objectOneOf :: Parser ()
+objectOneOf :: Parser ClassExpression
 objectOneOf = do
   symbol "ObjectOneOf"
-  parens $ some individual
-  pure ()
+  parens $ CExpObjectOneOf <$> singleOrMany "" individual
 
-objectSomeValuesFrom :: Parser ()
+objectSomeValuesFrom :: Parser ClassExpression
 objectSomeValuesFrom = do
   symbol "ObjectSomeValuesFrom"
-  parens $ do
-    objectPropertyExpression
-    classExpression
-  pure ()
+  parens $ CExpObjectSomeValuesFrom <$> objectPropertyExpression <*> classExpression
 
-objectAllValuesFrom :: Parser ()
+objectAllValuesFrom :: Parser ClassExpression
 objectAllValuesFrom = do
   symbol "ObjectAllValuesFrom"
-  parens $ do
-    objectPropertyExpression
-    classExpression
-  pure ()
+  parens $ CExpObjectAllValuesFrom <$> objectPropertyExpression <*> classExpression
     
-objectHasValue :: Parser ()
+objectHasValue :: Parser ClassExpression
 objectHasValue = do
   symbol "ObjectHasValue"
-  parens $ do
-    objectPropertyExpression
-    individual
-  pure ()
+  parens $ CExpObjectHasValue <$> objectPropertyExpression <*> individual
 
-objectHasSelf :: Parser ()
+objectHasSelf :: Parser ClassExpression
 objectHasSelf = do
   symbol "ObjectHasSelf"
-  parens objectPropertyExpression
-  pure ()
+  parens $ CExpObjectHasSelf <$> objectPropertyExpression
 
-objectCardinality :: Text -> Parser ()
-objectCardinality l = do
+objectCardinality
+  :: Text
+  -> (Int -> ObjectPropertyExpression -> Maybe ClassExpression -> ClassExpression)
+  -> Parser ClassExpression
+objectCardinality l c = do
   symbol l
-  parens $ do
-    nonNegativeInteger
-    objectPropertyExpression
-    optional classExpression
-  pure ()
+  parens $ c <$> nonNegativeInteger <*> objectPropertyExpression <*> optional classExpression
 
-objectMinCardinality :: Parser ()
-objectMinCardinality = objectCardinality "ObjectMinCardinality"
+objectMinCardinality :: Parser ClassExpression
+objectMinCardinality = objectCardinality "ObjectMinCardinality" CExpObjectMinCardinality
 
-objectMaxCardinality :: Parser ()
-objectMaxCardinality = objectCardinality "ObjectMaxCardinality"
+objectMaxCardinality :: Parser ClassExpression
+objectMaxCardinality = objectCardinality "ObjectMaxCardinality" CExpObjectMaxCardinality
 
-objectExactCardinality :: Parser ()
-objectExactCardinality = objectCardinality "ObjectExactCardinality"
+objectExactCardinality :: Parser ClassExpression
+objectExactCardinality = objectCardinality "ObjectExactCardinality" CExpObjectMinCardinality
 
-dataSomeValuesFrom :: Parser ()
+dataSomeValuesFrom :: Parser ClassExpression
 dataSomeValuesFrom = do
   symbol "DataSomeValuesFrom"
-  parens $ do
-    some dataPropertyExpression
-    dataRange
-  pure ()
+  parens $ CExpDataSomeValuesFrom <$> singleOrMany "" dataPropertyExpression <*> dataRange
 
-dataAllValuesFrom :: Parser ()
+dataAllValuesFrom :: Parser ClassExpression
 dataAllValuesFrom = do
   symbol "DataAllValuesFrom"
-  parens $ do
-    some dataPropertyExpression
-    dataRange
-  pure ()
+  parens $ CExpDataAllValuesFrom <$> singleOrMany "" dataPropertyExpression <*> dataRange
 
-dataHasValue :: Parser ()
+dataHasValue :: Parser ClassExpression
 dataHasValue = do
   symbol "DataHasValue"
-  parens $ do
-    dataPropertyExpression
-    literal
-  pure ()
+  parens $ CExpDataHasValue <$> dataPropertyExpression <*> literal
 
-dataCardinality :: Text -> Parser ()
-dataCardinality l = do
+dataCardinality
+  :: Text
+  -> (Int -> DataPropertyExpression -> Maybe DataRange -> ClassExpression)
+  -> Parser ClassExpression
+dataCardinality l c = do
   symbol l
-  parens $ do
-    nonNegativeInteger
-    dataPropertyExpression
-    optional dataRange
-  pure ()
+  parens $ c <$> nonNegativeInteger <*> dataPropertyExpression <*> optional dataRange
 
-dataMinCardinality :: Parser ()
-dataMinCardinality = dataCardinality "DataMinCardinality"
+dataMinCardinality :: Parser ClassExpression
+dataMinCardinality = dataCardinality "DataMinCardinality" CExpDataMinCardinality
 
-dataMaxCardinality :: Parser ()
-dataMaxCardinality = dataCardinality "DataMaxCardinality"
+dataMaxCardinality :: Parser ClassExpression
+dataMaxCardinality = dataCardinality "DataMaxCardinality" CExpDataMaxCardinality
 
-dataExactCardinality :: Parser ()
-dataExactCardinality = dataCardinality "DataExactCardinality"
+dataExactCardinality :: Parser ClassExpression
+dataExactCardinality = dataCardinality "DataExactCardinality" CExpDataExactCardinality
 
 axiom :: Parser ()
 axiom =  declaration $> ()
@@ -449,10 +419,10 @@ subClassOf = do
     superClassExpression
   pure ()
 
-subClassExpression :: Parser ()
+subClassExpression :: Parser ClassExpression
 subClassExpression = classExpression
 
-superClassExpression :: Parser ()
+superClassExpression :: Parser ClassExpression
 superClassExpression = classExpression
 
 equivalentClasses :: Parser ()

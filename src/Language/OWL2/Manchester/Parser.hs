@@ -207,6 +207,9 @@ dataRange = do
 -- >>> parseTest (dataConjunction *> eof) "integer[<10] and integer[>0]"
 -- ()
 --
+-- >>> parseTest (dataConjunction *> eof) "test:Class1 that not test:Class2"
+-- ()
+--
 dataConjunction :: Parser DataRange
 dataConjunction = do
   lst <- singleOrMany "and" dataPrimary
@@ -679,62 +682,6 @@ misc =
     <|> DifferentIndividuals
         <$> (symbol "DifferentIndividuals:" *> annotationSection) <*> listOfAtLeast2 individual
 
------------------------
---- Generic parsers ---
------------------------
-
-optionalNegation :: Parser (WithNegation ())
-optionalNegation = maybe (Positive ()) (const (Negative ())) <$> (optional . symbol $ "not")
-
--- | It parser one or more elements parsed by the input parser p and separated by the input string
---
--- >>> parseTest (singleOrMany "," . string $ "test") "test"
--- "test" :| []
---
--- >>> parseTest (singleOrMany "or" . lexeme . string $ "test") "test or test or test"
--- "test" :| ["test","test"]
---
-singleOrMany :: Text -> Parser p -> Parser (NonEmpty p)
-singleOrMany sep p =
-  let multipleP = (:|) <$> p <*> some (symbol sep *> p) in try multipleP <|> (pure <$> p)
-
--- | It parses non empty lists
---
--- >>> parseTest (nonEmptyList languageTag) "@en, @el, @test"
--- "en" :| ["el","test"]
---
--- >>> parseTest (nonEmptyList languageTag) ""
--- ...
--- unexpected end of input
--- expecting '@'
---
-nonEmptyList :: Parser p -> Parser (NonEmpty p)
-nonEmptyList p = (:|) <$> lexeme p <*> many (symbol "," *> lexeme p)
-
--- | It parses lists with at least two elements
---
--- >>> parseTest (listOfAtLeast2 languageTag) "@en, @el, @test"
--- ("en","el") :# ["test"]
---
--- >>> parseTest (listOfAtLeast2 languageTag) "@en"
--- ...
--- unexpected end of input
--- ...
---
-listOfAtLeast2 :: Parser p -> Parser (AtLeast2List p)
-listOfAtLeast2 p = atLeast2List' <$> p <*> (symbol "," *> nonEmptyList p)
-
--- | It parses non empty annotated lists
---
--- >>> parseTest (annotatedList description *> eof) "Man, Person"
--- ()
---
-annotatedList :: Parser p -> Parser (AnnotatedList p)
-annotatedList p =
-  let annotatedElement = Annotated <$> ((,) <$> annotationSection <*> p)
-  in  nonEmptyList annotatedElement
-
-
 predifinedPrefixes :: [PrefixDeclaration]
 predifinedPrefixes =
   [ PrefixD "rdf"  (FullIRI "http://www.w3.org/1999/02/22-rdf-syntax-ns#")
@@ -757,3 +704,16 @@ parseOntologyDoc file =
         Right doc -> do
           putStrLn "File parsed succesfully"
           pure (Just doc)
+
+
+-- | It parses non empty annotated lists
+--
+-- >>> parseTest (annotatedList description *> eof) "Man, Person"
+-- ()
+--
+annotatedList :: Parser p -> Parser (AnnotatedList p)
+annotatedList p =
+  let annotatedElement = Annotated <$> ((,) <$> annotationSection <*> p)
+  in  nonEmptyList annotatedElement
+
+
