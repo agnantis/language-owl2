@@ -297,9 +297,12 @@ restrictionValue = literal
 -- >>> parseTest (description *> eof) "hasFirstName value \"John\" or hasFirstName value \"Jack\"^^xsd:string"
 -- ()
 --
-description :: Parser Description
-description = Description <$> singleOrMany "or" conjunction
-
+description :: Parser ClassExpression
+description = do
+  conj <- singleOrMany "or" conjunction
+  pure $ case conj of
+    (x :| [])     -> x
+    (x :| (y:ys)) -> CExpObjectUnionOf ((x,y) :# ys)
 -- | It parses a conjunction
 --
 -- >>> parseTest (conjunction *> eof) "hasFirstName value \"John\""
@@ -317,19 +320,24 @@ description = Description <$> singleOrMany "or" conjunction
 -- >>> parseTest (conjunction *> eof) "p some a and p only b"
 -- ()
 --
-conjunction :: Parser Conjunction
-conjunction =  try (uncurry ClassConj <$> restrictions)
-           <|> try (PrimConj <$> singleOrMany "and" primary)
+conjunction :: Parser ClassExpression
+conjunction =  try restrictions <|> try prims
  where
+  prims = do
+    pr <- singleOrMany "and" primary
+    pure $ case pr of
+      (x :| [])     -> x
+      (x :| (y:ys)) -> CExpObjectIntersectionOf $ (x, y) :# ys
+  restrictions = do
+    clsIRI    <- classIRI <* symbol "that"
+    (rst:|xs) <- singleOrMany "and" restWithNeg
+    pure . CExpObjectIntersectionOf $ (CExpClass clsIRI, rst) :# xs
   restWithNeg = do
     neg  <- optionalNegation
     rst  <- restriction
-    pure $ const rst <$> neg
-  restrictions = do
-    clsIRI <- classIRI <* symbol "that"
-    rst    <- restWithNeg
-    rsts   <- many $ symbol "and" *> restWithNeg
-    pure (clsIRI, rst :| rsts)
+    pure $ case neg of
+      Positive _ -> rst
+      Negative _ -> CExpObjectComplementOf rst
 
 -- | It parses a primary
 --
@@ -342,10 +350,13 @@ conjunction =  try (uncurry ClassConj <$> restrictions)
 -- >>> parseTest (primary *> eof) "not hasFirstName value \"John\""
 -- ()
 --
-primary :: Parser Primary
+primary :: Parser ClassExpression
 primary = do
-  neg  <- optionalNegation
-  PrimaryR . (\x -> fmap (const x) neg) <$> try restriction <|> PrimaryA . (\x -> fmap (const x) neg) <$> try atomic
+  neg <- optionalNegation
+  exp <- try restriction <|> try atomic
+  pure $ case neg of
+    Positive _ -> exp
+    Negative _ -> CExpObjectComplementOf exp
 
 -- | It parses one of the many differnt type of restrictions on object or data properties
 --
@@ -358,23 +369,27 @@ primary = do
 -- >>> parseTest (restriction *> eof) "hasFirstName only string[minLength 1]"
 -- ()
 --
-restriction :: Parser Restriction
-restriction =  OPRestriction <$> try (OPR <$> objectPropertyExpression <*> objectRestriction)
-           <|> DPRestriction <$> try (DPR <$> dataPropertyExpression <*> dataRestriction)
+restriction :: Parser ClassExpression
+restriction =  try (objectPropertyExpression >>= objectRestriction)
+           <|> try (dataPropertyExpression >>= dataRestriction)
  where
-  objectRestriction =  try (SomeOPR    <$> (symbol "some"  *> primary))
-                   <|> try (OnlyOPR    <$> (symbol "only"  *> primary))
-                   <|> try (ValueOPR   <$> (symbol "value" *> individual))
-                   <|> symbol "Self"    $> SelfOPR
-                   <|> try (MinOPR     <$> (symbol "min"     *> nonNegativeInteger) <*> optional primary)
-                   <|> try (MaxOPR     <$> (symbol "max"     *> nonNegativeInteger) <*> optional primary)
-                   <|> try (ExactlyOPR <$> (symbol "exactly" *> nonNegativeInteger) <*> optional primary)
-  dataRestriction   =  try (SomeDPR    <$> (symbol "some"    *> dataPrimary))
-                   <|> try (OnlyDPR    <$> (symbol "only"    *> dataPrimary))
-                   <|> try (ValueDPR   <$> (symbol "value"   *> literal))
-                   <|> try (MinDPR     <$> (symbol "min"     *> nonNegativeInteger) <*> optional dataPrimary)
-                   <|> try (MaxDPR     <$> (symbol "max"     *> nonNegativeInteger) <*> optional dataPrimary)
-                   <|> try (ExactlyDPR <$> (symbol "exactly" *> nonNegativeInteger) <*> optional dataPrimary)
+  objectRestriction :: ObjectPropertyExpression -> Parser ClassExpression
+  objectRestriction o =
+        try (CExpObjectSomeValuesFrom o <$> (symbol "some"  *> primary))
+    <|> try (CExpObjectAllValuesFrom o   <$> (symbol "only"  *> primary))
+    <|> try (CExpObjectHasValue o <$> (symbol "value" *> individual))
+    <|> symbol "Self"    $> CExpObjectHasSelf o
+    <|> try (CExpObjectMinCardinality   <$> (symbol "min"     *> nonNegativeInteger) <*> pure o <*> optional primary)
+    <|> try (CExpObjectMaxCardinality   <$> (symbol "max"     *> nonNegativeInteger) <*> pure o <*> optional primary)
+    <|> try (CExpObjectExactCardinality <$> (symbol "exactly" *> nonNegativeInteger) <*> pure o <*> optional primary)
+  dataRestriction :: DataPropertyExpression -> Parser ClassExpression
+  dataRestriction d =
+        try (CExpDataSomeValuesFrom d <$> (symbol "some" *> dataPrimary))
+    <|> try (CExpDataAllValuesFrom  d <$> (symbol "only" *> dataPrimary))
+    <|> try (CExpDataHasValue d       <$> (symbol "value"   *> literal))
+    <|> try (CExpDataMinCardinality   <$> (symbol "min"     *> nonNegativeInteger) <*> pure d <*> optional dataPrimary)
+    <|> try (CExpDataMaxCardinality   <$> (symbol "max"     *> nonNegativeInteger) <*> pure d <*> optional dataPrimary)
+    <|> try (CExpDataExactCardinality <$> (symbol "exactly" *> nonNegativeInteger) <*> pure d <*> optional dataPrimary)
 
 -- | It parses a class IRI or a list of individual IRIs
 --
@@ -387,10 +402,10 @@ restriction =  OPRestriction <$> try (OPR <$> objectPropertyExpression <*> objec
 -- >>> parseTest atomic "{ <class.iri#ind1>, <class.iri#ind2> }"
 -- AtomicIndividuals (NamedIRI (FullIRI "class.iri#ind1") :| [NamedIRI (FullIRI "class.iri#ind2")])
 --
-atomic :: Parser Atomic
-atomic =  AtomicClass       <$> classIRI
-      <|> AtomicIndividuals <$> enclosedS '{' (nonEmptyList individual)
-      <|> AtomicDescription <$> enclosedS '(' description
+atomic :: Parser ClassExpression
+atomic =  CExpClass       <$> classIRI
+      <|> CExpObjectOneOf <$> enclosedS '{' (nonEmptyList individual)
+      <|> enclosedS '(' description
 
 
 --------------------------------

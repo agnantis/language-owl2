@@ -362,15 +362,19 @@ objectMaxCardinality = objectCardinality "ObjectMaxCardinality" CExpObjectMaxCar
 objectExactCardinality :: Parser ClassExpression
 objectExactCardinality = objectCardinality "ObjectExactCardinality" CExpObjectMinCardinality
 
+-- TODO: Protege does not seem to support multiple data property expressions in a single "some"
+-- e.g. Was not possible to parse: "EquivalentClasses(test-ont:Test1 DataSomeValuesFrom(test-ont:dataProp1 test-ont:dataPro2 xsd:integer)) 
 dataSomeValuesFrom :: Parser ClassExpression
 dataSomeValuesFrom = do
   symbol "DataSomeValuesFrom"
-  parens $ CExpDataSomeValuesFrom <$> singleOrMany "" dataPropertyExpression <*> dataRange
+  parens $ CExpDataSomeValuesFrom <$> dataPropertyExpression <*> dataRange
 
+-- TODO: Protege does not seem to support multiple data property expressions in a single "some"
+-- e.g. Was not possible to parse: "EquivalentClasses(test-ont:Test1 DataAllValuesFrom(test-ont:dataProp1 test-ont:dataPro2 xsd:integer)) 
 dataAllValuesFrom :: Parser ClassExpression
 dataAllValuesFrom = do
   symbol "DataAllValuesFrom"
-  parens $ CExpDataAllValuesFrom <$> singleOrMany "" dataPropertyExpression <*> dataRange
+  parens $ CExpDataAllValuesFrom <$> dataPropertyExpression <*> dataRange
 
 dataHasValue :: Parser ClassExpression
 dataHasValue = do

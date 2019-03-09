@@ -59,7 +59,8 @@ data DataRange
     | OneOfDR (NonEmpty Literal)
     | RestrictionDR DatatypeRestriction deriving (Show)
 newtype DecimalLiteral = DecimalL Double deriving (Show)
-newtype Description = Description (NonEmpty Conjunction) deriving (Show)
+type Description = ClassExpression
+--newtype Description = Description (NonEmpty Conjunction) deriving (Show)
 newtype IntegerLiteral = IntegerL Integer deriving (Show)
 newtype NodeID = NodeID Text deriving (Show)
 newtype Annotated a = Annotated { unAnnotated :: ([Annotated Annotation], a) } deriving (Show)
@@ -141,8 +142,8 @@ data ClassExpression
   | CExpObjectMinCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
   | CExpObjectMaxCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
   | CExpObjectExactCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
-  | CExpDataSomeValuesFrom (NonEmpty DataPropertyExpression) DataRange 
-  | CExpDataAllValuesFrom (NonEmpty DataPropertyExpression) DataRange
+  | CExpDataSomeValuesFrom DataPropertyExpression DataRange 
+  | CExpDataAllValuesFrom DataPropertyExpression DataRange
   | CExpDataHasValue DataPropertyExpression Literal
   | CExpDataMinCardinality Int DataPropertyExpression (Maybe DataRange)
   | CExpDataMaxCardinality Int DataPropertyExpression (Maybe DataRange)

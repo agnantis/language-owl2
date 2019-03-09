@@ -72,8 +72,28 @@ instance PrettyM a => PrettyM (Annotated a) where
   pretty (Annotated ([], a)) = pretty a
   pretty (Annotated (xs, a)) = "Annotations:" <+> pretty xs <+> pretty a
           
-instance PrettyM Description where
-  pretty (Description nel) = sep . punctuate " or " $ pretty <$> NE.toList nel
+-- instance PrettyM Description where
+--   pretty (Description nel) = sep . punctuate " or " $ pretty <$> NE.toList nel
+instance PrettyM ClassExpression where
+  pretty (CExpClass iri)                        = pretty iri
+  pretty (CExpObjectIntersectionOf ces)         = parens $ concatWith (\x y -> x <+> "or" <+> y) (pretty <$> (toList ces))
+  pretty (CExpObjectUnionOf ces)                = parens $ concatWith (surround " and ") (pretty <$> (toList ces))
+  pretty (CExpObjectComplementOf ce)            = "not" <+> pretty ce
+  pretty (CExpObjectOneOf inds)                 = braces $ concatWith (surround ", ") (pretty <$> inds)
+  pretty (CExpObjectSomeValuesFrom ope ce)      = pretty ope <+> "some"    <+> pretty ce
+  pretty (CExpObjectAllValuesFrom ope ce)       = pretty ope <+> "only"    <+> pretty ce
+  pretty (CExpObjectHasValue ope i)             = pretty ope <+> "value"   <+> pretty i
+  pretty (CExpObjectHasSelf ope)                = pretty ope <+> "Self"
+  pretty (CExpObjectMinCardinality i ope mce)   = pretty ope <+> "min"     <+> pretty i   <+> pretty mce
+  pretty (CExpObjectMaxCardinality i ope mce)   = pretty ope <+> "max"     <+> pretty i   <+> pretty mce
+  pretty (CExpObjectExactCardinality i ope mce) = pretty ope <+> "exactly" <+> pretty i   <+> pretty mce
+  pretty (CExpDataSomeValuesFrom dpe dr)        = pretty dpe <+> "some"    <+> pretty dr
+  pretty (CExpDataAllValuesFrom dpe dr)         = pretty dpe <+> "only"    <+> pretty dr
+  pretty (CExpDataHasValue dpe l)               = pretty dpe <+> "value"   <+> pretty l
+  pretty (CExpDataMinCardinality i dpe mdr)     = pretty dpe <+> "min"     <+> pretty mdr
+  pretty (CExpDataMaxCardinality i dpe mdr)     = pretty dpe <+> "max"     <+> pretty mdr
+  pretty (CExpDataExactCardinality i dpe mdr)   = pretty dpe <+> "exactly" <+> pretty mdr
+
 
 instance PrettyM Annotation where
   pretty (Annotation i t) = pretty i <+> pretty t
