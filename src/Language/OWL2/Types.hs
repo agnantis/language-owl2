@@ -78,10 +78,10 @@ data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving (Show)
 data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show)
 data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [Annotated Annotation] [Frame] deriving (Show)
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Show)
-data Annotation = Annotation AnnotationPropertyIRI AnnotationTarget deriving (Show)
+data Annotation = Annotation AnnotationPropertyIRI AnnotationValue deriving (Show)
 data Frame
     = FrameDT DatatypeFrame
-    | FrameC ClassFrame
+    | FrameC ClassAxiom
     | FrameOP ObjectPropertyFrame
     | FrameDP DataPropertyFrame
     | FrameAP AnnotationPropertyFrame
@@ -102,14 +102,24 @@ data Facet
     | L_FACET
     | GE_FACET
     | G_FACET deriving (Show)
-data ClassFrame = ClassF IRI [ClassElement] deriving (Show)
-data ClassElement
-    = AnnotationCE SomeAnnotations
-    | SubClassOfCE Descriptions
-    | EquivalentToCE Descriptions
-    | DisjointToCE Descriptions
-    | DisjointUnionOfCE Annotations (AtLeast2List Description)
-    | HasKeyCE Annotations (NonEmpty ObjectOrDataPE) deriving (Show)
+data ClassAxiom
+    = ClassAxiomAnnotation Annotations ClassExpression Annotation -- TODO: I may have to move it from here as these axiom are included in all *Axioms
+    | ClassAxiomSubClassOf Annotations ClassExpression ClassExpression
+    | ClassAxiomEquivalentClasses Annotations (AtLeast2List ClassExpression)
+    | ClassAxiomDisjointClasses Annotations (AtLeast2List ClassExpression)
+    | ClassAxiomDisjointUnion Annotations ClassIRI (AtLeast2List ClassExpression)
+    | ClassAxiomHasKey Annotations ClassExpression (NonEmpty ObjectOrDataPE) deriving (Show)
+
+data DeclarationAxiom = DeclarationAxiom Annotations Entity deriving (Show)
+
+-- data ClassFrame = ClassF IRI [ClassElement] deriving (Show)
+--data ClassElement
+--    = AnnotationCE SomeAnnotations
+--    | SubClassOfCE Descriptions
+--    | EquivalentToCE Descriptions
+--    | DisjointToCE Descriptions
+--    | DisjointUnionOfCE Annotations (AtLeast2List Description)
+--    | HasKeyCE Annotations (NonEmpty ObjectOrDataPE) deriving (Show)
 data ObjectOrDataPE
     = ObjectPE ObjectPropertyExpression
     | DataPE DataPropertyExpression deriving (Show)
@@ -244,7 +254,7 @@ data Entity
     | EntityDataProperty DataPropertyIRI
     | EntityAnnotationProperty AnnotationPropertyIRI
     | EntityIndividual IndividualIRI deriving (Show)
-data AnnotationTarget
+data AnnotationValue
     = NodeAT NodeID
     | IriAT IRI
     | LiteralAT Literal deriving (Show)

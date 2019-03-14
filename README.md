@@ -37,4 +37,18 @@ Its current version is able to parse and pretty print the [Manchester](https://w
 
 ## Possible issues in Functional syntax specification
 
-- Nothing yet ;)
+- Protege does not seem to support multiple data property expressions in a single `DataAllValuesFrom` class expression. For example it was not possible to parse: `EquivalentClasses(test-ont:Test1 DataAllValuesFrom(test-ont:dataProp1 test-ont:dataPro2 xsd:integer))`. However the the specifications define this constructor as:
+  `DataSomeValuesFrom := 'DataSAllValuesFrom' '(' DataPropertyExpression { DataPropertyExpression } DataRange ')'`
+  - The same applies for `DataDomeValuesFrom` class expression
+
+## Possible issues in Protege
+
+### Manchester format
+
+- It seems that even though Protege can parse _General class axioms_ in Manchester format, it does not save them back
+  - Steps to reproduce:
+    1. Add the line `EquivalentClasses: cls1 or cls2, cls3 and cls4` to the file
+    2. Import the ontology. You can see the assertion in the _General class axioms_ window
+    3. Make any change in order to trigger Protege to save the file
+    4. Save the ontology in Manchester format
+    5. Open the file with an editor; The assertion is not there

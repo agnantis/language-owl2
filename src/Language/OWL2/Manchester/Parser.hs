@@ -120,7 +120,7 @@ mAnnotation = annotation literal
 -- >>> parseTest (annotationSection *> eof) (T.unlines input)
 -- ()
 --
-annotationSection :: Parser [Annotated Annotation]
+annotationSection :: Parser Annotations
 annotationSection = let p = symbol "Annotations:" *> annotatedList mAnnotation
                     in maybe [] NE.toList <$> optional p
 
@@ -157,7 +157,7 @@ importStmt = ImportD <$> (symbol "Import:" *> iri)
 
 frame :: Parser Frame
 frame =  FrameDT <$> datatypeFrame
-     <|> FrameC  <$> classFrame
+     <|> FrameC . head  <$> classAxiom --TODO: head is temp!
      <|> FrameOP <$> objectPropertyFrame
      <|> FrameDP <$> dataPropertyFrame
      <|> FrameAP <$> annotationPropertyFrame
@@ -205,9 +205,6 @@ dataRange = do
 -- | It parses a data conjunction (i.e. 'and')
 --
 -- >>> parseTest (dataConjunction *> eof) "integer[<10] and integer[>0]"
--- ()
---
--- >>> parseTest (dataConjunction *> eof) "test:Class1 that not test:Class2"
 -- ()
 --
 dataConjunction :: Parser DataRange
@@ -303,6 +300,7 @@ description = do
   pure $ case conj of
     (x :| [])     -> x
     (x :| (y:ys)) -> CExpObjectUnionOf ((x,y) :# ys)
+
 -- | It parses a conjunction
 --
 -- >>> parseTest (conjunction *> eof) "hasFirstName value \"John\""
@@ -312,13 +310,16 @@ description = do
 -- ()
 --
 -- >>> parseTest conjunction "Person"
--- PrimConj (PrimaryA (Positive (AtomicClass (SimpleIRI "Person"))) :| [])
+-- CExpClass (SimpleIRI "Person")
 --
 -- >>> parseTest (conjunction *> eof) "owl:Thing that hasFirstName exactly 1"
 -- ()
 --
 -- >>> parseTest (conjunction *> eof) "p some a and p only b"
 -- ()
+--
+-- >>> parseTest (conjunction <* eof) "test:Class1 that not test:Class2"
+-- CExpObjectIntersectionOf ((CExpClass (AbbreviatedIRI "test" "Class1"),CExpObjectComplementOf (CExpClass (AbbreviatedIRI "test" "Class2"))) :# [])
 --
 conjunction :: Parser ClassExpression
 conjunction =  try restrictions <|> try prims
@@ -334,7 +335,7 @@ conjunction =  try restrictions <|> try prims
     pure . CExpObjectIntersectionOf $ (CExpClass clsIRI, rst) :# xs
   restWithNeg = do
     neg  <- optionalNegation
-    rst  <- restriction
+    rst  <- primary
     pure $ case neg of
       Positive _ -> rst
       Negative _ -> CExpObjectComplementOf rst
@@ -345,26 +346,26 @@ conjunction =  try restrictions <|> try prims
 -- ()
 --
 -- >>> parseTest primary "not Person"
--- PrimaryA (Negative (AtomicClass (SimpleIRI "Person")))
+-- CExpObjectComplementOf (CExpClass (SimpleIRI "Person"))
 --
 -- >>> parseTest (primary *> eof) "not hasFirstName value \"John\""
 -- ()
 --
 primary :: Parser ClassExpression
 primary = do
-  neg <- optionalNegation
-  exp <- try restriction <|> try atomic
+  neg  <- optionalNegation
+  expr <- try restriction <|> try atomic
   pure $ case neg of
-    Positive _ -> exp
-    Negative _ -> CExpObjectComplementOf exp
+    Positive _ -> expr
+    Negative _ -> CExpObjectComplementOf expr
 
 -- | It parses one of the many differnt type of restrictions on object or data properties
 --
 -- >>> parseTest (restriction <* eof) "hasFirstName value \"John\""
--- DPRestriction (DPR (SimpleIRI "hasFirstName") (ValueDPR (StringLiteralNoLang "John")))
+-- CExpDataHasValue (SimpleIRI "hasFirstName") (StringLiteralNoLang "John")
 --
 -- >>> parseTest (restriction <* eof) "hasFirstName exactly 1"
--- OPRestriction (OPR (OPE (SimpleIRI "hasFirstName")) (ExactlyOPR 1 Nothing))
+-- CExpObjectExactCardinality 1 (OPE (SimpleIRI "hasFirstName")) Nothing
 --
 -- >>> parseTest (restriction *> eof) "hasFirstName only string[minLength 1]"
 -- ()
@@ -394,13 +395,13 @@ restriction =  try (objectPropertyExpression >>= objectRestriction)
 -- | It parses a class IRI or a list of individual IRIs
 --
 -- >>> parseTest atomic "<class.iri>"
--- AtomicClass (FullIRI "class.iri")
+-- CExpClass (FullIRI "class.iri")
 --
 -- >>> parseTest atomic "Person"
--- AtomicClass (SimpleIRI "Person")
+-- CExpClass (SimpleIRI "Person")
 --
 -- >>> parseTest atomic "{ <class.iri#ind1>, <class.iri#ind2> }"
--- AtomicIndividuals (NamedIRI (FullIRI "class.iri#ind1") :| [NamedIRI (FullIRI "class.iri#ind2")])
+-- CExpObjectOneOf (NamedIRI (FullIRI "class.iri#ind1") :| [NamedIRI (FullIRI "class.iri#ind2")])
 --
 atomic :: Parser ClassExpression
 atomic =  CExpClass       <$> classIRI
@@ -455,7 +456,7 @@ datatypeFrame = do
 --       ]
 -- :}
 --
--- >>> parseTest (classFrame *> eof) (T.unlines input)
+-- >>> parseTest (classAxiom <* eof) (T.unlines input)
 -- ()
 --
 -- TODO-check-1: in specs `sndChoice` (aka `HasKey`) is an alternative to the others
@@ -463,23 +464,58 @@ datatypeFrame = do
 -- TODO-check-2: in specs the annotations of `HasKey` and `DisjointUnionOf` are required,
 -- but I think is wrong. I made them optional :)
 --
-classFrame :: Parser ClassFrame
-classFrame = do
+classAxiom :: Parser [ClassAxiom]
+classAxiom = do
   clsIRI <- symbol "Class:" *> classIRI
-  blob   <- many choices
-  pure $ ClassF clsIRI blob
+  let x = CExpClass clsIRI
+  axioms <- many $ choice [annotCA x, subCA x, equCA x,  disCA x, dscCA clsIRI, keyCA x]  --choices
+  pure $ concat axioms
  where
-  choices :: Parser ClassElement
-  choices =  AnnotationCE      <$> (symbol "Annotations:" *> annotatedList mAnnotation)
-         <|> SubClassOfCE      <$> (symbol "SubClassOf:" *> annotatedList description)
-         <|> EquivalentToCE    <$> (symbol "EquivalentTo:" *> annotatedList description)
-         <|> DisjointToCE      <$> (symbol "DisjointWith:" *> annotatedList description)
-         <|> DisjointUnionOfCE <$> (symbol "DisjointUnionOf:" *> annotationSection)
-                               <*> listOfAtLeast2 description
-         <|> HasKeyCE          <$> (symbol "HasKey:" *> annotationSection)
-                               <*> (NE.fromList <$> some ((ObjectPE <$> objectPropertyExpression)
-                                              <|> (DataPE   <$> dataPropertyExpression)))
---  nonEmptyDPE = NonEmptyD <$> many objectPropertyExpression <*> nonEmptyList dataPropertyExpression
+  annotCA c = do
+    _ <- symbol "Annotations:"
+    mAn <- annotatedList mAnnotation
+    pure $ (\(Annotated (a, v)) -> ClassAxiomAnnotation a c v) <$> NE.toList mAn
+  subCA c = do
+    _ <- symbol "SubClassOf:"
+    ds <- annotatedList description
+    pure $ (\(Annotated (a, v)) -> ClassAxiomSubClassOf a c v) <$> NE.toList ds
+  equCA c = do
+    _ <- symbol "EquivalentTo:"
+    ds <- annotatedList description
+    pure $ (\(Annotated (a, v)) -> ClassAxiomEquivalentClasses a ((c,v):#[])) <$> NE.toList ds
+  disCA c = do
+    _ <- symbol "DisjointWith:"
+    ds <- annotatedList description
+    pure $ (\(Annotated (a, v)) -> ClassAxiomDisjointClasses a ((c,v):#[])) <$> NE.toList ds
+  dscCA c = do
+    _ <- symbol "DisjointUnionOf:"
+    an <- annotationSection
+    ds <- listOfAtLeast2 description
+    pure [ClassAxiomDisjointUnion an c ds]
+  keyCA c = do
+    _ <- symbol "HasKey:"
+    an <- annotationSection
+    od <- NE.fromList <$> some ((ObjectPE <$> objectPropertyExpression) <|> (DataPE <$> dataPropertyExpression))
+    pure [ClassAxiomHasKey an c od]
+
+
+--classFrame :: Parser ClassFrame
+--classFrame = do
+--  clsIRI <- symbol "Class:" *> classIRI
+--  blob   <- many choices
+--  pure $ ClassF clsIRI blob
+-- where
+--  choices :: Parser ClassElement
+--  choices =  AnnotationCE      <$> (symbol "Annotations:" *> annotatedList mAnnotation)
+--         <|> SubClassOfCE      <$> (symbol "SubClassOf:" *> annotatedList description)
+--         <|> EquivalentToCE    <$> (symbol "EquivalentTo:" *> annotatedList description)
+--         <|> DisjointToCE      <$> (symbol "DisjointWith:" *> annotatedList description)
+--         <|> DisjointUnionOfCE <$> (symbol "DisjointUnionOf:" *> annotationSection)
+--                               <*> listOfAtLeast2 description
+--         <|> HasKeyCE          <$> (symbol "HasKey:" *> annotationSection)
+--                               <*> (NE.fromList <$> some ((ObjectPE <$> objectPropertyExpression)
+--                                              <|> (DataPE   <$> dataPropertyExpression)))
+----  nonEmptyDPE = NonEmptyD <$> many objectPropertyExpression <*> nonEmptyList dataPropertyExpression
 
 -- | It parses an object property
 --

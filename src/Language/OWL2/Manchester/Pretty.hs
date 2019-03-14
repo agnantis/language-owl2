@@ -76,7 +76,7 @@ instance PrettyM a => PrettyM (Annotated a) where
 --   pretty (Description nel) = sep . punctuate " or " $ pretty <$> NE.toList nel
 instance PrettyM ClassExpression where
   pretty (CExpClass iri)                        = pretty iri
-  pretty (CExpObjectIntersectionOf ces)         = parens $ concatWith (\x y -> x <+> "or" <+> y) (pretty <$> (toList ces))
+  pretty (CExpObjectIntersectionOf ces)         = parens $ concatWith (surround " or ")  (pretty <$> (toList ces))
   pretty (CExpObjectUnionOf ces)                = parens $ concatWith (surround " and ") (pretty <$> (toList ces))
   pretty (CExpObjectComplementOf ce)            = "not" <+> pretty ce
   pretty (CExpObjectOneOf inds)                 = braces $ concatWith (surround ", ") (pretty <$> inds)
@@ -90,15 +90,15 @@ instance PrettyM ClassExpression where
   pretty (CExpDataSomeValuesFrom dpe dr)        = pretty dpe <+> "some"    <+> pretty dr
   pretty (CExpDataAllValuesFrom dpe dr)         = pretty dpe <+> "only"    <+> pretty dr
   pretty (CExpDataHasValue dpe l)               = pretty dpe <+> "value"   <+> pretty l
-  pretty (CExpDataMinCardinality i dpe mdr)     = pretty dpe <+> "min"     <+> pretty mdr
-  pretty (CExpDataMaxCardinality i dpe mdr)     = pretty dpe <+> "max"     <+> pretty mdr
-  pretty (CExpDataExactCardinality i dpe mdr)   = pretty dpe <+> "exactly" <+> pretty mdr
+  pretty (CExpDataMinCardinality i dpe mdr)     = pretty dpe <+> "min"     <+> pretty i   <+> pretty mdr
+  pretty (CExpDataMaxCardinality i dpe mdr)     = pretty dpe <+> "max"     <+> pretty i   <+> pretty mdr
+  pretty (CExpDataExactCardinality i dpe mdr)   = pretty dpe <+> "exactly" <+> pretty i   <+> pretty mdr
 
 
 instance PrettyM Annotation where
   pretty (Annotation i t) = pretty i <+> pretty t
 
-instance PrettyM AnnotationTarget where
+instance PrettyM AnnotationValue where
   pretty (NodeAT n)    = pretty n
   pretty (IriAT i)     = pretty i
   pretty (LiteralAT l) = pretty l 
@@ -242,18 +242,36 @@ instance PrettyM DatatypeFrame where
 instance PrettyM AnnotDataRange where
   pretty (AnnotDataRange a dr) = pretty a <+> pretty dr
 
-instance PrettyM ClassFrame where
-  pretty (ClassF i ces) = "Class:" <+> pretty i
-                        <> line
-                        <> indent 4 (vsep (pretty <$> ces))
+-- instance PrettyM Misc where
+--   pretty (EquivalentClasses as ds)           = "EquivalentClasses:"    <+> pretty as <+> pretty ds
+--   pretty (DisjointClasses as ds)             = "DisjointClasses:"      <+> pretty as <+> pretty ds
+--   pretty (EquivalentObjectProperties as ope) = "EquivalentProperties:" <+> pretty as <+> pretty ope
+--   pretty (DisjointObjectProperties as ope)   = "DisjointProperties:"   <+> pretty as <+> pretty ope
+--   pretty (EquivalentDataProperties as dpe)   = "EquivalentProperties:" <+> pretty as <+> pretty dpe
+--   pretty (DisjointDataProperties as dpe)     = "DisjointProperties:"   <+> pretty as <+> pretty dpe
+--   pretty (SameIndividual as is)              = "SameIndividual:"       <+> pretty as <+> pretty is
+--   pretty (DifferentIndividuals as is)        = "DifferentIndividuals:" <+> pretty as <+> pretty is
 
-instance PrettyM ClassElement where
-  pretty (AnnotationCE as)          = "Annotations:"     <+> align (pretty as)
-  pretty (SubClassOfCE ds)          = "SubClassOf:"      <+> align (pretty ds)
-  pretty (EquivalentToCE ds)        = "EquivalentTo:"    <+> align (pretty ds)
-  pretty (DisjointToCE ds)          = "DisjointWith:"    <+> align (pretty ds)
-  pretty (DisjointUnionOfCE mas ds) = "DisjointUnionOf:" <-> align (pretty mas <-> pretty (toList ds))
-  pretty (HasKeyCE mas od)          = "HasKey:"          <-> align (pretty mas <-> pretty (NE.toList od))
+instance PrettyM ClassAxiom where
+  pretty (ClassAxiomAnnotation ans ce sans) = undefined
+  pretty (ClassAxiomSubClassOf ans sub super) = undefined
+  pretty (ClassAxiomEquivalentClasses ans cel) = "EquivalentClasses:" <+> pretty ans <+> pretty cel
+  pretty (ClassAxiomDisjointClasses ans cel) = "DisjointClasses:" <+> pretty ans <+> pretty cel 
+  pretty (ClassAxiomDisjointUnion ans ci cel) = undefined
+  pretty (ClassAxiomHasKey ans ce odpl) = undefined
+
+-- instance PrettyM ClassFrame where
+--   pretty (ClassF i ces) = "Class:" <+> pretty i
+--                         <> line
+--                         <> indent 4 (vsep (pretty <$> ces))
+--
+--instance PrettyM ClassElement where
+--  pretty (AnnotationCE as)          = "Annotations:"     <+> align (pretty as)
+--  pretty (SubClassOfCE ds)          = "SubClassOf:"      <+> align (pretty ds)
+--  pretty (EquivalentToCE ds)        = "EquivalentTo:"    <+> align (pretty ds)
+--  pretty (DisjointToCE ds)          = "DisjointWith:"    <+> align (pretty ds)
+--  pretty (DisjointUnionOfCE mas ds) = "DisjointUnionOf:" <-> align (pretty mas <-> pretty (toList ds))
+--  pretty (HasKeyCE mas od)          = "HasKey:"          <-> align (pretty mas <-> pretty (NE.toList od))
 
 instance PrettyM ObjectOrDataPE where
   pretty (ObjectPE ope) = pretty ope

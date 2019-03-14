@@ -162,7 +162,7 @@ annotationAssertion = do
     annots   <- axiomAnnotations
     property <- annotationProperty
     subject  <- annotationSubject
-    target   <- annotationTarget literal
+    target   <- annotationValue literal
     let annotList = NE.fromList [Annotated (annots, Annotation property target)]
     pure $ AnnotationPropertyF subject [AnnotationAPE annotList]
 
@@ -408,20 +408,23 @@ axiom =  declaration $> ()
      <|> assertion $> ()
      <|> annotationAxiom $> ()
 
-classAxiom :: Parser ()
-classAxiom =  subClassOf $> ()
-          <|> equivalentClasses $> ()
-          <|> disjointClasses $> ()
-          <|> disjointUnion $> ()
+------------------
+-- Class Axioms --
+------------------
+classAxiom :: Parser ClassAxiom
+classAxiom =  subClassOf
+          <|> equivalentClasses
+          <|> disjointClasses
+          <|> disjointUnion
+          <|> hasKey
 
-subClassOf :: Parser ()
+subClassOf :: Parser ClassAxiom
 subClassOf = do
   symbol "SubClassOf"
-  parens $ do
-    axiomAnnotations
-    subClassExpression
-    superClassExpression
-  pure ()
+  parens $ ClassAxiomSubClassOf
+        <$> axiomAnnotations
+        <*> subClassExpression
+        <*> superClassExpression
 
 subClassExpression :: Parser ClassExpression
 subClassExpression = classExpression
@@ -429,39 +432,39 @@ subClassExpression = classExpression
 superClassExpression :: Parser ClassExpression
 superClassExpression = classExpression
 
-equivalentClasses :: Parser ()
+equivalentClasses :: Parser ClassAxiom
 equivalentClasses = do
   symbol "EquivalentClasses"
-  parens $ do
-    axiomAnnotations
-    classExpression
-    some classExpression
-  pure ()
+  parens $ ClassAxiomEquivalentClasses
+        <$> axiomAnnotations
+        <*> doubleOrMany "" classExpression
 
-disjointClasses :: Parser ()
+disjointClasses :: Parser ClassAxiom
 disjointClasses = do
   symbol "DisjointClasses"
-  parens $ do
-    axiomAnnotations
-    classExpression
-    some classExpression
-  pure ()
+  parens $ ClassAxiomDisjointClasses
+        <$> axiomAnnotations
+        <*> doubleOrMany "" classExpression
 
-disjointUnion :: Parser ()
+disjointUnion :: Parser ClassAxiom
 disjointUnion = do
   symbol "DisjointUnion"
-  parens $ do
-    axiomAnnotations
-    clazz
-    disjointClassExpressions
-  pure ()
+  parens $ ClassAxiomDisjointUnion
+        <$> axiomAnnotations
+        <*> clazz
+        <*> doubleOrMany "" classExpression
 
-disjointClassExpressions :: Parser ()
-disjointClassExpressions = do
-  classExpression
-  some classExpression
-  pure ()
+hasKey :: Parser ClassAxiom
+hasKey = do
+  symbol "HasKey"
+  parens $ ClassAxiomHasKey
+        <$> axiomAnnotations
+        <*> classExpression
+        <*> (NE.fromList <$> some ((ObjectPE <$> objectPropertyExpression) <|> (DataPE <$> dataPropertyExpression)))
 
+----------------------------
+-- Object Property Axioms --
+----------------------------
 objectPropertyAxiom :: Parser ()
 objectPropertyAxiom =  subObjectPropertyOf $> ()
                    <|> equivalentObjectProperties $> ()
@@ -649,16 +652,6 @@ datatypeDefinition = do
     axiomAnnotations
     datatype
     dataRange
-  pure ()
-
-hasKey :: Parser ()
-hasKey = do
-  symbol "HasKey"
-  parens $ do
-    axiomAnnotations
-    classExpression
-    parens $ many objectPropertyExpression
-    parens $ many dataPropertyExpression
   pure ()
 
 assertion :: Parser ()

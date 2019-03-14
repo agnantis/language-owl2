@@ -5,7 +5,6 @@ module Language.OWL2.Internal.Parser where
 
 import           Data.Maybe                               ( fromMaybe )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
-import qualified Data.List.NonEmpty            as NE
 import           Data.Void
 import           Prelude                           hiding ( exponent )
 import           Text.Megaparsec
@@ -273,10 +272,10 @@ annotationPropertyIRI = AnonymousIRI <$> nodeID <|> NamedIRI <$> iri
 -- >> parseTest annotationTarget "<http://some.iri>"
 -- IriAT (FullIRI "http://some.iri")
 --
-annotationTarget :: Parser Literal -> Parser AnnotationTarget
-annotationTarget l =  NodeAT    <$> try nodeID
-                  <|> IriAT     <$> try iri
-                  <|> LiteralAT <$> try l
+annotationValue :: Parser Literal -> Parser AnnotationValue
+annotationValue l =  NodeAT    <$> try nodeID
+                 <|> IriAT     <$> try iri
+                 <|> LiteralAT <$> try l
 
 -- | It parses a single annotation
 -- TODO: Test should be ignored as the literal parser can vary
@@ -285,7 +284,7 @@ annotationTarget l =  NodeAT    <$> try nodeID
 -- Annotation (AnnotationProperty {unAnnotationProperty = AbbreviatedIRI "" "creator"}) (LiteralAT (StringLiteralNoLang "john"))
 --
 annotation :: Parser Literal -> Parser Annotation
-annotation l = Annotation <$> annotationProperty <*> annotationTarget l
+annotation l = Annotation <$> annotationProperty <*> annotationValue l
 
 -- | It parses blank nodes
 --
