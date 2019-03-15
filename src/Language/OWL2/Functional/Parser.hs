@@ -465,7 +465,7 @@ hasKey = do
 ----------------------------
 -- Object Property Axioms --
 ----------------------------
-objectPropertyAxiom :: Parser ()
+objectPropertyAxiom :: Parser ObjectPropertyFrame
 objectPropertyAxiom =  subObjectPropertyOf $> ()
                    <|> equivalentObjectProperties $> ()
                    <|> disjointObjectProperties $> ()

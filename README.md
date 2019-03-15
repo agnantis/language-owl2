@@ -33,6 +33,10 @@ Its current version is able to parse and pretty print the [Manchester](https://w
   - <a name="update1"></a>*Update*: It seems that `annotations <NT>2List` is not equal to `<NT>AnnotatedList`; The elements that use the first syntax (e.g. all the `misc`) define the annotations for the element itself and not its members, so there must be only a single annotation list (i.e. `annotations`) and not an annotation per member. However the `annottation` should have been inside square brakets as annotaitons are optional (tested in Protege)
   - Based on the syntax, a `conjunction` like `classIRI that { :ind1, :ind2 }` is not permitted, as the `classIRI` should be followed by the keyword `that` and then a `restriction` (with an option `not` between them). However `Protege` parses this syntax without an issue, while _Functional Syntax_ seems to allow that as well.
     - Also the `classIRI` does not seem to be correct either, as in place of a _class iri_ we can use other descriptions as well. E.g. `(classIRI1 or classIRI2) that { :ind1, :ind2 }` can be successfully parsed 
+  - Based on its syntax tree an `ObjectPropertyFrame` should describe axioms of an `objectPropertyIRI`. However, OWL2 (at least based on Functional Syntax) seems to support arbitrary `ObjectPropertyExpression`. For example in Manchester syntax you cannot defined the following axiom:
+  > The inverse of the object-property-A is sub-property of the inverse of object-property-B
+  > In Functional: `SubObjectPropertyOf(ObjectInverseOf(test-ont:ObjectProp2) ObjectInverseOf(test-ont:ObjectProp1))`
+  - Note: Protege is able to parse it and represent it on the UI (albeit, to the _Usage_ window only), but trying to save the ontology in Manchester format, the axiom will be discarder
 
 
 ## Possible issues in Functional syntax specification

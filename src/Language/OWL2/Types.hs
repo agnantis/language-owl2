@@ -63,7 +63,7 @@ type Description = ClassExpression
 --newtype Description = Description (NonEmpty Conjunction) deriving (Show)
 newtype IntegerLiteral = IntegerL Integer deriving (Show)
 newtype NodeID = NodeID Text deriving (Show)
-newtype Annotated a = Annotated { unAnnotated :: ([Annotated Annotation], a) } deriving (Show)
+newtype Annotated a = Annotated { unAnnotated :: ([Annotated Annotation], a) } deriving (Show) -- TODO: use a sum type instead of pair for easier access
 type AnnotatedList a = NonEmpty (Annotated a)
 newtype ImportDeclaration = ImportD IRI deriving (Show)
 
@@ -82,7 +82,7 @@ data Annotation = Annotation AnnotationPropertyIRI AnnotationValue deriving (Sho
 data Frame
     = FrameDT DatatypeFrame
     | FrameC ClassAxiom
-    | FrameOP ObjectPropertyFrame
+    | FrameOP ObjectPropertyAxiom
     | FrameDP DataPropertyFrame
     | FrameAP AnnotationPropertyFrame
     | FrameI IndividualFrame
@@ -184,18 +184,31 @@ data Atomic
     = AtomicClass ClassIRI
     | AtomicIndividuals (NonEmpty Individual)
     | AtomicDescription Description deriving (Show)
+
+data ObjectPropertyAxiom
+    = ObjectPAnnotation Annotations ObjectPropertyExpression Annotation
+    | ObjectPDomain Annotations ObjectPropertyExpression ClassExpression
+    | ObjectPRange Annotations ObjectPropertyExpression ClassExpression
+    | ObjectPCharacteristics Annotations ObjectPropertyExpression ObjectPropertyCharacteristic
+    | ObjectPSubProperty Annotations ObjectPropertyExpression ObjectPropertyExpression
+    | ObjectPChainSubProperty Annotations ObjectPropertyChain ObjectPropertyExpression
+    | ObjectPEquivalent Annotations (AtLeast2List ObjectPropertyExpression)
+    | ObjectPDisjoint Annotations (AtLeast2List ObjectPropertyExpression)
+    | ObjectPInverse Annotations ObjectPropertyExpression ObjectPropertyExpression deriving (Show)
+
+newtype ObjectPropertyChain = ObjectPropertyChain { unChain :: AtLeast2List ObjectPropertyExpression } deriving (Show)
 data ObjectPropertyFrame = ObjectPropertyF ObjectPropertyIRI [ObjectPropertyElement] deriving (Show)
 data ObjectPropertyElement
     = AnnotationOPE SomeAnnotations
     | DomainOPE Descriptions
     | RangeOPE Descriptions
-    | CharacteristicsOPE (AnnotatedList ObjectPropertyCharacteristics)
+    | CharacteristicsOPE (AnnotatedList ObjectPropertyCharacteristic)
     | SubPropertyOfOPE (AnnotatedList ObjectPropertyExpression)
     | EquivalentToOPE (AnnotatedList ObjectPropertyExpression)
     | DisjointWithOPE (AnnotatedList ObjectPropertyExpression)
     | InverseOfOPE (AnnotatedList ObjectPropertyExpression)
     | SubPropertyChainOPE Annotations (AtLeast2List ObjectPropertyExpression) deriving (Show)
-data ObjectPropertyCharacteristics
+data ObjectPropertyCharacteristic
     = FUNCTIONAL
     | INVERSE_FUNCTIONAL
     | REFLEXIVE

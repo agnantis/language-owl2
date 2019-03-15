@@ -260,6 +260,9 @@ instance PrettyM ClassAxiom where
   pretty (ClassAxiomDisjointUnion ans ci cel) = undefined
   pretty (ClassAxiomHasKey ans ce odpl) = undefined
 
+instance PrettyM ObjectPropertyAxiom where
+  pretty opa = undefined
+
 -- instance PrettyM ClassFrame where
 --   pretty (ClassF i ces) = "Class:" <+> pretty i
 --                         <> line
@@ -293,7 +296,7 @@ instance PrettyM ObjectPropertyElement where
   pretty (InverseOfOPE ops)          = "InverseOf:"        <+> align (pretty ops)
   pretty (SubPropertyChainOPE a ops) = "SubPropertyChain:" <+> align (pretty a <+> join "o" (toList ops))
 
-instance PrettyM ObjectPropertyCharacteristics where
+instance PrettyM ObjectPropertyCharacteristic where
   pretty FUNCTIONAL         = "Functional"
   pretty INVERSE_FUNCTIONAL = "InverseFunctional"
   pretty REFLEXIVE          = "Reflexive"

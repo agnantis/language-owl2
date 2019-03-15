@@ -3,7 +3,7 @@
 module Language.OWL2.Manchester.Parser where
 
 import           Data.Functor                             ( ($>) )
-import           Data.List.NonEmpty                       ( NonEmpty(..) )
+import           Data.List.NonEmpty                       ( NonEmpty(..), (<|) )
 import qualified Data.List.NonEmpty            as NE
 import           Text.Megaparsec
 
@@ -157,8 +157,8 @@ importStmt = ImportD <$> (symbol "Import:" *> iri)
 
 frame :: Parser Frame
 frame =  FrameDT <$> datatypeFrame
-     <|> FrameC . head  <$> classAxiom --TODO: head is temp!
-     <|> FrameOP <$> objectPropertyFrame
+     <|> FrameC . head  <$> classAxiom -- TODO: head is temp!
+     <|> FrameOP . head <$> objectPropertyAxiom -- TODO: head is temp!
      <|> FrameDP <$> dataPropertyFrame
      <|> FrameAP <$> annotationPropertyFrame
      <|> FrameI  <$> individualFrame
@@ -468,7 +468,7 @@ classAxiom :: Parser [ClassAxiom]
 classAxiom = do
   clsIRI <- symbol "Class:" *> classIRI
   let x = CExpClass clsIRI
-  axioms <- many $ choice [annotCA x, subCA x, equCA x,  disCA x, dscCA clsIRI, keyCA x]  --choices
+  axioms <- many . choice $ ($ x) <$> [annotCA, subCA, equCA,  disCA, const (dscCA clsIRI), keyCA]  --choices
   pure $ concat axioms
  where
   annotCA c = do
@@ -482,11 +482,15 @@ classAxiom = do
   equCA c = do
     _ <- symbol "EquivalentTo:"
     ds <- annotatedList description
-    pure $ (\(Annotated (a, v)) -> ClassAxiomEquivalentClasses a ((c,v):#[])) <$> NE.toList ds
+    pure $ if noAnnotations ds
+           then [ClassAxiomEquivalentClasses [] (atLeast2List' c (removeAnnotations ds))]
+           else (\(Annotated (a, v)) -> ClassAxiomEquivalentClasses a (atLeast2List c v [])) <$> NE.toList ds
   disCA c = do
     _ <- symbol "DisjointWith:"
     ds <- annotatedList description
-    pure $ (\(Annotated (a, v)) -> ClassAxiomDisjointClasses a ((c,v):#[])) <$> NE.toList ds
+    pure $ if noAnnotations ds
+           then [ClassAxiomDisjointClasses [] (atLeast2List' c (removeAnnotations ds))]
+           else (\(Annotated (a, v)) -> ClassAxiomDisjointClasses a (atLeast2List c v [])) <$> NE.toList ds
   dscCA c = do
     _ <- symbol "DisjointUnionOf:"
     an <- annotationSection
@@ -543,6 +547,64 @@ classAxiom = do
 -- >>> parseTest (objectPropertyFrame *> eof) (T.unlines input)
 -- ()
 --
+objectPropertyAxiom :: Parser [ObjectPropertyAxiom]
+objectPropertyAxiom = do
+  opIRI <- symbol "ObjectProperty:" *> objectPropertyIRI
+  let x = OPE opIRI
+  axioms <- many . choice $ ($ x) <$> [annotAxiom, domainAxiom, rangeAxiom, charAxiom, subAxiom, subChainAxiom, equAxiom, disAxiom, invAxiom] --choices
+  pure $ concat axioms
+ where
+  annotAxiom c = do
+    _ <- symbol "Annotations:"
+    mAn <- annotatedList mAnnotation
+    pure $ (\(Annotated (a, v)) -> ObjectPAnnotation a c v) <$> NE.toList mAn
+  domainAxiom c = do
+    _ <- symbol "Domain:"
+    mAn <- annotatedList description
+    pure $ (\(Annotated (a, v)) -> ObjectPDomain a c v) <$> NE.toList mAn
+  rangeAxiom c = do
+    _ <- symbol "Range:"
+    mAn <- annotatedList description
+    pure $ (\(Annotated (a, v)) -> ObjectPRange a c v) <$> NE.toList mAn
+  charAxiom c = do
+    _ <- symbol "Characteristics:"
+    chars <- annotatedList objectPropertyCharacteristic
+    pure $ (\(Annotated (a, v)) -> ObjectPCharacteristics a c v) <$> NE.toList chars
+  subAxiom c = do
+    _ <- symbol "SubPropertyOf:"
+    chars <- annotatedList objectPropertyExpression
+    pure $ (\(Annotated (a, v)) -> ObjectPSubProperty a c v) <$> NE.toList chars
+  subChainAxiom c = do
+    _ <- symbol "SubPropertyChain:"
+    annots <- annotationSection
+    hd   <- objectPropertyExpression 
+    rest <- nonEmptyList (symbol "o" *> objectPropertyExpression)
+    let chain = ObjectPropertyChain $ atLeast2List' hd rest
+    pure [ObjectPChainSubProperty annots chain c]
+  equAxiom c = do
+    _ <- symbol "EquivalentTo:"
+    exps <- annotatedList objectPropertyExpression
+    pure $ if noAnnotations exps
+           then [ObjectPEquivalent [] (atLeast2List' c (removeAnnotations exps))] 
+           else (\(Annotated (a, v)) -> ObjectPEquivalent a (atLeast2List c v [])) <$> NE.toList exps
+  disAxiom c = do
+    _ <- symbol "DisjointWith:"
+    exps <- annotatedList objectPropertyExpression
+    pure $ if noAnnotations exps
+           then [ObjectPDisjoint [] (atLeast2List' c (removeAnnotations exps))] 
+           else (\(Annotated (a, v)) -> ObjectPDisjoint a (atLeast2List c v [])) <$> NE.toList exps
+  invAxiom c = do
+    _ <- symbol "InverseOf:"
+    exps <- annotatedList objectPropertyExpression
+    pure $ (\(Annotated (a, v)) -> ObjectPInverse a c v) <$> NE.toList exps
+
+
+noAnnotations :: AnnotatedList a -> Bool
+noAnnotations = all (null . fst . unAnnotated) 
+
+removeAnnotations :: AnnotatedList a -> NonEmpty a
+removeAnnotations = fmap (snd . unAnnotated) 
+
 objectPropertyFrame :: Parser ObjectPropertyFrame
 objectPropertyFrame = ObjectPropertyF <$> (symbol "ObjectProperty:" *> objectPropertyIRI) <*> many altr
  where
@@ -571,7 +633,7 @@ objectPropertyFrame = ObjectPropertyF <$> (symbol "ObjectProperty:" *> objectPro
 -- unexpected "Random"
 -- ...
 --
-objectPropertyCharacteristic :: Parser ObjectPropertyCharacteristics
+objectPropertyCharacteristic :: Parser ObjectPropertyCharacteristic
 objectPropertyCharacteristic =
             symbol "Functional"        $> FUNCTIONAL
         <|> symbol "InverseFunctional" $> INVERSE_FUNCTIONAL
