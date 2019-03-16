@@ -157,9 +157,9 @@ importStmt = ImportD <$> (symbol "Import:" *> iri)
 
 frame :: Parser Frame
 frame =  FrameDT <$> datatypeFrame
-     <|> FrameC . head  <$> classAxiom -- TODO: head is temp!
+     <|> FrameC  . head <$> classAxiom -- TODO: head is temp!
      <|> FrameOP . head <$> objectPropertyAxiom -- TODO: head is temp!
-     <|> FrameDP <$> dataPropertyFrame
+     <|> FrameDP . head <$> dataPropertyAxiom --TODO; head is temp!
      <|> FrameAP <$> annotationPropertyFrame
      <|> FrameI  <$> individualFrame
      <|> FrameM  <$> misc
@@ -456,13 +456,8 @@ datatypeFrame = do
 --       ]
 -- :}
 --
--- >>> parseTest (classAxiom <* eof) (T.unlines input)
+-- >>> parseTest (classAxiom *> eof) (T.unlines input)
 -- ()
---
--- TODO-check-1: in specs `sndChoice` (aka `HasKey`) is an alternative to the others
--- I think this is wrong; and `HasKey` should be included in the list of alternatives
--- TODO-check-2: in specs the annotations of `HasKey` and `DisjointUnionOf` are required,
--- but I think is wrong. I made them optional :)
 --
 classAxiom :: Parser [ClassAxiom]
 classAxiom = do
@@ -503,24 +498,6 @@ classAxiom = do
     pure [ClassAxiomHasKey an c od]
 
 
---classFrame :: Parser ClassFrame
---classFrame = do
---  clsIRI <- symbol "Class:" *> classIRI
---  blob   <- many choices
---  pure $ ClassF clsIRI blob
--- where
---  choices :: Parser ClassElement
---  choices =  AnnotationCE      <$> (symbol "Annotations:" *> annotatedList mAnnotation)
---         <|> SubClassOfCE      <$> (symbol "SubClassOf:" *> annotatedList description)
---         <|> EquivalentToCE    <$> (symbol "EquivalentTo:" *> annotatedList description)
---         <|> DisjointToCE      <$> (symbol "DisjointWith:" *> annotatedList description)
---         <|> DisjointUnionOfCE <$> (symbol "DisjointUnionOf:" *> annotationSection)
---                               <*> listOfAtLeast2 description
---         <|> HasKeyCE          <$> (symbol "HasKey:" *> annotationSection)
---                               <*> (NE.fromList <$> some ((ObjectPE <$> objectPropertyExpression)
---                                              <|> (DataPE   <$> dataPropertyExpression)))
-----  nonEmptyDPE = NonEmptyD <$> many objectPropertyExpression <*> nonEmptyList dataPropertyExpression
-
 -- | It parses an object property
 --
 -- >>> :{
@@ -544,7 +521,7 @@ classAxiom = do
 --       ]
 -- :}
 --
--- >>> parseTest (objectPropertyFrame *> eof) (T.unlines input)
+-- >>> parseTest (objectPropertyAxiom *> eof) (T.unlines input)
 -- ()
 --
 objectPropertyAxiom :: Parser [ObjectPropertyAxiom]
@@ -605,21 +582,6 @@ noAnnotations = all (null . fst . unAnnotated)
 removeAnnotations :: AnnotatedList a -> NonEmpty a
 removeAnnotations = fmap (snd . unAnnotated) 
 
-objectPropertyFrame :: Parser ObjectPropertyFrame
-objectPropertyFrame = ObjectPropertyF <$> (symbol "ObjectProperty:" *> objectPropertyIRI) <*> many altr
- where
-  altr =  AnnotationOPE       <$> (symbol "Annotations:"      *> annotatedList mAnnotation)
-      <|> DomainOPE           <$> (symbol "Domain:"           *> annotatedList description)
-      <|> RangeOPE            <$> (symbol "Range:"            *> annotatedList description)
-      <|> CharacteristicsOPE  <$> (symbol "Characteristics:"  *> annotatedList objectPropertyCharacteristic)
-      <|> SubPropertyOfOPE    <$> (symbol "SubPropertyOf:"    *> annotatedList objectPropertyExpression)
-      <|> EquivalentToOPE     <$> (symbol "EquivalentTo:"     *> annotatedList objectPropertyExpression)
-      <|> DisjointWithOPE     <$> (symbol "DisjointWith:"     *> annotatedList objectPropertyExpression)
-      <|> InverseOfOPE        <$> (symbol "InverseOf:"        *> annotatedList objectPropertyExpression)
-      <|> SubPropertyChainOPE <$> (symbol "SubPropertyChain:" *> annotationSection) <*>
-                                    (atLeast2List' <$> objectPropertyExpression
-                                                   <*> nonEmptyList (symbol "o" *> objectPropertyExpression))
-
 -- | It parses one of the permitted object property characteristics
 --
 -- >>> parseTest (objectPropertyCharacteristic <* eof) "InverseFunctional"
@@ -661,10 +623,55 @@ objectPropertyCharacteristic =
 --       ]
 -- :}
 --
--- >>> parseTest (dataPropertyFrame *> eof) (T.unlines input)
+-- >>> parseTest (dataPropertyAxiom *> eof) (T.unlines input)
 -- ()
 --
 -- TODO-check: 'annotations' in 'characteristics are probably optional
+dataPropertyAxiom :: Parser [DataPropertyAxiom]
+dataPropertyAxiom = do
+  dpIRI <- symbol "DataProperty:" *> dataPropertyIRI
+  axioms <- many . choice $ ($ dpIRI) <$> [annotAxiom, domainAxiom, rangeAxiom, charAxiom, subAxiom, equAxiom, disAxiom] --choices
+  pure $ concat axioms
+ where
+  annotAxiom c = do
+    _ <- symbol "Annotations:"
+    annots <- annotatedList mAnnotation
+    pure $ spreadAnnotations DataPAnnotation c annots
+  domainAxiom c = do
+    _ <- symbol "Domain:"
+    exps <- annotatedList description
+    pure $ spreadAnnotations DataPDomain c exps
+  rangeAxiom c = do
+    _ <- symbol "Range:"
+    drs <- annotatedList dataRange
+    pure $ spreadAnnotations DataPRange c drs
+  charAxiom c = do
+    _ <- symbol "Characteristics:"
+    chars <- annotatedList dataPropertyCharacteristic
+    pure $ spreadAnnotations DataPCharacteristics c chars
+  subAxiom c = do
+    _ <- symbol "SubPropertyOf:"
+    exps <- annotatedList dataPropertyExpression
+    pure $ spreadAnnotations DataPSubProperty c exps
+  equAxiom c = do
+    _ <- symbol "EquivalentTo:"
+    exps <- annotatedList dataPropertyExpression
+    pure $ spreadAnnotationsIfExist DataPEquivalent c exps
+  disAxiom c = do
+    _ <- symbol "DisjointWith:"
+    exps <- annotatedList dataPropertyExpression
+    pure $ spreadAnnotationsIfExist DataPDisjoint c exps
+
+-- | A small utility function with specific functionallity, defined in order to avoid repetition
+spreadAnnotationsIfExist :: (Annotations -> AtLeast2List a -> b) -> a -> AnnotatedList a -> [b]
+spreadAnnotationsIfExist c e als = 
+    if noAnnotations als
+    then pure $ c [] (atLeast2List' e (removeAnnotations als)) 
+    else (\(Annotated (a, v)) -> c a (atLeast2List e v [])) <$> NE.toList als
+
+spreadAnnotations :: (Annotations -> a1 -> a2 -> b) -> a1 -> NonEmpty (Annotated a2) -> [b]
+spreadAnnotations c e als = (\(Annotated (a, v)) -> c a e v) <$> NE.toList als
+
 dataPropertyFrame :: Parser DataPropertyFrame
 dataPropertyFrame = DataPropertyF <$> (symbol "DataProperty:" *> dataPropertyIRI) <*> many altr
  where

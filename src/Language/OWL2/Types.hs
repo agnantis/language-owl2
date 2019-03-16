@@ -83,7 +83,7 @@ data Frame
     = FrameDT DatatypeFrame
     | FrameC ClassAxiom
     | FrameOP ObjectPropertyAxiom
-    | FrameDP DataPropertyFrame
+    | FrameDP DataPropertyAxiom
     | FrameAP AnnotationPropertyFrame
     | FrameI IndividualFrame
     | FrameM Misc deriving (Show)
@@ -184,7 +184,6 @@ data Atomic
     = AtomicClass ClassIRI
     | AtomicIndividuals (NonEmpty Individual)
     | AtomicDescription Description deriving (Show)
-
 data ObjectPropertyAxiom
     = ObjectPAnnotation Annotations ObjectPropertyExpression Annotation
     | ObjectPDomain Annotations ObjectPropertyExpression ClassExpression
@@ -195,19 +194,7 @@ data ObjectPropertyAxiom
     | ObjectPEquivalent Annotations (AtLeast2List ObjectPropertyExpression)
     | ObjectPDisjoint Annotations (AtLeast2List ObjectPropertyExpression)
     | ObjectPInverse Annotations ObjectPropertyExpression ObjectPropertyExpression deriving (Show)
-
 newtype ObjectPropertyChain = ObjectPropertyChain { unChain :: AtLeast2List ObjectPropertyExpression } deriving (Show)
-data ObjectPropertyFrame = ObjectPropertyF ObjectPropertyIRI [ObjectPropertyElement] deriving (Show)
-data ObjectPropertyElement
-    = AnnotationOPE SomeAnnotations
-    | DomainOPE Descriptions
-    | RangeOPE Descriptions
-    | CharacteristicsOPE (AnnotatedList ObjectPropertyCharacteristic)
-    | SubPropertyOfOPE (AnnotatedList ObjectPropertyExpression)
-    | EquivalentToOPE (AnnotatedList ObjectPropertyExpression)
-    | DisjointWithOPE (AnnotatedList ObjectPropertyExpression)
-    | InverseOfOPE (AnnotatedList ObjectPropertyExpression)
-    | SubPropertyChainOPE Annotations (AtLeast2List ObjectPropertyExpression) deriving (Show)
 data ObjectPropertyCharacteristic
     = FUNCTIONAL
     | INVERSE_FUNCTIONAL
@@ -216,6 +203,14 @@ data ObjectPropertyCharacteristic
     | SYMMETRIC
     | ASYMMETRIC
     | TRANSITIVE deriving (Show)
+data DataPropertyAxiom
+    = DataPAnnotation Annotations DataPropertyExpression Annotation
+    | DataPDomain Annotations DataPropertyExpression ClassExpression
+    | DataPRange Annotations DataPropertyExpression DataRange
+    | DataPCharacteristics Annotations DataPropertyExpression DataPropertyCharacteristics
+    | DataPSubProperty Annotations DataPropertyExpression DataPropertyExpression
+    | DataPEquivalent Annotations (AtLeast2List DataPropertyExpression)
+    | DataPDisjoint Annotations (AtLeast2List DataPropertyExpression) deriving (Show)
 data DataPropertyFrame = DataPropertyF DataPropertyIRI [DataPropertyElement] deriving (Show)
 data DataPropertyElement
     = AnnotationDPE SomeAnnotations

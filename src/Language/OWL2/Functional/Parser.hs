@@ -5,6 +5,8 @@ module Language.OWL2.Functional.Parser where
 import           Prelude                           hiding ( exponent )
 import           Data.Functor                             ( ($>) )
 import qualified Data.List.NonEmpty            as NE
+import           Data.Map.Strict                          ( Map )
+import qualified Data.Map.Strict               as M
 import           Text.Megaparsec
 
 import           Language.OWL2.Import                     ( Text )
@@ -17,6 +19,7 @@ import           Language.OWL2.Internal.Parser
 --
 -- $setup
 -- >>> :set -XOverloadedStrings
+-- >>> import Data.Either
 
 --------------------------
 -- Parser related types --
@@ -465,135 +468,111 @@ hasKey = do
 ----------------------------
 -- Object Property Axioms --
 ----------------------------
-objectPropertyAxiom :: Parser ObjectPropertyFrame
-objectPropertyAxiom =  subObjectPropertyOf $> ()
-                   <|> equivalentObjectProperties $> ()
-                   <|> disjointObjectProperties $> ()
-                   <|> inverseObjectProperties $> ()
-                   <|> objectPropertyDomain $> ()
-                   <|> objectPropertyRange $> ()
-                   <|> functionalObjectProperty $> ()
-                   <|> inverseFunctionalObjectProperty $> ()
-                   <|> reflexiveObjectProperty $> ()
-                   <|> irreflexiveObjectProperty $> ()
-                   <|> symmetricObjectProperty $> ()
-                   <|> asymmetricObjectProperty $> ()
-                   <|> transitiveObjectProperty $> ()
+objectPropertyAxiom :: Parser ObjectPropertyAxiom
+objectPropertyAxiom =  subObjectPropertyOf
+                   <|> equivalentObjectProperties
+                   <|> disjointObjectProperties
+                   <|> inverseObjectProperties
+                   <|> objectPropertyDomain
+                   <|> objectPropertyRange
+                   <|> objectPropertyCharactersistics
 
-subObjectPropertyOf :: Parser ()
+-- | Parses Object SubProperty axioms
+--
+-- >>> parseTest (subObjectPropertyOf *> eof) "SubObjectPropertyOf( ObjectPropertyChain( a:hasFather a:hasBrother ) a:hasUncle )"
+-- ()
+-- >>> parseTest (subObjectPropertyOf *> eof) "SubObjectPropertyOf( a:hasUncle a:hasRelative )"
+-- ()
+--
+subObjectPropertyOf :: Parser ObjectPropertyAxiom
 subObjectPropertyOf = do
   symbol "SubObjectPropertyOf"
   parens $ do
-    axiomAnnotations
-    subObjectPropertyExpression
-    superObjectPropertyExpression
-  pure ()
+    annots <- axiomAnnotations
+    sub <- subObjectPropertyExpression
+    sup <- superObjectPropertyExpression
+    pure $ case sub of
+      Left s  -> ObjectPSubProperty annots s sup
+      Right x -> ObjectPChainSubProperty annots x sup
 
-subObjectPropertyExpression :: Parser ()
-subObjectPropertyExpression =  objectPropertyExpression $> ()
-                           <|> propertyExpressionChain $> ()
+-- | Parses either an object expression or an object property chain
+--
+-- >>> parseTest (isRight <$> subObjectPropertyExpression <* eof) "ObjectPropertyChain( a:hasFather a:hasBrother )"
+-- True
+-- >>> parseTest (isLeft <$> subObjectPropertyExpression <* eof) "a:hasUncle"
+-- True
+--
+subObjectPropertyExpression :: Parser (Either ObjectPropertyExpression ObjectPropertyChain)
+subObjectPropertyExpression =  Left  <$> objectPropertyExpression
+                           <|> Right <$> propertyExpressionChain
 
-propertyExpressionChain :: Parser ()
+propertyExpressionChain :: Parser ObjectPropertyChain
 propertyExpressionChain = do
   symbol "ObjectPropertyChain"
-  parens $ do
-    objectPropertyExpression
-    some objectPropertyExpression
-  pure ()
+  parens $ ObjectPropertyChain <$> doubleOrMany "" objectPropertyExpression
 
 superObjectPropertyExpression :: Parser ObjectPropertyExpression
 superObjectPropertyExpression = objectPropertyExpression
 
-equivalentObjectProperties :: Parser ()
+equivalentObjectProperties :: Parser ObjectPropertyAxiom
 equivalentObjectProperties = do
   symbol "EquivalentObjectProperties"
-  parens $ do
-    axiomAnnotations
-    objectPropertyExpression
-    some objectPropertyExpression
-  pure ()
+  parens $ ObjectPEquivalent <$> axiomAnnotations <*> doubleOrMany "" objectPropertyExpression
 
-disjointObjectProperties :: Parser ()
+disjointObjectProperties :: Parser ObjectPropertyAxiom
 disjointObjectProperties = do
   symbol "DisjointObjectProperties"
-  parens $ do
-    axiomAnnotations
-    objectPropertyExpression
-    some objectPropertyExpression
-  pure ()
+  parens $ ObjectPDisjoint <$> axiomAnnotations <*> doubleOrMany "" objectPropertyExpression
 
-objectPropertyDomain :: Parser ()
+objectPropertyDomain :: Parser ObjectPropertyAxiom
 objectPropertyDomain = do
   symbol "ObjectPropertyDomain"
-  parens $ do
-    axiomAnnotations
-    objectPropertyExpression
-    classExpression
-  pure ()
+  parens $ ObjectPDomain <$> axiomAnnotations <*> objectPropertyExpression <*> classExpression
 
-objectPropertyRange :: Parser ()
+objectPropertyRange :: Parser ObjectPropertyAxiom
 objectPropertyRange = do
   symbol "ObjectPropertyRange"
-  parens $ do
-    axiomAnnotations
-    objectPropertyExpression
-    classExpression
-  pure ()
+  parens $ ObjectPRange <$> axiomAnnotations <*> objectPropertyExpression <*> classExpression
 
-inverseObjectProperties :: Parser ()
+inverseObjectProperties :: Parser ObjectPropertyAxiom
 inverseObjectProperties = do
   symbol "InverseObjectProperties"
+  parens $ ObjectPInverse <$> axiomAnnotations <*> objectPropertyExpression <*> objectPropertyExpression
+
+objectPropertyCharactersistics :: Parser ObjectPropertyAxiom
+objectPropertyCharactersistics = do
+  chc <- choice . fmap symbol $ M.keys objectPropertyCharacteristics
   parens $ do
-    axiomAnnotations
-    objectPropertyExpression
-    objectPropertyExpression
-  pure ()
+    annots <- axiomAnnotations
+    ope    <- objectPropertyExpression
+    pure $ ObjectPCharacteristics annots ope (objectPropertyCharacteristics M.! chc)
 
-genericObjectProperty :: Text -> Parser ()
-genericObjectProperty p = do
-  symbol p
-  parens $ do
-    axiomAnnotations
-    objectPropertyExpression
-  pure ()
+objectPropertyCharacteristics :: Map Text ObjectPropertyCharacteristic
+objectPropertyCharacteristics = M.fromList
+  [ ("FunctionalObjectProperty"       , FUNCTIONAL)
+  , ("InverseFunctionalObjectProperty", INVERSE_FUNCTIONAL)
+  , ("ReflexiveObjectProperty"        , REFLEXIVE)
+  , ("IrreflexiveObjectProperty"      , IRREFLEXIVE)
+  , ("SymmetricObjectProperty"        , SYMMETRIC)
+  , ("AsymmetricObjectProperty"       , ASYMMETRIC)
+  , ("TransitiveObjectProperty"       , TRANSITIVE)
+  ]
 
-functionalObjectProperty :: Parser ()
-functionalObjectProperty = genericObjectProperty "FunctionalObjectProperty"
+--------------------------
+-- Data Property Axioms --
+--------------------------
+dataPropertyAxiom :: Parser DataPropertyAxiom
+dataPropertyAxiom =  subDataPropertyOf
+                 <|> equivalentDataProperties
+                 <|> disjointDataProperties
+                 <|> dataPropertyDomain
+                 <|> dataPropertyRange
+                 <|> functionalDataProperty
 
-inverseFunctionalObjectProperty :: Parser ()
-inverseFunctionalObjectProperty = genericObjectProperty "InverseFunctionalObjectProperty"
-
-reflexiveObjectProperty :: Parser ()
-reflexiveObjectProperty = genericObjectProperty "ReflexiveObjectProperty"
-
-irreflexiveObjectProperty :: Parser ()
-irreflexiveObjectProperty = genericObjectProperty "IrreflexiveObjectProperty"
-
-symmetricObjectProperty :: Parser ()
-symmetricObjectProperty = genericObjectProperty "SymmetricObjectProperty"
-
-asymmetricObjectProperty :: Parser ()
-asymmetricObjectProperty = genericObjectProperty "AsymmetricObjectProperty"
-
-transitiveObjectProperty :: Parser ()
-transitiveObjectProperty = genericObjectProperty "TransitiveObjectProperty"
-
-dataPropertyAxiom :: Parser ()
-dataPropertyAxiom =  subDataPropertyOf $> ()
-                 <|> equivalentDataProperties $> ()
-                 <|> disjointDataProperties $> ()
-                 <|> dataPropertyDomain $> ()
-                 <|> dataPropertyRange $> ()
-                 <|> functionalDataProperty $> ()
-
-subDataPropertyOf :: Parser ()
+subDataPropertyOf :: Parser DataPropertyAxiom
 subDataPropertyOf = do
   symbol "SubDataPropertyOf"
-  parens $ do
-    axiomAnnotations
-    subDataPropertyExpression
-    superDataPropertyExpression
-  pure ()
+  parens $ DataPSubProperty <$> axiomAnnotations <*> subDataPropertyExpression <*> superDataPropertyExpression
 
 subDataPropertyExpression :: Parser DataPropertyIRI
 subDataPropertyExpression = dataPropertyExpression
@@ -601,49 +580,30 @@ subDataPropertyExpression = dataPropertyExpression
 superDataPropertyExpression :: Parser DataPropertyIRI
 superDataPropertyExpression = dataPropertyExpression
 
-equivalentDataProperties :: Parser ()
+equivalentDataProperties :: Parser DataPropertyAxiom
 equivalentDataProperties = do
   symbol "EquivalentDataProperties"
-  parens $ do
-    axiomAnnotations
-    dataPropertyExpression
-    some dataPropertyExpression
-  pure ()
+  parens $ DataPEquivalent <$> axiomAnnotations <*> doubleOrMany "" dataPropertyExpression
 
-disjointDataProperties :: Parser ()
+disjointDataProperties :: Parser DataPropertyAxiom
 disjointDataProperties = do
   symbol "DisjointDataProperties"
-  parens $ do
-    axiomAnnotations
-    dataPropertyExpression
-    some dataPropertyExpression
-  pure ()
+  parens $ DataPDisjoint <$> axiomAnnotations <*> doubleOrMany "" dataPropertyExpression
 
-dataPropertyDomain :: Parser ()
+dataPropertyDomain :: Parser DataPropertyAxiom
 dataPropertyDomain = do
   symbol "DataPropertyDomain"
-  parens $ do
-    axiomAnnotations
-    dataPropertyExpression
-    classExpression
-  pure ()
+  parens $ DataPDomain <$> axiomAnnotations <*> dataPropertyExpression <*> classExpression
 
-dataPropertyRange :: Parser ()
+dataPropertyRange :: Parser DataPropertyAxiom
 dataPropertyRange = do
   symbol "DataPropertyRange"
-  parens $ do
-    axiomAnnotations
-    dataPropertyExpression
-    dataRange
-  pure ()
+  parens $ DataPRange <$> axiomAnnotations <*> dataPropertyExpression <*> dataRange
 
-functionalDataProperty :: Parser ()
+functionalDataProperty :: Parser DataPropertyAxiom
 functionalDataProperty = do
   symbol "FunctionalDataProperty"
-  parens $ do
-    axiomAnnotations
-    dataPropertyExpression
-  pure ()
+  parens $ DataPCharacteristics <$> axiomAnnotations <*> dataPropertyExpression <*> pure FUNCTIONAL_DPE
 
 datatypeDefinition :: Parser ()
 datatypeDefinition = do

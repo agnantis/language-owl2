@@ -263,6 +263,9 @@ instance PrettyM ClassAxiom where
 instance PrettyM ObjectPropertyAxiom where
   pretty opa = undefined
 
+instance PrettyM DataPropertyAxiom where
+  pretty dpa = undefined
+
 -- instance PrettyM ClassFrame where
 --   pretty (ClassF i ces) = "Class:" <+> pretty i
 --                         <> line
@@ -280,21 +283,21 @@ instance PrettyM ObjectOrDataPE where
   pretty (ObjectPE ope) = pretty ope
   pretty (DataPE dpe)   = pretty dpe
 
-instance PrettyM ObjectPropertyFrame where
-  pretty (ObjectPropertyF i ops) = "ObjectProperty:" <+> pretty i 
-                                 <> line
-                                 <> indent 4 (vsep (pretty <$> ops))
-
-instance PrettyM ObjectPropertyElement where
-  pretty (AnnotationOPE a)           = "Annotations:"      <+> align (pretty a)
-  pretty (DomainOPE ds)              = "Domain:"           <+> align (pretty ds)
-  pretty (RangeOPE ds)               = "Range:"            <+> align (pretty ds)
-  pretty (CharacteristicsOPE ops)    = "Characteristics:"  <+> align (pretty ops)
-  pretty (SubPropertyOfOPE ops)      = "SubPropertyOf:"    <+> align (pretty ops)
-  pretty (EquivalentToOPE ops)       = "EquivalentTo:"     <+> align (pretty ops)
-  pretty (DisjointWithOPE ops)       = "DisjointWith:"     <+> align (pretty ops)
-  pretty (InverseOfOPE ops)          = "InverseOf:"        <+> align (pretty ops)
-  pretty (SubPropertyChainOPE a ops) = "SubPropertyChain:" <+> align (pretty a <+> join "o" (toList ops))
+-- instance PrettyM ObjectPropertyFrame where
+--   pretty (ObjectPropertyF i ops) = "ObjectProperty:" <+> pretty i 
+--                                  <> line
+--                                  <> indent 4 (vsep (pretty <$> ops))
+-- 
+-- instance PrettyM ObjectPropertyElement where
+--   pretty (AnnotationOPE a)           = "Annotations:"      <+> align (pretty a)
+--   pretty (DomainOPE ds)              = "Domain:"           <+> align (pretty ds)
+--   pretty (RangeOPE ds)               = "Range:"            <+> align (pretty ds)
+--   pretty (CharacteristicsOPE ops)    = "Characteristics:"  <+> align (pretty ops)
+--   pretty (SubPropertyOfOPE ops)      = "SubPropertyOf:"    <+> align (pretty ops)
+--   pretty (EquivalentToOPE ops)       = "EquivalentTo:"     <+> align (pretty ops)
+--   pretty (DisjointWithOPE ops)       = "DisjointWith:"     <+> align (pretty ops)
+--   pretty (InverseOfOPE ops)          = "InverseOf:"        <+> align (pretty ops)
+--   pretty (SubPropertyChainOPE a ops) = "SubPropertyChain:" <+> align (pretty a <+> join "o" (toList ops))
 
 instance PrettyM ObjectPropertyCharacteristic where
   pretty FUNCTIONAL         = "Functional"

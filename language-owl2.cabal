@@ -29,6 +29,7 @@ library
                      , Language.OWL2.Internal.Parser
   -- other-extensions:    
   build-depends:       base >=4.11 && <4.12
+                     , containers
                      , megaparsec >= 7.0
                      , parser-combinators
                      , prettyprinter

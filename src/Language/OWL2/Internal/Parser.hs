@@ -35,7 +35,7 @@ parens :: Parser a -> Parser a
 parens = lexeme . enclosed '('
 
 enclosed :: Char -> Parser a -> Parser a
-enclosed c = between (char c) (char (cChar c))
+enclosed c = between (char c >> sc) (char (cChar c))
 
 enclosedS :: Char -> Parser a -> Parser a
 enclosedS c = between (symbol . T.singleton $ c) (symbol . T.singleton . cChar $ c)
