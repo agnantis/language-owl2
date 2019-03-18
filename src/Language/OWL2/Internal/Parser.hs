@@ -248,14 +248,17 @@ annotationProperty = annotationPropertyIRI
 
 -- | It parses an annotation property name. The annotation property can be either a IRI or an node id
 --
--- >>> parseTest (annotationPropertyIRI) "<http://example.com/ontology#name>"
+-- >>> parseTest (totalIRI) "<http://example.com/ontology#name>"
 -- NamedIRI (FullIRI "http://example.com/ontology#name")
 --
--- >>> parseTest (annotationPropertyIRI) "_:randomNode"
+-- >>> parseTest (totalIRI) "_:randomNode"
 -- AnonymousIRI (NodeID "randomNode")
 --
-annotationPropertyIRI :: Parser TotalIRI
-annotationPropertyIRI = AnonymousIRI <$> nodeID <|> NamedIRI <$> iri
+totalIRI :: Parser TotalIRI
+totalIRI = AnonymousIRI <$> nodeID <|> NamedIRI <$> iri
+
+annotationPropertyIRI :: Parser AnnotationPropertyIRI
+annotationPropertyIRI = iri
 
 -- | It parser node ids, iris or literals
 -- TODO: Test should be ignored as the literal parser can vary

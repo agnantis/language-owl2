@@ -229,7 +229,7 @@ instance PrettyM Conjunction where
   pretty (ClassConj i rs) = pretty i <+> "that" <+> join "and" (NE.toList rs)
   pretty (PrimConj ps)    = join "and" (NE.toList ps)
 
-instance PrettyM DatatypeFrame where
+instance PrettyM DatatypeAxiom where
   pretty (DatatypeF dt ma mdr) = "DatatypeFrame:" <+> pretty dt
                                <> line
                                <> pma
@@ -265,6 +265,12 @@ instance PrettyM ObjectPropertyAxiom where
 
 instance PrettyM DataPropertyAxiom where
   pretty dpa = undefined
+
+instance PrettyM AnnotationPropertyAxiom where
+  pretty apa = undefined
+
+instance PrettyM AssertionAxiom where
+  pretty aa = undefined
 
 -- instance PrettyM ClassFrame where
 --   pretty (ClassF i ces) = "Class:" <+> pretty i
@@ -309,74 +315,77 @@ instance PrettyM ObjectPropertyCharacteristic where
   pretty TRANSITIVE         = "Transitive"
 
 
-instance PrettyM DataPropertyFrame where
-  pretty (DataPropertyF i dps) = "DataProperty:" <+> pretty i 
-                               <> line
-                               <> indent 4 (vsep (pretty <$> dps))
-
-instance PrettyM DataPropertyElement where
-  pretty (AnnotationDPE a)        = "Annotations:"      <+> align (pretty a)
-  pretty (DomainDPE ds)           = "Domain:"           <+> align (pretty ds)
-  pretty (RangeDPE ds)            = "Range:"            <+> align (pretty ds)
-  pretty (CharacteristicsDPE dps) = "Characteristics:"  <+> align (pretty dps)
-  pretty (SubPropertyOfDPE dps)   = "SubPropertyOf:"    <+> align (pretty dps)
-  pretty (EquivalentToDPE dps)    = "EquivalentTo:"     <+> align (pretty dps)
-  pretty (DisjointWithDPE dps)    = "DisjointWith:"     <+> align (pretty dps)
+--instance PrettyM DataPropertyFrame where
+--  pretty (DataPropertyF i dps) = "DataProperty:" <+> pretty i 
+--                               <> line
+--                               <> indent 4 (vsep (pretty <$> dps))
+--
+--instance PrettyM DataPropertyElement where
+--  pretty (AnnotationDPE a)        = "Annotations:"      <+> align (pretty a)
+--  pretty (DomainDPE ds)           = "Domain:"           <+> align (pretty ds)
+--  pretty (RangeDPE ds)            = "Range:"            <+> align (pretty ds)
+--  pretty (CharacteristicsDPE dps) = "Characteristics:"  <+> align (pretty dps)
+--  pretty (SubPropertyOfDPE dps)   = "SubPropertyOf:"    <+> align (pretty dps)
+--  pretty (EquivalentToDPE dps)    = "EquivalentTo:"     <+> align (pretty dps)
+--  pretty (DisjointWithDPE dps)    = "DisjointWith:"     <+> align (pretty dps)
 
 instance PrettyM DataPropertyCharacteristics where
   pretty FUNCTIONAL_DPE = "Functional"
 
-instance PrettyM Frame where
-  pretty (FrameDT df)  = pretty df
-  pretty (FrameC cf)   = pretty cf
-  pretty (FrameOP opf) = pretty opf
-  pretty (FrameDP dpf) = pretty dpf
-  pretty (FrameAP af ) = pretty af 
-  pretty (FrameI ifr)  = pretty ifr
-  pretty (FrameM m)    = pretty m 
+instance PrettyM Axiom where
+  pretty (AxiomDT df)  = pretty df
+  pretty (AxiomC cf)   = pretty cf
+  pretty (AxiomOP opf) = pretty opf
+  pretty (AxiomDP dpf) = pretty dpf
+  pretty (AxiomAP af ) = pretty af 
+  pretty (AxiomI ifr)  = pretty ifr
+--  pretty (AxiomM m)    = pretty m 
 
-instance PrettyM AnnotationPropertyFrame where
-  pretty (AnnotationPropertyF i aps) = "AnnotationProperty:" <+> pretty i
-                                     <> line
-                                     <> indent 4 (vsep (pretty <$> aps))
+--instance PrettyM AnnotationPropertyFrame where
+--  pretty (AnnotationPropertyF i aps) = "AnnotationProperty:" <+> pretty i
+--                                     <> line
+--                                     <> indent 4 (vsep (pretty <$> aps))
+--
+--instance PrettyM AnnotationPropertyElement where
+--  pretty (AnnotationAPE a)        = "Annotations:"      <+> pretty a
+--  pretty (DomainAPE as)           = "Domain:"           <+> pretty as
+--  pretty (RangeAPE as)            = "Range:"            <+> pretty as
+--  pretty (SubPropertyOfAPE aps)   = "SubPropertyOf:"    <+> pretty aps
 
-instance PrettyM AnnotationPropertyElement where
-  pretty (AnnotationAPE a)        = "Annotations:"      <+> pretty a
-  pretty (DomainAPE as)           = "Domain:"           <+> pretty as
-  pretty (RangeAPE as)            = "Range:"            <+> pretty as
-  pretty (SubPropertyOfAPE aps)   = "SubPropertyOf:"    <+> pretty aps
-
-instance PrettyM IndividualFrame where
-  pretty (IndividualF i oes) = "Individual:" <+> pretty i
-                             <> line
-                             <> indent 4 (vsep (pretty <$> oes))
-
-instance PrettyM IndividualElement where
-  pretty (AnnotationIE a)     = "Annotations:"  <+> pretty a
-  pretty (TypeIE ds)          = "Types:"        <+> pretty ds
-  pretty (FactIE af)          = "Facts:"        <+> pretty af
-  pretty (SameAsIE ai)        = "SameAs:"       <+> pretty ai
-  pretty (DifferentFromIE ai) = "DifferentFrom" <+> pretty ai
+-- instance PrettyM IndividualFrame where
+--   pretty (IndividualF i oes) = "Individual:" <+> pretty i
+--                              <> line
+--                              <> indent 4 (vsep (pretty <$> oes))
+-- 
+-- instance PrettyM IndividualElement where
+--   pretty (AnnotationIE a)     = "Annotations:"  <+> pretty a
+--   pretty (TypeIE ds)          = "Types:"        <+> pretty ds
+--   pretty (FactIE af)          = "Facts:"        <+> pretty af
+--   pretty (SameAsIE ai)        = "SameAs:"       <+> pretty ai
+--   pretty (DifferentFromIE ai) = "DifferentFrom" <+> pretty ai
 
 instance PrettyM FactElement where
-  pretty (ObjectPropertyFE opf) = pretty opf 
-  pretty (DataPropertyFE dpf)   = pretty dpf
+  pretty fe = undefined
 
-instance PrettyM ObjectPropertyFact where
-  pretty (ObjectPropertyFact i ind) = pretty i <+> pretty ind
+-- instance PrettyM FactElement where
+--   pretty (ObjectPropertyFE opf) = pretty opf 
+--   pretty (DataPropertyFE dpf)   = pretty dpf
+-- 
+-- instance PrettyM ObjectPropertyFact where
+--   pretty (ObjectPropertyFact i ind) = pretty i <+> pretty ind
+-- 
+-- instance PrettyM DataPropertyFact where
+--   pretty (DataPropertyFact i l) = pretty i <+> pretty l
 
-instance PrettyM DataPropertyFact where
-  pretty (DataPropertyFact i l) = pretty i <+> pretty l
-
-instance PrettyM Misc where
-  pretty (EquivalentClasses as ds)           = "EquivalentClasses:"    <+> pretty as <+> pretty ds
-  pretty (DisjointClasses as ds)             = "DisjointClasses:"      <+> pretty as <+> pretty ds
-  pretty (EquivalentObjectProperties as ope) = "EquivalentProperties:" <+> pretty as <+> pretty ope
-  pretty (DisjointObjectProperties as ope)   = "DisjointProperties:"   <+> pretty as <+> pretty ope
-  pretty (EquivalentDataProperties as dpe)   = "EquivalentProperties:" <+> pretty as <+> pretty dpe
-  pretty (DisjointDataProperties as dpe)     = "DisjointProperties:"   <+> pretty as <+> pretty dpe
-  pretty (SameIndividual as is)              = "SameIndividual:"       <+> pretty as <+> pretty is
-  pretty (DifferentIndividuals as is)        = "DifferentIndividuals:" <+> pretty as <+> pretty is
+--instance PrettyM Misc where
+--  pretty (EquivalentClasses as ds)           = "EquivalentClasses:"    <+> pretty as <+> pretty ds
+--  pretty (DisjointClasses as ds)             = "DisjointClasses:"      <+> pretty as <+> pretty ds
+--  pretty (EquivalentObjectProperties as ope) = "EquivalentProperties:" <+> pretty as <+> pretty ope
+--  pretty (DisjointObjectProperties as ope)   = "DisjointProperties:"   <+> pretty as <+> pretty ope
+--  pretty (EquivalentDataProperties as dpe)   = "EquivalentProperties:" <+> pretty as <+> pretty dpe
+--  pretty (DisjointDataProperties as dpe)     = "DisjointProperties:"   <+> pretty as <+> pretty dpe
+--  pretty (SameIndividual as is)              = "SameIndividual:"       <+> pretty as <+> pretty is
+--  pretty (DifferentIndividuals as is)        = "DifferentIndividuals:" <+> pretty as <+> pretty is
 
 instance PrettyM a => PrettyM (AtLeast2List a) where
   pretty = pretty . toList

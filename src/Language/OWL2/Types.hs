@@ -30,7 +30,7 @@ toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
 
 type LangTag = Text
 type ImportIRI = IRI
-type AnnotationPropertyIRI = TotalIRI
+type AnnotationPropertyIRI = IRI
 type VersionIRI = IRI
 type OntologyIRI = IRI
 -- type FullIRI = IRI
@@ -39,13 +39,14 @@ type ClassIRI = IRI
 type ObjectPropertyIRI = IRI
 type DataPropertyIRI = IRI
 type IndividualIRI = IRI
---type Frame = Text
+--type Axiom = Text
 type PrefixName = Text
 type SomeAnnotations = AnnotatedList Annotation
 type Descriptions = AnnotatedList Description
 type Exponent = Integer
 type Fact = WithNegation FactElement
 type DataPropertyExpression = DataPropertyIRI
+type AnnotationProperty = AnnotationPropertyIRI
 data ObjectPropertyExpression
     = OPE ObjectPropertyIRI
     | InverseOPE ObjectPropertyIRI deriving (Show)
@@ -76,18 +77,18 @@ data FloatPoint = FloatP Double (Maybe Exponent) deriving (Show)
 data LiteralWithLang = LiteralWithLang Text LangTag deriving (Show)
 data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving (Show)
 data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show)
-data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [Annotated Annotation] [Frame] deriving (Show)
+data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [Annotated Annotation] [Axiom] deriving (Show)
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Show)
 data Annotation = Annotation AnnotationPropertyIRI AnnotationValue deriving (Show)
-data Frame
-    = FrameDT DatatypeFrame
-    | FrameC ClassAxiom
-    | FrameOP ObjectPropertyAxiom
-    | FrameDP DataPropertyAxiom
-    | FrameAP AnnotationPropertyFrame
-    | FrameI IndividualFrame
-    | FrameM Misc deriving (Show)
-data DatatypeFrame = DatatypeF Datatype [SomeAnnotations] (Maybe AnnotDataRange) deriving (Show)
+data Axiom
+    = AxiomDT DatatypeAxiom
+    | AxiomC ClassAxiom
+    | AxiomOP ObjectPropertyAxiom
+    | AxiomDP DataPropertyAxiom
+    | AxiomAP AnnotationPropertyAxiom
+    | AxiomI AssertionAxiom deriving (Show)
+--    | AxiomM Misc deriving (Show)
+data DatatypeAxiom = DatatypeF Datatype [SomeAnnotations] (Maybe AnnotDataRange) deriving (Show)
 data AnnotDataRange = AnnotDataRange Annotations DataRange deriving (Show)
 newtype Datatype = Datatype { unDatatype :: DatatypeIRI } deriving (Show)
 data DatatypeRestriction = DatatypeRestriction Datatype (NonEmpty RestrictionExp) deriving (Show)
@@ -112,7 +113,7 @@ data ClassAxiom
 
 data DeclarationAxiom = DeclarationAxiom Annotations Entity deriving (Show)
 
--- data ClassFrame = ClassF IRI [ClassElement] deriving (Show)
+-- data ClassAxiom = ClassF IRI [ClassElement] deriving (Show)
 --data ClassElement
 --    = AnnotationCE SomeAnnotations
 --    | SubClassOfCE Descriptions
@@ -211,43 +212,58 @@ data DataPropertyAxiom
     | DataPSubProperty Annotations DataPropertyExpression DataPropertyExpression
     | DataPEquivalent Annotations (AtLeast2List DataPropertyExpression)
     | DataPDisjoint Annotations (AtLeast2List DataPropertyExpression) deriving (Show)
-data DataPropertyFrame = DataPropertyF DataPropertyIRI [DataPropertyElement] deriving (Show)
-data DataPropertyElement
-    = AnnotationDPE SomeAnnotations
-    | DomainDPE Descriptions
-    | RangeDPE (AnnotatedList DataRange)
-    | CharacteristicsDPE (AnnotatedList DataPropertyCharacteristics)
-    | SubPropertyOfDPE (AnnotatedList DataPropertyExpression)
-    | EquivalentToDPE (AnnotatedList DataPropertyExpression)
-    | DisjointWithDPE (AnnotatedList DataPropertyExpression) deriving (Show)
+--data DataPropertyAxiom = DataPropertyF DataPropertyIRI [DataPropertyElement] deriving (Show)
+--data DataPropertyElement
+--    = AnnotationDPE SomeAnnotations
+--    | DomainDPE Descriptions
+--    | RangeDPE (AnnotatedList DataRange)
+--    | CharacteristicsDPE (AnnotatedList DataPropertyCharacteristics)
+--    | SubPropertyOfDPE (AnnotatedList DataPropertyExpression)
+--    | EquivalentToDPE (AnnotatedList DataPropertyExpression)
+--    | DisjointWithDPE (AnnotatedList DataPropertyExpression) deriving (Show)
 data DataPropertyCharacteristics = FUNCTIONAL_DPE deriving (Show)
-data AnnotationPropertyFrame = AnnotationPropertyF AnnotationPropertyIRI [AnnotationPropertyElement] deriving (Show)
-data AnnotationPropertyElement
-    = AnnotationAPE SomeAnnotations
-    | DomainAPE (AnnotatedList IRI)
-    | RangeAPE (AnnotatedList IRI)
-    | SubPropertyOfAPE (AnnotatedList AnnotationPropertyIRI) deriving (Show)
-data IndividualFrame = IndividualF Individual [IndividualElement] deriving (Show)
-data IndividualElement
-    = AnnotationIE SomeAnnotations
-    | TypeIE Descriptions
-    | FactIE (AnnotatedList Fact)
-    | SameAsIE (AnnotatedList Individual)
-    | DifferentFromIE (AnnotatedList Individual) deriving (Show)
+data AnnotationPropertyAxiom -- TODO: Missing AnnotationAssertion; to be moved under Assertion datatype
+  = AnnotationPAnnotation Annotations AnnotationProperty Annotation
+  | AnnotationPDomain Annotations AnnotationProperty IRI
+  | AnnotationPRange Annotations AnnotationProperty IRI
+  | AnnotationPSubProperty Annotations AnnotationProperty AnnotationProperty deriving (Show)
+-- data AnnotationPropertyAxiom = AnnotationPropertyF AnnotationPropertyIRI [AnnotationPropertyElement] deriving (Show)
+-- data AnnotationPropertyElement
+--     = AnnotationAPE SomeAnnotations
+--     | DomainAPE (AnnotatedList IRI)
+--     | RangeAPE (AnnotatedList IRI)
+--     | SubPropertyOfAPE (AnnotatedList AnnotationPropertyIRI) deriving (Show)
+data AssertionAxiom
+  = AssertionAnnotation Annotations TotalIRI Annotation
+  | AssertionSameIndividuals Annotations (AtLeast2List Individual)
+  | AssertionDifferentIndividuals Annotations (AtLeast2List Individual)
+  | AssertionClass Annotations Individual ClassExpression
+  | AssertionObjectProperty Annotations ObjectPropertyExpression Individual Individual
+  | AssertionNegativeObjectProperty Annotations ObjectPropertyExpression Individual Individual 
+  | AssertionDataProperty Annotations DataPropertyExpression Individual Literal
+  | AssertionNegativeDataProperty Annotations DataPropertyExpression Individual Literal deriving (Show)
+
+-- data IndividualFrame = IndividualF Individual [IndividualElement] deriving (Show)
+-- data IndividualElement
+--   = AnnotationIE SomeAnnotations
+--   | TypeIE Descriptions
+--   | FactIE (AnnotatedList FactElement)
+--   | SameAsIE (AnnotatedList Individual)
+--   | DifferentFromIE (AnnotatedList Individual) deriving (Show)
 data FactElement
-    = ObjectPropertyFE ObjectPropertyFact
-    | DataPropertyFE DataPropertyFact deriving (Show)
-data ObjectPropertyFact = ObjectPropertyFact ObjectPropertyIRI Individual deriving (Show)
-data DataPropertyFact = DataPropertyFact DataPropertyIRI Literal deriving (Show)
-data Misc
-    = EquivalentClasses Annotations (AtLeast2List Description)
-    | DisjointClasses Annotations (AtLeast2List Description)
-    | EquivalentObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
-    | DisjointObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
-    | EquivalentDataProperties Annotations (AtLeast2List DataPropertyExpression)
-    | DisjointDataProperties Annotations (AtLeast2List DataPropertyExpression)
-    | SameIndividual Annotations (AtLeast2List Individual)
-    | DifferentIndividuals Annotations (AtLeast2List Individual) deriving (Show)
+  = ObjectPropertyFact ObjectPropertyIRI Individual
+  | NegativeObjectPropertyFact ObjectPropertyIRI Individual
+  | DataPropertyFact DataPropertyIRI Literal
+  | NegativeDataPropertyFact DataPropertyIRI Literal deriving (Show)
+-- data Misc
+--     = EquivalentClasses Annotations (AtLeast2List Description)
+--     | DisjointClasses Annotations (AtLeast2List Description)
+--     | EquivalentObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
+--     | DisjointObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
+--     | EquivalentDataProperties Annotations (AtLeast2List DataPropertyExpression)
+--     | DisjointDataProperties Annotations (AtLeast2List DataPropertyExpression)
+--     | SameIndividual Annotations (AtLeast2List Individual)
+--     | DifferentIndividuals Annotations (AtLeast2List Individual) deriving (Show)
 data Literal
     = TypedLiteralC TypedLiteral
     | StringLiteralNoLang Text

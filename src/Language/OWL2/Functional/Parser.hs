@@ -145,47 +145,45 @@ fannotations = many fannotation
 annotationAnnotations :: Parser [Annotated Annotation]
 annotationAnnotations = fannotations
 
-annotationAxiom :: Parser AnnotationPropertyFrame
-annotationAxiom =  annotationAssertion
-               <|> subAnnotationPropertyOf
+annotationAxiom :: Parser AnnotationPropertyAxiom
+annotationAxiom =  subAnnotationPropertyOf
                <|> annotationPropertyDomain
                <|> annotationPropertyRange
 
 -- | It parses annotation assertions
 --
--- >>> parseTest (annotationAssertion *> eof) "AnnotationAssertion(rdfs:comment test-ont:kostasAnnot \"comment\")"
+-- >> parseTest (annotationAssertion *> eof) "AnnotationAssertion(rdfs:comment test-ont:kostasAnnot \"comment\")"
 -- ()
--- >>> parseTest (annotationAssertion *> eof) "AnnotationAssertion(owl:priorVersion _:node1 _:node2)"
+-- >> parseTest (annotationAssertion *> eof) "AnnotationAssertion(owl:priorVersion _:node1 _:node2)"
 -- ()
 --
-annotationAssertion :: Parser AnnotationPropertyFrame
-annotationAssertion = do
-  symbol "AnnotationAssertion"
-  parens $ do
-    annots   <- axiomAnnotations
-    property <- annotationProperty
-    subject  <- annotationSubject
-    target   <- annotationValue literal
-    let annotList = NE.fromList [Annotated (annots, Annotation property target)]
-    pure $ AnnotationPropertyF subject [AnnotationAPE annotList]
+-- TODO: doctest inactive
+-- annotationAssertion :: Parser AnnotationPropertyFrame
+-- annotationAssertion = do
+--   symbol "AnnotationAssertion"
+--   parens $ do
+--     annots   <- axiomAnnotations
+--     property <- annotationProperty
+--     subject  <- annotationSubject
+--     target   <- annotationValue literal
+--     let annotList = NE.fromList [Annotated (annots, Annotation property target)]
+--     pure $ AnnotationPropertyF property {-TODO: remove: subject-} [AnnotationAPE annotList]
 
-annotationSubject :: Parser AnnotationPropertyIRI
-annotationSubject = annotationPropertyIRI
+annotationSubject :: Parser TotalIRI
+annotationSubject = totalIRI
 
 -- | It parses sub property annotation assertions
 --
 -- >>> parseTest (subAnnotationPropertyOf *> eof) "SubAnnotationPropertyOf(test-ont:kostasAnnot rdfs:comment)"
 -- ()
 --
-subAnnotationPropertyOf :: Parser AnnotationPropertyFrame
+subAnnotationPropertyOf :: Parser AnnotationPropertyAxiom
 subAnnotationPropertyOf = do
   symbol "SubAnnotationPropertyOf"
-  parens $ do
-    annots   <- axiomAnnotations
-    subAnn   <- subAnnotationProperty
-    superAnn <- superAnnotationProperty
-    let annotList = NE.fromList [Annotated (annots, superAnn)] 
-    pure $ AnnotationPropertyF subAnn [SubPropertyOfAPE annotList]
+  parens $ AnnotationPSubProperty
+        <$> axiomAnnotations
+        <*> subAnnotationProperty
+        <*> superAnnotationProperty
 
 subAnnotationProperty :: Parser AnnotationPropertyIRI
 subAnnotationProperty = annotationProperty
@@ -193,25 +191,21 @@ subAnnotationProperty = annotationProperty
 superAnnotationProperty :: Parser AnnotationPropertyIRI
 superAnnotationProperty = annotationProperty
 
-annotationPropertyDomain :: Parser AnnotationPropertyFrame
+annotationPropertyDomain :: Parser AnnotationPropertyAxiom
 annotationPropertyDomain = do
   symbol "AnnotationPropertyDomain"
-  parens $ do
-    annots <- axiomAnnotations
-    prop   <- annotationProperty
-    iri'   <- iri
-    let annotList = NE.fromList [Annotated (annots, iri')] 
-    pure $ AnnotationPropertyF prop [DomainAPE annotList]
+  parens $ AnnotationPDomain
+        <$> axiomAnnotations
+        <*> annotationProperty
+        <*> iri
 
-annotationPropertyRange :: Parser AnnotationPropertyFrame
+annotationPropertyRange :: Parser AnnotationPropertyAxiom
 annotationPropertyRange = do
   symbol "AnnotationPropertyRange"
-  parens $ do
-    annots <- axiomAnnotations
-    prop   <- annotationProperty
-    iri'   <- iri
-    let annotList = NE.fromList [Annotated (annots, iri')] 
-    pure $ AnnotationPropertyF prop [RangeAPE annotList]
+  parens $ AnnotationPRange
+        <$> axiomAnnotations
+        <*> annotationProperty
+        <*> iri
 
 datatype:: Parser Datatype
 datatype = Datatype <$> iri
@@ -614,14 +608,14 @@ datatypeDefinition = do
     dataRange
   pure ()
 
-assertion :: Parser ()
-assertion =  sameIndividual $> ()
-         <|> differentIndividuals $> ()
-         <|> classAssertion $> ()
-         <|> objectPropertyAssertion $> ()
-         <|> negativeObjectPropertyAssertion $> ()
-         <|> dataPropertyAssertion $> ()
-         <|> negativeDataPropertyAssertion $> ()
+assertion :: Parser AssertionAxiom
+assertion =  sameIndividual
+         <|> differentIndividuals
+         <|> classAssertion
+         <|> objectPropertyAssertion
+         <|> negativeObjectPropertyAssertion
+         <|> dataPropertyAssertion
+         <|> negativeDataPropertyAssertion
 
 sourceIndividual :: Parser Individual
 sourceIndividual = individual
@@ -632,74 +626,64 @@ targetIndividual = individual
 targetValue :: Parser Literal
 targetValue = literal
 
-sameIndividual :: Parser ()
+sameIndividual :: Parser AssertionAxiom
 sameIndividual = do
   symbol "SameIndividual"
-  parens $ do
-    axiomAnnotations
-    individual
-    some individual
-  pure ()
+  parens $ AssertionSameIndividuals <$> axiomAnnotations <*> doubleOrMany "" individual
 
-differentIndividuals :: Parser ()
+differentIndividuals :: Parser AssertionAxiom
 differentIndividuals = do
   symbol "DifferentIndividuals"
-  parens $ do
-    axiomAnnotations
-    individual
-    some individual
-  pure ()
+  parens $ AssertionDifferentIndividuals <$> axiomAnnotations <*> doubleOrMany "" individual
 
-classAssertion :: Parser ()
+classAssertion :: Parser AssertionAxiom
 classAssertion = do
   symbol "ClassAssertion"
   parens $ do
-    axiomAnnotations
-    classExpression
-    individual
-  pure ()
+    annots <- axiomAnnotations
+    ce     <- classExpression
+    ind    <- individual
+    pure $ AssertionClass annots ind ce
 
-objectPropertyAssertion :: Parser ()
+objectPropertyAssertion :: Parser AssertionAxiom
 objectPropertyAssertion = do
   symbol "ObjectPropertyAssertion"
-  parens $ do
-    axiomAnnotations
-    objectPropertyExpression
-    sourceIndividual
-    targetIndividual
-  pure ()
+  parens $ AssertionObjectProperty
+        <$> axiomAnnotations
+        <*> objectPropertyExpression
+        <*> sourceIndividual
+        <*> targetIndividual
 
-negativeObjectPropertyAssertion :: Parser ()
+negativeObjectPropertyAssertion :: Parser AssertionAxiom
 negativeObjectPropertyAssertion = do
   symbol "NegativeObjectPropertyAssertion"
-  parens $ do
-    axiomAnnotations
-    objectPropertyExpression
-    sourceIndividual
-    targetIndividual
-  pure ()
+  parens $ AssertionNegativeObjectProperty
+        <$> axiomAnnotations
+        <*> objectPropertyExpression
+        <*> sourceIndividual
+        <*> targetIndividual
 
-dataPropertyAssertion :: Parser ()
+dataPropertyAssertion :: Parser AssertionAxiom
 dataPropertyAssertion = do
   symbol "DataPropertyAssertion"
-  parens $ do
-    axiomAnnotations
-    dataPropertyExpression
-    sourceIndividual
-    targetValue
-  pure ()
+  parens $ AssertionDataProperty
+        <$> axiomAnnotations
+        <*> dataPropertyExpression
+        <*> sourceIndividual
+        <*> targetValue
 
-negativeDataPropertyAssertion :: Parser ()
+negativeDataPropertyAssertion :: Parser AssertionAxiom
 negativeDataPropertyAssertion = do
   symbol "NegativeDataPropertyAssertion"
-  parens $ do
-    axiomAnnotations
-    dataPropertyExpression
-    sourceIndividual
-    targetIndividual
-  pure ()
+  parens $ AssertionNegativeDataProperty
+        <$> axiomAnnotations
+        <*> dataPropertyExpression
+        <*> sourceIndividual
+        <*> targetValue
 
-
+------------------
+-- Parser utils --
+------------------
 parseOntologyDoc :: FilePath -> IO (Maybe ())
 parseOntologyDoc file =
   putStrLn ("Parsing ontology document: '" <> file <> "'") >>
