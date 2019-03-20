@@ -86,8 +86,9 @@ data Axiom
     | AxiomDP DataPropertyAxiom
     | AxiomAP AnnotationPropertyAxiom
     | AxiomI AssertionAxiom deriving (Show)
-data DatatypeAxiom = DatatypeF Datatype [SomeAnnotations] (Maybe AnnotDataRange) deriving (Show)
-data AnnotDataRange = AnnotDataRange Annotations DataRange deriving (Show)
+data DatatypeAxiom
+    = DatatypeAxiomAnnotation Annotations Datatype Annotation
+    | DatatypeAxiomEquivalent Annotations Datatype DataRange deriving (Show)
 newtype Datatype = Datatype { unDatatype :: DatatypeIRI } deriving (Show)
 data DatatypeRestriction = DatatypeRestriction Datatype (NonEmpty RestrictionExp) deriving (Show)
 data RestrictionExp = RestrictionExp Facet Literal deriving (Show)

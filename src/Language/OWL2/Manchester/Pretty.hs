@@ -230,17 +230,19 @@ instance PrettyM Conjunction where
   pretty (PrimConj ps)    = join "and" (NE.toList ps)
 
 instance PrettyM DatatypeAxiom where
-  pretty (DatatypeF dt ma mdr) = "DatatypeFrame:" <+> pretty dt
-                               <> line
-                               <> pma
-                               <> line
-                               <> prependM "EquivalentTo: " mdr
-    where pma = if null ma
-                then mempty
-                else "Annotations:" <+> indent 4 (align (vsep (pretty <$> ma)))
-
-instance PrettyM AnnotDataRange where
-  pretty (AnnotDataRange a dr) = pretty a <+> pretty dr
+  pretty dta = undefined
+--instance PrettyM DatatypeAxiom where
+--  pretty (DatatypeF dt ma mdr) = "DatatypeFrame:" <+> pretty dt
+--                               <> line
+--                               <> pma
+--                               <> line
+--                               <> prependM "EquivalentTo: " mdr
+--    where pma = if null ma
+--                then mempty
+--                else "Annotations:" <+> indent 4 (align (vsep (pretty <$> ma)))
+--
+--instance PrettyM AnnotDataRange where
+--  pretty (AnnotDataRange a dr) = pretty a <+> pretty dr
 
 -- instance PrettyM Misc where
 --   pretty (EquivalentClasses as ds)           = "EquivalentClasses:"    <+> pretty as <+> pretty ds

@@ -156,7 +156,7 @@ importStmt :: Parser ImportDeclaration
 importStmt = ImportD <$> (symbol "Import:" *> iri)
 
 axioms :: Parser [Axiom]
-axioms =  pure . AxiomDT <$> datatypeAxiom
+axioms =  map AxiomDT    <$> datatypeAxiom
       <|> map AxiomC     <$> classAxioms
       <|> map AxiomOP    <$> objectPropertyAxioms
       <|> map AxiomDP    <$> dataPropertyAxioms
@@ -428,13 +428,28 @@ atomic =  CExpClass       <$> classIRI
 -- >>> parseTest (datatypeAxiom *> eof) (T.unlines input)
 -- ()
 --
-datatypeAxiom :: Parser DatatypeAxiom
+datatypeAxiom :: Parser [DatatypeAxiom]
 datatypeAxiom = do
-  dtype   <- symbol "Datatype:" *> datatype
-  annots  <- many $ symbol "Annotations:" *> annotatedList mAnnotation
-  equiv   <- optional $ AnnotDataRange <$> (symbol "EquivalentTo:" *> annotationSection) <*> dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
-  annots' <- many $ symbol "Annotations:" *> annotatedList mAnnotation
-  pure $ DatatypeF dtype (annots <> annots') equiv
+  dtype <- symbol "Datatype:" *> datatype
+  axms <- many . choice $ ($ dtype) <$> [annotDTA, equDTA]  --choices
+  pure $ concat axms
+ where
+  annotDTA c = do
+    _ <- symbol "Annotations:"
+    mAn <- annotatedList mAnnotation
+    pure $ spreadAnnotations DatatypeAxiomAnnotation c mAn
+  equDTA c = do
+    _ <- symbol "EquivalentTo:"
+    annots <- annotationSection
+    dr <- dataRange
+    pure [ DatatypeAxiomEquivalent annots c dr ]
+--datatypeAxiom :: Parser DatatypeAxiom
+--datatypeAxiom = do
+--  dtype   <- symbol "Datatype:" *> datatype
+--  annots  <- many $ symbol "Annotations:" *> annotatedList mAnnotation
+--  equiv   <- optional $ AnnotDataRange <$> (symbol "EquivalentTo:" *> annotationSection) <*> dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
+--  annots' <- many $ symbol "Annotations:" *> annotatedList mAnnotation
+--  pure $ DatatypeF dtype (annots <> annots') equiv
 
 -- | It parses a class frame
 --
