@@ -62,11 +62,8 @@ typedLiteral :: Parser TypedLiteral
 typedLiteral = TypedL <$> lexicalValue
                       <*> (symbol "^^" *> datatype)
 
-ontologyDocument :: Parser ()
-ontologyDocument = do
-  many prefixDeclaration
-  ontology
-  pure ()
+ontologyDocument :: Parser OntologyDocument
+ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
 
 -- | It parses a prefix declaration
 --
@@ -81,17 +78,17 @@ prefixDeclaration = do
   symbol "Prefix"
   parens $ PrefixD <$> prefixName <*> (symbol "=" *> fullIRI)
 
-ontology :: Parser ()
+ontology :: Parser Ontology
 ontology = do
   symbol "Ontology"
   parens $ do
-    optional $ do
+    ver <- optional $ do
       ontologyIRI
       try (optional versionIRI) -- Maybe (iri, Maybe iri)
-    many directImport
-    ontologyAnnotations
-    axioms
-  pure ()
+    imprs <- many directImport
+    annots <- ontologyAnnotations
+    axms <- axioms
+    pure $ Ontology ver imprs annots axms
 
 -- | It parses import ontology declarations
 --
@@ -112,13 +109,13 @@ axioms = many axiom
 -- >>> parseTest (declaration *> eof) "Declaration(Class(<http://www.uom.gr/ai/TestOntology.owl#Child>))"
 -- ()
 --
-declaration :: Parser ()
+-- >>> parseTest (declaration *> eof) "Declaration( NamedIndividual( a:Peter ))"
+-- ()
+--
+declaration :: Parser Declaration
 declaration = do
   symbol "Declaration"
-  parens $ do
-    axiomAnnotations
-    entity
-  pure ()
+  parens $ Declaration <$> axiomAnnotations <*> entity
 
 entity :: Parser Entity
 entity =  EntityClass              <$> (symbol "Class"              *> parens clazz)
@@ -395,15 +392,16 @@ dataMaxCardinality = dataCardinality "DataMaxCardinality" CExpDataMaxCardinality
 dataExactCardinality :: Parser ClassExpression
 dataExactCardinality = dataCardinality "DataExactCardinality" CExpDataExactCardinality
 
-axiom :: Parser ()
-axiom =  declaration $> ()
-     <|> classAxiom $> ()
-     <|> objectPropertyAxiom $> ()
-     <|> dataPropertyAxiom $> ()
-     <|> datatypeDefinition $> ()
-     <|> hasKey $> ()
-     <|> assertion $> ()
-     <|> annotationAxiom $> ()
+axiom :: Parser Axiom
+axiom =  undefined
+--declaration $> ()
+--     <|> classAxiom $> ()
+--     <|> objectPropertyAxiom $> ()
+--     <|> dataPropertyAxiom $> ()
+--     <|> datatypeDefinition $> ()
+--     <|> hasKey $> ()
+--     <|> assertion $> ()
+--     <|> annotationAxiom $> ()
 
 ------------------
 -- Class Axioms --

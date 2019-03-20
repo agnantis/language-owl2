@@ -28,30 +28,33 @@ toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
 -- annListToList :: AnnotatedList a -> [Annotated a]
 -- annListToList (AnnList xs) = NE.toList xs
 
+-- Type synonyms --
 type LangTag = Text
 type ImportIRI = IRI
 type AnnotationPropertyIRI = IRI
 type VersionIRI = IRI
 type OntologyIRI = IRI
--- type FullIRI = IRI
 type DatatypeIRI = IRI
 type ClassIRI = IRI
 type ObjectPropertyIRI = IRI
 type DataPropertyIRI = IRI
 type IndividualIRI = IRI
---type Axiom = Text
+type Individual = TotalIRI
 type PrefixName = Text
 type SomeAnnotations = AnnotatedList Annotation
-type Descriptions = AnnotatedList Description
+type Descriptions = AnnotatedList ClassExpression
 type Exponent = Integer
 type Fact = WithNegation FactElement
 type DataPropertyExpression = DataPropertyIRI
 type AnnotationProperty = AnnotationPropertyIRI
+type Annotations = [Annotated Annotation]
+--type Description = ClassExpression
+type AnnotatedList a = NonEmpty (Annotated a)
+
+-- Data types --
 data ObjectPropertyExpression
     = OPE ObjectPropertyIRI
     | InverseOPE ObjectPropertyIRI deriving (Show)
-type Annotations = [Annotated Annotation]
-
 data DataRange
     = DatatypeDR Datatype
     | IntersectionDR (AtLeast2List DataRange)
@@ -60,14 +63,10 @@ data DataRange
     | OneOfDR (NonEmpty Literal)
     | RestrictionDR DatatypeRestriction deriving (Show)
 newtype DecimalLiteral = DecimalL Double deriving (Show)
-type Description = ClassExpression
---newtype Description = Description (NonEmpty Conjunction) deriving (Show)
 newtype IntegerLiteral = IntegerL Integer deriving (Show)
 newtype NodeID = NodeID Text deriving (Show)
 newtype Annotated a = Annotated { unAnnotated :: ([Annotated Annotation], a) } deriving (Show) -- TODO: use a sum type instead of pair for easier access
-type AnnotatedList a = NonEmpty (Annotated a)
 newtype ImportDeclaration = ImportD IRI deriving (Show)
-
 data IRI
     = FullIRI Text
     | AbbreviatedIRI PrefixName Text
@@ -77,7 +76,7 @@ data FloatPoint = FloatP Double (Maybe Exponent) deriving (Show)
 data LiteralWithLang = LiteralWithLang Text LangTag deriving (Show)
 data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving (Show)
 data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show)
-data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] [Annotated Annotation] [Axiom] deriving (Show)
+data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] Annotations [Axiom] deriving (Show)
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Show)
 data Annotation = Annotation AnnotationPropertyIRI AnnotationValue deriving (Show)
 data Axiom
@@ -87,7 +86,6 @@ data Axiom
     | AxiomDP DataPropertyAxiom
     | AxiomAP AnnotationPropertyAxiom
     | AxiomI AssertionAxiom deriving (Show)
---    | AxiomM Misc deriving (Show)
 data DatatypeAxiom = DatatypeF Datatype [SomeAnnotations] (Maybe AnnotDataRange) deriving (Show)
 data AnnotDataRange = AnnotDataRange Annotations DataRange deriving (Show)
 newtype Datatype = Datatype { unDatatype :: DatatypeIRI } deriving (Show)
@@ -104,23 +102,13 @@ data Facet
     | GE_FACET
     | G_FACET deriving (Show)
 data ClassAxiom
-    = ClassAxiomAnnotation Annotations ClassExpression Annotation -- TODO: I may have to move it from here as these axiom are included in all *Axioms
+    = ClassAxiomAnnotation Annotations ClassExpression Annotation -- TODO: I may have to move it from here as these axiom are included in all *Axioms*
     | ClassAxiomSubClassOf Annotations ClassExpression ClassExpression
     | ClassAxiomEquivalentClasses Annotations (AtLeast2List ClassExpression)
     | ClassAxiomDisjointClasses Annotations (AtLeast2List ClassExpression)
     | ClassAxiomDisjointUnion Annotations ClassIRI (AtLeast2List ClassExpression)
     | ClassAxiomHasKey Annotations ClassExpression (NonEmpty ObjectOrDataPE) deriving (Show)
-
 data DeclarationAxiom = DeclarationAxiom Annotations Entity deriving (Show)
-
--- data ClassAxiom = ClassF IRI [ClassElement] deriving (Show)
---data ClassElement
---    = AnnotationCE SomeAnnotations
---    | SubClassOfCE Descriptions
---    | EquivalentToCE Descriptions
---    | DisjointToCE Descriptions
---    | DisjointUnionOfCE Annotations (AtLeast2List Description)
---    | HasKeyCE Annotations (NonEmpty ObjectOrDataPE) deriving (Show)
 data ObjectOrDataPE
     = ObjectPE ObjectPropertyExpression
     | DataPE DataPropertyExpression deriving (Show)
@@ -139,27 +127,25 @@ data Primary
 data Restriction
     = OPRestriction ObjectPropertyRestriction
     | DPRestriction DataPropertyRestriction deriving (Show)
----
 data ClassExpression
-  = CExpClass ClassIRI
-  | CExpObjectIntersectionOf (AtLeast2List ClassExpression)
-  | CExpObjectUnionOf (AtLeast2List ClassExpression)
-  | CExpObjectComplementOf ClassExpression
-  | CExpObjectOneOf (NonEmpty Individual)
-  | CExpObjectSomeValuesFrom ObjectPropertyExpression ClassExpression
-  | CExpObjectAllValuesFrom ObjectPropertyExpression ClassExpression
-  | CExpObjectHasValue ObjectPropertyExpression Individual
-  | CExpObjectHasSelf ObjectPropertyExpression
-  | CExpObjectMinCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
-  | CExpObjectMaxCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
-  | CExpObjectExactCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
-  | CExpDataSomeValuesFrom DataPropertyExpression DataRange 
-  | CExpDataAllValuesFrom DataPropertyExpression DataRange
-  | CExpDataHasValue DataPropertyExpression Literal
-  | CExpDataMinCardinality Int DataPropertyExpression (Maybe DataRange)
-  | CExpDataMaxCardinality Int DataPropertyExpression (Maybe DataRange)
-  | CExpDataExactCardinality Int DataPropertyExpression (Maybe DataRange) deriving (Show)
----
+    = CExpClass ClassIRI
+    | CExpObjectIntersectionOf (AtLeast2List ClassExpression)
+    | CExpObjectUnionOf (AtLeast2List ClassExpression)
+    | CExpObjectComplementOf ClassExpression
+    | CExpObjectOneOf (NonEmpty Individual)
+    | CExpObjectSomeValuesFrom ObjectPropertyExpression ClassExpression
+    | CExpObjectAllValuesFrom ObjectPropertyExpression ClassExpression
+    | CExpObjectHasValue ObjectPropertyExpression Individual
+    | CExpObjectHasSelf ObjectPropertyExpression
+    | CExpObjectMinCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
+    | CExpObjectMaxCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
+    | CExpObjectExactCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
+    | CExpDataSomeValuesFrom DataPropertyExpression DataRange 
+    | CExpDataAllValuesFrom DataPropertyExpression DataRange
+    | CExpDataHasValue DataPropertyExpression Literal
+    | CExpDataMinCardinality Int DataPropertyExpression (Maybe DataRange)
+    | CExpDataMaxCardinality Int DataPropertyExpression (Maybe DataRange)
+    | CExpDataExactCardinality Int DataPropertyExpression (Maybe DataRange) deriving (Show)
 data ObjectPropertyRestrictionType
     = SelfOPR
     | SomeOPR Primary
@@ -180,11 +166,10 @@ data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictio
 data TotalIRI
     = NamedIRI IRI
     | AnonymousIRI NodeID deriving (Show)
-type Individual = TotalIRI
 data Atomic
     = AtomicClass ClassIRI
     | AtomicIndividuals (NonEmpty Individual)
-    | AtomicDescription Description deriving (Show)
+    | AtomicDescription ClassExpression deriving (Show)
 data ObjectPropertyAxiom
     = ObjectPAnnotation Annotations ObjectPropertyExpression Annotation
     | ObjectPDomain Annotations ObjectPropertyExpression ClassExpression
@@ -212,58 +197,26 @@ data DataPropertyAxiom
     | DataPSubProperty Annotations DataPropertyExpression DataPropertyExpression
     | DataPEquivalent Annotations (AtLeast2List DataPropertyExpression)
     | DataPDisjoint Annotations (AtLeast2List DataPropertyExpression) deriving (Show)
---data DataPropertyAxiom = DataPropertyF DataPropertyIRI [DataPropertyElement] deriving (Show)
---data DataPropertyElement
---    = AnnotationDPE SomeAnnotations
---    | DomainDPE Descriptions
---    | RangeDPE (AnnotatedList DataRange)
---    | CharacteristicsDPE (AnnotatedList DataPropertyCharacteristics)
---    | SubPropertyOfDPE (AnnotatedList DataPropertyExpression)
---    | EquivalentToDPE (AnnotatedList DataPropertyExpression)
---    | DisjointWithDPE (AnnotatedList DataPropertyExpression) deriving (Show)
 data DataPropertyCharacteristics = FUNCTIONAL_DPE deriving (Show)
 data AnnotationPropertyAxiom -- TODO: Missing AnnotationAssertion; to be moved under Assertion datatype
-  = AnnotationPAnnotation Annotations AnnotationProperty Annotation
-  | AnnotationPDomain Annotations AnnotationProperty IRI
-  | AnnotationPRange Annotations AnnotationProperty IRI
-  | AnnotationPSubProperty Annotations AnnotationProperty AnnotationProperty deriving (Show)
--- data AnnotationPropertyAxiom = AnnotationPropertyF AnnotationPropertyIRI [AnnotationPropertyElement] deriving (Show)
--- data AnnotationPropertyElement
---     = AnnotationAPE SomeAnnotations
---     | DomainAPE (AnnotatedList IRI)
---     | RangeAPE (AnnotatedList IRI)
---     | SubPropertyOfAPE (AnnotatedList AnnotationPropertyIRI) deriving (Show)
+    = AnnotationPAnnotation Annotations AnnotationProperty Annotation
+    | AnnotationPDomain Annotations AnnotationProperty IRI
+    | AnnotationPRange Annotations AnnotationProperty IRI
+    | AnnotationPSubProperty Annotations AnnotationProperty AnnotationProperty deriving (Show)
 data AssertionAxiom
-  = AssertionAnnotation Annotations TotalIRI Annotation
-  | AssertionSameIndividuals Annotations (AtLeast2List Individual)
-  | AssertionDifferentIndividuals Annotations (AtLeast2List Individual)
-  | AssertionClass Annotations Individual ClassExpression
-  | AssertionObjectProperty Annotations ObjectPropertyExpression Individual Individual
-  | AssertionNegativeObjectProperty Annotations ObjectPropertyExpression Individual Individual 
-  | AssertionDataProperty Annotations DataPropertyExpression Individual Literal
-  | AssertionNegativeDataProperty Annotations DataPropertyExpression Individual Literal deriving (Show)
-
--- data IndividualFrame = IndividualF Individual [IndividualElement] deriving (Show)
--- data IndividualElement
---   = AnnotationIE SomeAnnotations
---   | TypeIE Descriptions
---   | FactIE (AnnotatedList FactElement)
---   | SameAsIE (AnnotatedList Individual)
---   | DifferentFromIE (AnnotatedList Individual) deriving (Show)
+    = AssertionAnnotation Annotations TotalIRI Annotation
+    | AssertionSameIndividuals Annotations (AtLeast2List Individual)
+    | AssertionDifferentIndividuals Annotations (AtLeast2List Individual)
+    | AssertionClass Annotations Individual ClassExpression
+    | AssertionObjectProperty Annotations ObjectPropertyExpression Individual Individual
+    | AssertionNegativeObjectProperty Annotations ObjectPropertyExpression Individual Individual 
+    | AssertionDataProperty Annotations DataPropertyExpression Individual Literal
+    | AssertionNegativeDataProperty Annotations DataPropertyExpression Individual Literal deriving (Show)
 data FactElement
-  = ObjectPropertyFact ObjectPropertyIRI Individual
-  | NegativeObjectPropertyFact ObjectPropertyIRI Individual
-  | DataPropertyFact DataPropertyIRI Literal
-  | NegativeDataPropertyFact DataPropertyIRI Literal deriving (Show)
--- data Misc
---     = EquivalentClasses Annotations (AtLeast2List Description)
---     | DisjointClasses Annotations (AtLeast2List Description)
---     | EquivalentObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
---     | DisjointObjectProperties Annotations (AtLeast2List ObjectPropertyExpression)
---     | EquivalentDataProperties Annotations (AtLeast2List DataPropertyExpression)
---     | DisjointDataProperties Annotations (AtLeast2List DataPropertyExpression)
---     | SameIndividual Annotations (AtLeast2List Individual)
---     | DifferentIndividuals Annotations (AtLeast2List Individual) deriving (Show)
+    = ObjectPropertyFact ObjectPropertyIRI Individual
+    | NegativeObjectPropertyFact ObjectPropertyIRI Individual
+    | DataPropertyFact DataPropertyIRI Literal
+    | NegativeDataPropertyFact DataPropertyIRI Literal deriving (Show)
 data Literal
     = TypedLiteralC TypedLiteral
     | StringLiteralNoLang Text
@@ -271,6 +224,7 @@ data Literal
     | IntegerLiteralC IntegerLiteral
     | DecimalLiteralC DecimalLiteral
     | FloatingLiteralC FloatPoint deriving (Show)
+data Declaration = Declaration Annotations Entity deriving (Show)
 data Entity
     = EntityDatatype Datatype
     | EntityClass ClassIRI
@@ -282,11 +236,10 @@ data AnnotationValue
     = NodeAT NodeID
     | IriAT IRI
     | LiteralAT Literal deriving (Show)
--- data DataPrimary = DataPr DataAtomic | DataPrNot DataAtomic
 
 
 ---------------------------
----- UTILITY FUNCTIONS ----
+---- utility functions ----
 ---------------------------
 flattenAnnList :: [AnnotatedList a] -> Maybe (AnnotatedList a)
 flattenAnnList [] = Nothing
@@ -296,7 +249,7 @@ singleton :: a -> NonEmpty a
 singleton x = x :| []
 
 -------------------------
----- CLASS INSTANCES ----
+---- Class instances ----
 -------------------------
 
 -- instance Semigroup (AnnotatedList a) where
@@ -306,19 +259,4 @@ singleton x = x :| []
 -- instance Show a => Show (AtLeast2List a) where
 --   show ((a, b) :# xs) = show $ a:b:xs 
 
-
--- instance Show Annotation where
---   show (Annotation i s) = unwords [show i, "<undefinded-annotation-target>"]
-
--- instance (Show a) => Show (AnnotatedList a) where
---   show (AnnList []) = ""
---   show (AnnList xs) = intercalate ",\n" (go <$> xs)
---    where
---     go (AnnList [], x) = show x
---     go (al, x) = unwords ["Annotations:", show al, "\n ", show x]
-
--- instance Show FloatPoint where
---   show (FloatP n me) = concat [show n, maybe "" show me]
--- instance Show Exponent where
---   show (Exponent i) = concat ["e", if i > 0 then "+" else "", show i]
 

@@ -789,26 +789,6 @@ dataPropertyFact o = do
    pure $ case o of
      Positive _ -> DataPropertyFact dpIRI lit
      Negative _ -> NegativeDataPropertyFact dpIRI lit
--- individualFrame :: Parser IndividualFrame
--- individualFrame = IndividualF <$> (symbol "Individual:" *> individual) <*> many altr
---  where
---   altr =  AnnotationIE    <$> (symbol "Annotations:"   *> annotatedList mAnnotation)
---       <|> TypeIE          <$> (symbol "Types:"         *> annotatedList description)
---       <|> FactIE          <$> (symbol "Facts:"         *> annotatedList fact)
---       <|> SameAsIE        <$> (symbol "SameAs:"        *> annotatedList individual)
---       <|> DifferentFromIE <$> (symbol "DifferentFrom:" *> annotatedList individual)
-
--- fact :: Parser Fact
--- fact = do
---   neg <- optionalNegation
---   fct <- (ObjectPropertyFE <$> try objectPropertyFact) <|> (DataPropertyFE <$> try dataPropertyFact)
---   pure $ const fct <$> neg
--- 
--- objectPropertyFact :: Parser ObjectPropertyFact
--- objectPropertyFact = ObjectPropertyFact <$> objectPropertyIRI <*> individual
--- 
--- dataPropertyFact :: Parser DataPropertyFact
--- dataPropertyFact = DataPropertyFact <$> dataPropertyIRI <*> literal
 
 -- | It parses an class miscelaneous properties
 --
@@ -825,10 +805,9 @@ dataPropertyFact o = do
 --       ]
 -- :}
 --
--- >>> parseTest (many misc *> eof) (T.unlines input)
+-- >>> parseTest (misc *> eof) (T.unlines input)
 -- ()
 --
--- TODO-check I converted all required annotation to annotated list
 misc :: Parser [Axiom]
 misc = many . choice $ try <$> [equClM, disjClM, equOPM, disjOPM, equDPM, disjDPM, sameIndM, diffIndM]  --choices
  where
