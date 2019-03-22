@@ -156,12 +156,12 @@ importStmt :: Parser ImportDeclaration
 importStmt = ImportD <$> (symbol "Import:" *> iri)
 
 axioms :: Parser [Axiom]
-axioms =  map AxiomDT    <$> datatypeAxiom
-      <|> map AxiomC     <$> classAxioms
-      <|> map AxiomOP    <$> objectPropertyAxioms
-      <|> map AxiomDP    <$> dataPropertyAxioms
-      <|> map AxiomAP    <$> annotationPropertyAxioms
-      <|> map AxiomI     <$> assertionAxioms
+axioms =  datatypeAxiom
+      <|> classAxioms
+      <|> objectPropertyAxioms
+      <|> dataPropertyAxioms
+      <|> annotationPropertyAxioms
+      <|> assertionAxioms
       <|> misc
 
 
@@ -428,7 +428,7 @@ atomic =  CExpClass       <$> classIRI
 -- >>> parseTest (datatypeAxiom *> eof) (T.unlines input)
 -- ()
 --
-datatypeAxiom :: Parser [DatatypeAxiom]
+datatypeAxiom :: Parser [Axiom]
 datatypeAxiom = do
   dtype <- symbol "Datatype:" *> datatype
   axms <- many . choice $ ($ dtype) <$> [annotDTA, equDTA]  --choices
@@ -437,7 +437,7 @@ datatypeAxiom = do
   annotDTA c = do
     _ <- symbol "Annotations:"
     mAn <- annotatedList mAnnotation
-    pure $ spreadAnnotations DatatypeAxiomAnnotation c mAn
+    pure $ spreadAnnotations AnnotationAxiomAssertion (NamedIRI (unDatatype c)) mAn
   equDTA c = do
     _ <- symbol "EquivalentTo:"
     annots <- annotationSection
@@ -474,17 +474,18 @@ datatypeAxiom = do
 -- >>> parseTest (classAxioms *> eof) (T.unlines input)
 -- ()
 --
-classAxioms :: Parser [ClassAxiom]
+classAxioms :: Parser [Axiom]
 classAxioms = do
   clsIRI <- symbol "Class:" *> classIRI
   let x = CExpClass clsIRI
-  axms <- many . choice $ ($ x) <$> [annotCA, subCA, equCA,  disCA, const (dscCA clsIRI), keyCA]  --choices
+  axms <- many . choice $ ($ x) <$> [annotCA, subCA, equCA,  disCA, dscCA, keyCA]  --choices
   pure $ concat axms
  where
-  annotCA c = do
+  annotCA (CExpClass cIRI) = do
     _ <- symbol "Annotations:"
     mAn <- annotatedList mAnnotation
-    pure $ spreadAnnotations ClassAxiomAnnotation c mAn
+    pure $ spreadAnnotations AnnotationAxiomAssertion (NamedIRI cIRI) mAn
+  annotCA _ = pure []
   subCA c = do
     _ <- symbol "SubClassOf:"
     ds <- annotatedList description
@@ -497,11 +498,12 @@ classAxioms = do
     _ <- symbol "DisjointWith:"
     ds <- annotatedList description
     pure $ spreadAnnotationsIfExist ClassAxiomDisjointClasses c ds
-  dscCA c = do
+  dscCA (CExpClass cIRI) = do
     _ <- symbol "DisjointUnionOf:"
     an <- annotationSection
     ds <- listOfAtLeast2 description
-    pure [ClassAxiomDisjointUnion an c ds]
+    pure [ClassAxiomDisjointUnion an cIRI ds]
+  dscCA _ = pure []
   keyCA c = do
     _ <- symbol "HasKey:"
     an <- annotationSection
@@ -535,52 +537,53 @@ classAxioms = do
 -- >>> parseTest (objectPropertyAxioms *> eof) (T.unlines input)
 -- ()
 --
-objectPropertyAxioms :: Parser [ObjectPropertyAxiom]
+objectPropertyAxioms :: Parser [Axiom]
 objectPropertyAxioms = do
   opIRI <- symbol "ObjectProperty:" *> objectPropertyIRI
   let x = OPE opIRI
   axms <- many . choice $ ($ x) <$> [annotAxiom, domainAxiom, rangeAxiom, charAxiom, subAxiom, subChainAxiom, equAxiom, disAxiom, invAxiom] --choices
   pure $ concat axms
  where
-  annotAxiom c = do
+  annotAxiom (OPE opIRI) = do
     _ <- symbol "Annotations:"
     mAn <- annotatedList mAnnotation
-    pure $ spreadAnnotations ObjectPAnnotation c mAn
+    pure $ spreadAnnotations AnnotationAxiomAssertion (NamedIRI opIRI) mAn
+  annotAxiom _ = pure []
   domainAxiom c = do
     _ <- symbol "Domain:"
     mAn <- annotatedList description
-    pure $ spreadAnnotations ObjectPDomain c mAn
+    pure $ spreadAnnotations ObjectPropAxiomDomain c mAn
   rangeAxiom c = do
     _ <- symbol "Range:"
     mAn <- annotatedList description
-    pure $ spreadAnnotations ObjectPRange c mAn
+    pure $ spreadAnnotations ObjectPropAxiomRange c mAn
   charAxiom c = do
     _ <- symbol "Characteristics:"
     chars <- annotatedList objectPropertyCharacteristic
-    pure $ spreadAnnotations ObjectPCharacteristics c chars
+    pure $ spreadAnnotations ObjectPropAxiomCharacteristics c chars
   subAxiom c = do
     _ <- symbol "SubPropertyOf:"
     chars <- annotatedList objectPropertyExpression
-    pure $ spreadAnnotations ObjectPSubProperty c chars
+    pure $ spreadAnnotations ObjectPropAxiomSubProperty c chars
   subChainAxiom c = do
     _ <- symbol "SubPropertyChain:"
     annots <- annotationSection
     hd   <- objectPropertyExpression 
     rest <- nonEmptyList (symbol "o" *> objectPropertyExpression)
     let chain = ObjectPropertyChain $ atLeast2List' hd rest
-    pure [ObjectPChainSubProperty annots chain c]
+    pure [ObjectPropAxiomChainSubProperty annots chain c]
   equAxiom c = do
     _ <- symbol "EquivalentTo:"
     exps <- annotatedList objectPropertyExpression
-    pure $ spreadAnnotationsIfExist ObjectPEquivalent c exps
+    pure $ spreadAnnotationsIfExist ObjectPropAxiomEquivalent c exps
   disAxiom c = do
     _ <- symbol "DisjointWith:"
     exps <- annotatedList objectPropertyExpression
-    pure $ spreadAnnotationsIfExist ObjectPDisjoint c exps
+    pure $ spreadAnnotationsIfExist ObjectPropAxiomDisjoint c exps
   invAxiom c = do
     _ <- symbol "InverseOf:"
     exps <- annotatedList objectPropertyExpression
-    pure $ spreadAnnotations ObjectPInverse c exps
+    pure $ spreadAnnotations ObjectPropAxiomInverse c exps
 
 
 noAnnotations :: AnnotatedList a -> Bool
@@ -633,7 +636,7 @@ objectPropertyCharacteristic =
 -- >>> parseTest (dataPropertyAxioms *> eof) (T.unlines input)
 -- ()
 --
-dataPropertyAxioms :: Parser [DataPropertyAxiom]
+dataPropertyAxioms :: Parser [Axiom]
 dataPropertyAxioms = do
   dpIRI <- symbol "DataProperty:" *> dataPropertyIRI
   axms <- many . choice $ ($ dpIRI) <$> [annotAxiom, domainAxiom, rangeAxiom, charAxiom, subAxiom, equAxiom, disAxiom] --choices
@@ -642,31 +645,31 @@ dataPropertyAxioms = do
   annotAxiom c = do
     _ <- symbol "Annotations:"
     annots <- annotatedList mAnnotation
-    pure $ spreadAnnotations DataPAnnotation c annots
+    pure $ spreadAnnotations AnnotationAxiomAssertion (NamedIRI c) annots
   domainAxiom c = do
     _ <- symbol "Domain:"
     exps <- annotatedList description
-    pure $ spreadAnnotations DataPDomain c exps
+    pure $ spreadAnnotations DataPropAxiomDomain c exps
   rangeAxiom c = do
     _ <- symbol "Range:"
     drs <- annotatedList dataRange
-    pure $ spreadAnnotations DataPRange c drs
+    pure $ spreadAnnotations DataPropAxiomRange c drs
   charAxiom c = do
     _ <- symbol "Characteristics:"
     chars <- annotatedList dataPropertyCharacteristic
-    pure $ spreadAnnotations DataPCharacteristics c chars
+    pure $ spreadAnnotations DataPropAxiomCharacteristics c chars
   subAxiom c = do
     _ <- symbol "SubPropertyOf:"
     exps <- annotatedList dataPropertyExpression
-    pure $ spreadAnnotations DataPSubProperty c exps
+    pure $ spreadAnnotations DataPropAxiomSubProperty c exps
   equAxiom c = do
     _ <- symbol "EquivalentTo:"
     exps <- annotatedList dataPropertyExpression
-    pure $ spreadAnnotationsIfExist DataPEquivalent c exps
+    pure $ spreadAnnotationsIfExist DataPropAxiomEquivalent c exps
   disAxiom c = do
     _ <- symbol "DisjointWith:"
     exps <- annotatedList dataPropertyExpression
-    pure $ spreadAnnotationsIfExist DataPDisjoint c exps
+    pure $ spreadAnnotationsIfExist DataPropAxiomDisjoint c exps
 
 -- | A small utility function with specific functionallity, defined in order to avoid repetition
 spreadAnnotationsIfExist :: (Annotations -> AtLeast2List a -> b) -> a -> AnnotatedList a -> [b]
@@ -706,7 +709,7 @@ dataPropertyCharacteristic = symbol "Functional" $> FUNCTIONAL_DPE
 -- >>> parseTest (annotationPropertyAxioms *> eof) (T.unlines input)
 -- ()
 --
-annotationPropertyAxioms :: Parser [AnnotationPropertyAxiom]
+annotationPropertyAxioms :: Parser [Axiom]
 annotationPropertyAxioms = do
   apIRI <- symbol "AnnotationProperty:" *> annotationPropertyIRI
   axms <- many . choice $ ($ apIRI) <$> [annotAxiom, domainAxiom, rangeAxiom, subAxiom] --choices
@@ -715,19 +718,19 @@ annotationPropertyAxioms = do
   annotAxiom c = do
     _ <- symbol "Annotations:"
     annots <- annotatedList mAnnotation
-    pure $ spreadAnnotations AnnotationPAnnotation c annots
+    pure $ spreadAnnotations AnnotationAxiomAssertion (NamedIRI c) annots
   domainAxiom c = do
     _ <- symbol "Domain:"
     iris <- annotatedList iri
-    pure $ spreadAnnotations AnnotationPDomain c iris
+    pure $ spreadAnnotations AnnotationAxiomDomain c iris
   rangeAxiom c = do
     _ <- symbol "Range:"
     iris <- annotatedList iri
-    pure $ spreadAnnotations AnnotationPRange c iris
+    pure $ spreadAnnotations AnnotationAxiomRange c iris
   subAxiom c = do
     _ <- symbol "SubPropertyOf:"
     exps <- annotatedList annotationPropertyIRI
-    pure $ spreadAnnotations AnnotationPSubProperty c exps
+    pure $ spreadAnnotations AnnotationAxiomSubProperty c exps
 
 -- | It parses an individual frame
 --
@@ -751,7 +754,7 @@ annotationPropertyAxioms = do
 -- >>> parseTest (length <$> assertionAxioms <* eof) (T.unlines input2)
 -- 10
 --
-assertionAxioms :: Parser [AssertionAxiom]
+assertionAxioms :: Parser [Axiom]
 assertionAxioms = do
   ind <- symbol "Individual:" *> individual
   axms <- many . choice $ ($ ind) <$> [annotAxiom, domainAxiom, rangeAxiom, sameAxiom, diffAxiom] --choices
@@ -760,28 +763,28 @@ assertionAxioms = do
   annotAxiom c = do
     _ <- symbol "Annotations:"
     annots <- annotatedList mAnnotation
-    pure $ spreadAnnotations AssertionAnnotation c annots
+    pure $ spreadAnnotations AnnotationAxiomAssertion c annots
   domainAxiom c = do
     _ <- symbol "Types:"
     classes <- annotatedList description
-    pure $ spreadAnnotations AssertionClass c classes
+    pure $ spreadAnnotations AssertionAxiomClass c classes
   rangeAxiom c = do
     _ <- symbol "Facts:"
     facts <- annotatedList fact
     pure $ mapper <$> NE.toList facts
      where
-      mapper (Annotated (a, ObjectPropertyFact o i)) = AssertionObjectProperty a (OPE o) c i
-      mapper (Annotated (a, NegativeObjectPropertyFact o i)) = AssertionNegativeObjectProperty a (OPE o) c i
-      mapper (Annotated (a, DataPropertyFact d v)) = AssertionDataProperty a d c v
-      mapper (Annotated (a, NegativeDataPropertyFact d v)) = AssertionNegativeDataProperty a d c v
+      mapper (Annotated (a, ObjectPropertyFact o i)) = AssertionAxiomObjectProperty a (OPE o) c i
+      mapper (Annotated (a, NegativeObjectPropertyFact o i)) = AssertionAxiomNegativeObjectProperty a (OPE o) c i
+      mapper (Annotated (a, DataPropertyFact d v)) = AssertionAxiomDataProperty a d c v
+      mapper (Annotated (a, NegativeDataPropertyFact d v)) = AssertionAxiomNegativeDataProperty a d c v
   sameAxiom c = do
     _ <- symbol "SameAs:"
     exps <- annotatedList individual
-    pure $ spreadAnnotationsIfExist AssertionSameIndividuals c exps
+    pure $ spreadAnnotationsIfExist AssertionAxiomSameIndividuals c exps
   diffAxiom c = do
     _ <- symbol "DifferentFrom:"
     exps <- annotatedList individual
-    pure $ spreadAnnotationsIfExist AssertionDifferentIndividuals c exps
+    pure $ spreadAnnotationsIfExist AssertionAxiomDifferentIndividuals c exps
 
 
 fact :: Parser FactElement
@@ -827,29 +830,29 @@ misc :: Parser [Axiom]
 misc = many . choice $ try <$> [equClM, disjClM, equOPM, disjOPM, equDPM, disjDPM, sameIndM, diffIndM]  --choices
  where
   equClM = do
-    _      <- symbol "EquivalentClasses:"
-    AxiomC <$> (ClassAxiomEquivalentClasses <$> annotationSection <*> listOfAtLeast2 description)
+    _ <- symbol "EquivalentClasses:"
+    ClassAxiomEquivalentClasses <$> annotationSection <*> listOfAtLeast2 description
   disjClM = do
-    _      <- symbol "DisjointClasses:"
-    AxiomC <$> (ClassAxiomDisjointClasses <$> annotationSection <*> listOfAtLeast2 description)
+    _ <- symbol "DisjointClasses:"
+    ClassAxiomDisjointClasses <$> annotationSection <*> listOfAtLeast2 description
   equOPM = do
-    _      <- symbol "EquivalentProperties:"
-    AxiomOP <$> (ObjectPEquivalent <$> annotationSection <*> listOfAtLeast2 objectPropertyExpression)
+    _ <- symbol "EquivalentProperties:"
+    ObjectPropAxiomEquivalent <$> annotationSection <*> listOfAtLeast2 objectPropertyExpression
   disjOPM = do
-    _      <- symbol "DisjointProperties:"
-    AxiomOP <$> (ObjectPDisjoint <$> annotationSection <*> listOfAtLeast2 objectPropertyExpression)
+    _ <- symbol "DisjointProperties:"
+    ObjectPropAxiomDisjoint <$> annotationSection <*> listOfAtLeast2 objectPropertyExpression
   equDPM = do
-    _      <- symbol "EquivalentProperties:"
-    AxiomDP <$> (DataPEquivalent <$> annotationSection <*> listOfAtLeast2 dataPropertyExpression)
+    _ <- symbol "EquivalentProperties:"
+    DataPropAxiomEquivalent <$> annotationSection <*> listOfAtLeast2 dataPropertyExpression
   disjDPM = do
-    _      <- symbol "DisjointProperties:"
-    AxiomDP <$> (DataPDisjoint <$> annotationSection <*> listOfAtLeast2 dataPropertyExpression)
+    _ <- symbol "DisjointProperties:"
+    DataPropAxiomDisjoint <$> annotationSection <*> listOfAtLeast2 dataPropertyExpression
   sameIndM = do
-    _      <- symbol "SameIndividual:"
-    AxiomI <$> (AssertionSameIndividuals <$> annotationSection <*> listOfAtLeast2 individual)
+    _ <- symbol "SameIndividual:"
+    AssertionAxiomSameIndividuals <$> annotationSection <*> listOfAtLeast2 individual
   diffIndM = do
-    _      <- symbol "DifferentIndividuals:"
-    AxiomI <$> (AssertionDifferentIndividuals <$> annotationSection <*> listOfAtLeast2 individual)
+    _ <- symbol "DifferentIndividuals:"
+    AssertionAxiomDifferentIndividuals <$> annotationSection <*> listOfAtLeast2 individual
 
 predifinedPrefixes :: [PrefixDeclaration]
 predifinedPrefixes =

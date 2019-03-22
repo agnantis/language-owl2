@@ -3,7 +3,9 @@
 
 module Language.OWL2.Types where
 
+import           Data.List                                ( uncons )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
+import qualified Data.List.NonEmpty            as NE
 import           Language.OWL2.Import                     ( Text )
 
 ---------------
@@ -78,17 +80,7 @@ data OntologyDocument = OntologyD [PrefixDeclaration] Ontology deriving (Show)
 data PrefixDeclaration = PrefixD PrefixName IRI deriving (Show)
 data Ontology = Ontology (Maybe OntologyVersionIRI) [ImportDeclaration] Annotations [Axiom] deriving (Show)
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Show)
-data Annotation = Annotation AnnotationPropertyIRI AnnotationValue deriving (Show)
-data Axiom
-    = AxiomDT DatatypeAxiom
-    | AxiomC ClassAxiom
-    | AxiomOP ObjectPropertyAxiom
-    | AxiomDP DataPropertyAxiom
-    | AxiomAP AnnotationPropertyAxiom
-    | AxiomI AssertionAxiom deriving (Show)
-data DatatypeAxiom
-    = DatatypeAxiomAnnotation Annotations Datatype Annotation
-    | DatatypeAxiomEquivalent Annotations Datatype DataRange deriving (Show)
+data Annotation = Annotation AnnotationProperty AnnotationValue deriving (Show)
 newtype Datatype = Datatype { unDatatype :: DatatypeIRI } deriving (Show)
 data DatatypeRestriction = DatatypeRestriction Datatype (NonEmpty RestrictionExp) deriving (Show)
 data RestrictionExp = RestrictionExp Facet Literal deriving (Show)
@@ -102,14 +94,6 @@ data Facet
     | L_FACET
     | GE_FACET
     | G_FACET deriving (Show)
-data ClassAxiom
-    = ClassAxiomAnnotation Annotations ClassExpression Annotation -- TODO: I may have to move it from here as these axiom are included in all *Axioms*
-    | ClassAxiomSubClassOf Annotations ClassExpression ClassExpression
-    | ClassAxiomEquivalentClasses Annotations (AtLeast2List ClassExpression)
-    | ClassAxiomDisjointClasses Annotations (AtLeast2List ClassExpression)
-    | ClassAxiomDisjointUnion Annotations ClassIRI (AtLeast2List ClassExpression)
-    | ClassAxiomHasKey Annotations ClassExpression (NonEmpty ObjectOrDataPE) deriving (Show)
-data DeclarationAxiom = DeclarationAxiom Annotations Entity deriving (Show)
 data ObjectOrDataPE
     = ObjectPE ObjectPropertyExpression
     | DataPE DataPropertyExpression deriving (Show)
@@ -171,16 +155,6 @@ data Atomic
     = AtomicClass ClassIRI
     | AtomicIndividuals (NonEmpty Individual)
     | AtomicDescription ClassExpression deriving (Show)
-data ObjectPropertyAxiom
-    = ObjectPAnnotation Annotations ObjectPropertyExpression Annotation
-    | ObjectPDomain Annotations ObjectPropertyExpression ClassExpression
-    | ObjectPRange Annotations ObjectPropertyExpression ClassExpression
-    | ObjectPCharacteristics Annotations ObjectPropertyExpression ObjectPropertyCharacteristic
-    | ObjectPSubProperty Annotations ObjectPropertyExpression ObjectPropertyExpression
-    | ObjectPChainSubProperty Annotations ObjectPropertyChain ObjectPropertyExpression
-    | ObjectPEquivalent Annotations (AtLeast2List ObjectPropertyExpression)
-    | ObjectPDisjoint Annotations (AtLeast2List ObjectPropertyExpression)
-    | ObjectPInverse Annotations ObjectPropertyExpression ObjectPropertyExpression deriving (Show)
 newtype ObjectPropertyChain = ObjectPropertyChain { unChain :: AtLeast2List ObjectPropertyExpression } deriving (Show)
 data ObjectPropertyCharacteristic
     = FUNCTIONAL
@@ -190,29 +164,7 @@ data ObjectPropertyCharacteristic
     | SYMMETRIC
     | ASYMMETRIC
     | TRANSITIVE deriving (Show)
-data DataPropertyAxiom
-    = DataPAnnotation Annotations DataPropertyExpression Annotation
-    | DataPDomain Annotations DataPropertyExpression ClassExpression
-    | DataPRange Annotations DataPropertyExpression DataRange
-    | DataPCharacteristics Annotations DataPropertyExpression DataPropertyCharacteristics
-    | DataPSubProperty Annotations DataPropertyExpression DataPropertyExpression
-    | DataPEquivalent Annotations (AtLeast2List DataPropertyExpression)
-    | DataPDisjoint Annotations (AtLeast2List DataPropertyExpression) deriving (Show)
 data DataPropertyCharacteristics = FUNCTIONAL_DPE deriving (Show)
-data AnnotationPropertyAxiom -- TODO: Missing AnnotationAssertion; to be moved under Assertion datatype
-    = AnnotationPAnnotation Annotations AnnotationProperty Annotation
-    | AnnotationPDomain Annotations AnnotationProperty IRI
-    | AnnotationPRange Annotations AnnotationProperty IRI
-    | AnnotationPSubProperty Annotations AnnotationProperty AnnotationProperty deriving (Show)
-data AssertionAxiom
-    = AssertionAnnotation Annotations TotalIRI Annotation
-    | AssertionSameIndividuals Annotations (AtLeast2List Individual)
-    | AssertionDifferentIndividuals Annotations (AtLeast2List Individual)
-    | AssertionClass Annotations Individual ClassExpression
-    | AssertionObjectProperty Annotations ObjectPropertyExpression Individual Individual
-    | AssertionNegativeObjectProperty Annotations ObjectPropertyExpression Individual Individual 
-    | AssertionDataProperty Annotations DataPropertyExpression Individual Literal
-    | AssertionNegativeDataProperty Annotations DataPropertyExpression Individual Literal deriving (Show)
 data FactElement
     = ObjectPropertyFact ObjectPropertyIRI Individual
     | NegativeObjectPropertyFact ObjectPropertyIRI Individual
@@ -225,13 +177,13 @@ data Literal
     | IntegerLiteralC IntegerLiteral
     | DecimalLiteralC DecimalLiteral
     | FloatingLiteralC FloatPoint deriving (Show)
-data Declaration = Declaration Annotations Entity deriving (Show)
+--data Declaration = Declaration Annotations Entity deriving (Show)
 data Entity
     = EntityDatatype Datatype
     | EntityClass ClassIRI
     | EntityObjectProperty ObjectPropertyIRI
     | EntityDataProperty DataPropertyIRI
-    | EntityAnnotationProperty AnnotationPropertyIRI
+    | EntityAnnotationProperty AnnotationProperty
     | EntityIndividual IndividualIRI deriving (Show)
 data AnnotationValue
     = NodeAT NodeID
@@ -260,4 +212,78 @@ singleton x = x :| []
 -- instance Show a => Show (AtLeast2List a) where
 --   show ((a, b) :# xs) = show $ a:b:xs 
 
+data Axiom
+    = DeclarationAxiom Annotations Entity
+    -- | DatatypeAxiomAnnotation Annotations Datatype Annotation
+    | DatatypeAxiomEquivalent Annotations Datatype DataRange
+    -- | ClassAxiomAnnotation Annotations ClassExpression Annotation -- TODO: I may have to move it from here as these axiom are included in all *Axioms*
+    | ClassAxiomSubClassOf Annotations ClassExpression ClassExpression
+    | ClassAxiomEquivalentClasses Annotations (AtLeast2List ClassExpression)
+    | ClassAxiomDisjointClasses Annotations (AtLeast2List ClassExpression)
+    | ClassAxiomDisjointUnion Annotations ClassIRI (AtLeast2List ClassExpression)
+    | ClassAxiomHasKey Annotations ClassExpression (NonEmpty ObjectOrDataPE)
+    -- | ObjectPropAxiomAnnotation Annotations ObjectPropertyExpression Annotation
+    | ObjectPropAxiomDomain Annotations ObjectPropertyExpression ClassExpression
+    | ObjectPropAxiomRange Annotations ObjectPropertyExpression ClassExpression
+    | ObjectPropAxiomCharacteristics Annotations ObjectPropertyExpression ObjectPropertyCharacteristic
+    | ObjectPropAxiomSubProperty Annotations ObjectPropertyExpression ObjectPropertyExpression
+    | ObjectPropAxiomChainSubProperty Annotations ObjectPropertyChain ObjectPropertyExpression
+    | ObjectPropAxiomEquivalent Annotations (AtLeast2List ObjectPropertyExpression)
+    | ObjectPropAxiomDisjoint Annotations (AtLeast2List ObjectPropertyExpression)
+    | ObjectPropAxiomInverse Annotations ObjectPropertyExpression ObjectPropertyExpression
+    -- | DataPropAxiomAnnotation Annotations DataPropertyExpression Annotation
+    | DataPropAxiomDomain Annotations DataPropertyExpression ClassExpression
+    | DataPropAxiomRange Annotations DataPropertyExpression DataRange
+    | DataPropAxiomCharacteristics Annotations DataPropertyExpression DataPropertyCharacteristics
+    | DataPropAxiomSubProperty Annotations DataPropertyExpression DataPropertyExpression
+    | DataPropAxiomEquivalent Annotations (AtLeast2List DataPropertyExpression)
+    | DataPropAxiomDisjoint Annotations (AtLeast2List DataPropertyExpression)
+    -- | AnnotationAxiomAnnotation Annotations AnnotationProperty Annotation
+    | AnnotationAxiomDomain Annotations AnnotationProperty IRI
+    | AnnotationAxiomRange Annotations AnnotationProperty IRI
+    | AnnotationAxiomSubProperty Annotations AnnotationProperty AnnotationProperty
+    | AnnotationAxiomAssertion Annotations TotalIRI Annotation
+    -- | AssertionAxiomAnnotation Annotations TotalIRI Annotation
+    | AssertionAxiomSameIndividuals Annotations (AtLeast2List Individual)
+    | AssertionAxiomDifferentIndividuals Annotations (AtLeast2List Individual)
+    | AssertionAxiomClass Annotations Individual ClassExpression
+    | AssertionAxiomObjectProperty Annotations ObjectPropertyExpression Individual Individual
+    | AssertionAxiomNegativeObjectProperty Annotations ObjectPropertyExpression Individual Individual 
+    | AssertionAxiomDataProperty Annotations DataPropertyExpression Individual Literal
+    | AssertionAxiomNegativeDataProperty Annotations DataPropertyExpression Individual Literal deriving (Show)
+
+
+
+-- | Searches the provided intial element and the elements the list for an element that sutisfies
+-- the predicate p. It returns a pair with this first element and a list with the rest, or Nothing
+-- if no element can satisfy the predicate
+--
+-- >>> xs = NE.fromList [4,7,6,12,9]
+-- >>> p = ((== 0) . (`mod` 3))
+-- >>> promote p 13 xs
+-- Just (6,13 :| [4,7,12,9])
+--
+-- >>> promote p 12 xs
+-- Just (12,4 :| [7,6,12,9])
+--
+-- >>> promote (const False) 12 xs
+-- Nothing
+--
+promote :: (a -> Bool) -> a -> NonEmpty a -> Maybe (a, NonEmpty a)
+promote p x xs
+  | p x = Just (x, xs)
+  | otherwise = result
+   where
+    (xs1, xs2) = break p $ NE.toList xs
+    els = uncons xs2
+    result = (\(v, rest) -> (v, x :| (xs1 <> rest))) <$> els
+
+
+-- safeHead :: [a] -> Maybe a
+-- safeHead [] = Nothing
+-- safehead (x:_) = Just x
+-- 
+-- safeTail :: [a] -> Maybe [a]
+-- safeTail [] = Nothing
+-- safeTail (_:xs) = Just xs
 

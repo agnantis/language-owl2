@@ -82,11 +82,8 @@ ontology :: Parser Ontology
 ontology = do
   _ <- symbol "Ontology"
   parens $ do
-    ver <- optional $ OntologyVersionIRI <$> ontologyIRI <*> try (optional versionIRI) -- Maybe (iri, Maybe iri)
-    imprs <- many directImport
-    annots <- ontologyAnnotations
-    axms <- axioms
-    pure $ Ontology ver imprs annots axms
+    ver <- optional $ OntologyVersionIRI <$> ontologyIRI <*> try (optional versionIRI)
+    Ontology <$> pure ver <*> many directImport <*> ontologyAnnotations <*> axioms
 
 -- | It parses import ontology declarations
 --
@@ -110,10 +107,10 @@ axioms = many axiom
 -- >>> parseTest (declaration *> eof) "Declaration( NamedIndividual( a:Peter ))"
 -- ()
 --
-declaration :: Parser Declaration
+declaration :: Parser Axiom
 declaration = do
   _ <- symbol "Declaration"
-  parens $ Declaration <$> axiomAnnotations <*> entity
+  parens $ DeclarationAxiom <$> axiomAnnotations <*> entity
 
 entity :: Parser Entity
 entity =  EntityClass              <$> (symbol "Class"              *> parens clazz)
@@ -140,7 +137,7 @@ fannotations = many fannotation
 annotationAnnotations :: Parser [Annotated Annotation]
 annotationAnnotations = fannotations
 
-annotationAxiom :: Parser AnnotationPropertyAxiom
+annotationAxiom :: Parser Axiom
 annotationAxiom =  subAnnotationPropertyOf
                <|> annotationPropertyDomain
                <|> annotationPropertyRange
@@ -153,16 +150,15 @@ annotationAxiom =  subAnnotationPropertyOf
 -- ()
 --
 -- TODO: doctest inactive
--- annotationAssertion :: Parser AnnotationPropertyFrame
--- annotationAssertion = do
---   symbol "AnnotationAssertion"
---   parens $ do
---     annots   <- axiomAnnotations
---     property <- annotationProperty
---     subject  <- annotationSubject
---     target   <- annotationValue literal
---     let annotList = NE.fromList [Annotated (annots, Annotation property target)]
---     pure $ AnnotationPropertyF property {-TODO: remove: subject-} [AnnotationAPE annotList]
+annotationAssertion :: Parser Axiom
+annotationAssertion = do
+  _ <- symbol "AnnotationAssertion"
+  parens $ do
+    annots <- axiomAnnotations
+    prop   <- annotationProperty
+    subj   <- annotationSubject
+    value  <- annotationValue literal
+    pure $ AnnotationAxiomAssertion annots subj (Annotation prop value)
 
 annotationSubject :: Parser TotalIRI
 annotationSubject = totalIRI
@@ -172,10 +168,10 @@ annotationSubject = totalIRI
 -- >>> parseTest (subAnnotationPropertyOf *> eof) "SubAnnotationPropertyOf(test-ont:kostasAnnot rdfs:comment)"
 -- ()
 --
-subAnnotationPropertyOf :: Parser AnnotationPropertyAxiom
+subAnnotationPropertyOf :: Parser Axiom
 subAnnotationPropertyOf = do
   _ <- symbol "SubAnnotationPropertyOf"
-  parens $ AnnotationPSubProperty
+  parens $ AnnotationAxiomSubProperty
         <$> axiomAnnotations
         <*> subAnnotationProperty
         <*> superAnnotationProperty
@@ -186,18 +182,18 @@ subAnnotationProperty = annotationProperty
 superAnnotationProperty :: Parser AnnotationPropertyIRI
 superAnnotationProperty = annotationProperty
 
-annotationPropertyDomain :: Parser AnnotationPropertyAxiom
+annotationPropertyDomain :: Parser Axiom
 annotationPropertyDomain = do
   _ <- symbol "AnnotationPropertyDomain"
-  parens $ AnnotationPDomain
+  parens $ AnnotationAxiomDomain
         <$> axiomAnnotations
         <*> annotationProperty
         <*> iri
 
-annotationPropertyRange :: Parser AnnotationPropertyAxiom
+annotationPropertyRange :: Parser Axiom
 annotationPropertyRange = do
   _ <- symbol "AnnotationPropertyRange"
-  parens $ AnnotationPRange
+  parens $ AnnotationAxiomRange
         <$> axiomAnnotations
         <*> annotationProperty
         <*> iri
@@ -391,27 +387,26 @@ dataExactCardinality :: Parser ClassExpression
 dataExactCardinality = dataCardinality "DataExactCardinality" CExpDataExactCardinality
 
 axiom :: Parser Axiom
-axiom =  undefined
---declaration $> ()
---     <|> classAxiom $> ()
---     <|> objectPropertyAxiom $> ()
---     <|> dataPropertyAxiom $> ()
---     <|> datatypeDefinition $> ()
---     <|> hasKey $> ()
---     <|> assertion $> ()
---     <|> annotationAxiom $> ()
+axiom =  declaration
+     <|> classAxiom
+     <|> objectPropertyAxiom
+     <|> dataPropertyAxiom
+     <|> datatypeDefinition
+     <|> hasKey
+     <|> assertion
+     <|> annotationAxiom
 
 ------------------
 -- Class Axioms --
 ------------------
-classAxiom :: Parser ClassAxiom
+classAxiom :: Parser Axiom
 classAxiom =  subClassOf
           <|> equivalentClasses
           <|> disjointClasses
           <|> disjointUnion
           <|> hasKey
 
-subClassOf :: Parser ClassAxiom
+subClassOf :: Parser Axiom
 subClassOf = do
   _ <- symbol "SubClassOf"
   parens $ ClassAxiomSubClassOf
@@ -425,21 +420,21 @@ subClassExpression = classExpression
 superClassExpression :: Parser ClassExpression
 superClassExpression = classExpression
 
-equivalentClasses :: Parser ClassAxiom
+equivalentClasses :: Parser Axiom
 equivalentClasses = do
   _ <- symbol "EquivalentClasses"
   parens $ ClassAxiomEquivalentClasses
         <$> axiomAnnotations
         <*> doubleOrMany "" classExpression
 
-disjointClasses :: Parser ClassAxiom
+disjointClasses :: Parser Axiom
 disjointClasses = do
   _ <- symbol "DisjointClasses"
   parens $ ClassAxiomDisjointClasses
         <$> axiomAnnotations
         <*> doubleOrMany "" classExpression
 
-disjointUnion :: Parser ClassAxiom
+disjointUnion :: Parser Axiom
 disjointUnion = do
   _ <- symbol "DisjointUnion"
   parens $ ClassAxiomDisjointUnion
@@ -447,7 +442,7 @@ disjointUnion = do
         <*> clazz
         <*> doubleOrMany "" classExpression
 
-hasKey :: Parser ClassAxiom
+hasKey :: Parser Axiom
 hasKey = do
   _ <- symbol "HasKey"
   parens $ ClassAxiomHasKey
@@ -458,7 +453,7 @@ hasKey = do
 ----------------------------
 -- Object Property Axioms --
 ----------------------------
-objectPropertyAxiom :: Parser ObjectPropertyAxiom
+objectPropertyAxiom :: Parser Axiom
 objectPropertyAxiom =  subObjectPropertyOf
                    <|> equivalentObjectProperties
                    <|> disjointObjectProperties
@@ -474,7 +469,7 @@ objectPropertyAxiom =  subObjectPropertyOf
 -- >>> parseTest (subObjectPropertyOf *> eof) "SubObjectPropertyOf( a:hasUncle a:hasRelative )"
 -- ()
 --
-subObjectPropertyOf :: Parser ObjectPropertyAxiom
+subObjectPropertyOf :: Parser Axiom
 subObjectPropertyOf = do
   _ <- symbol "SubObjectPropertyOf"
   parens $ do
@@ -482,8 +477,8 @@ subObjectPropertyOf = do
     sub <- subObjectPropertyExpression
     sup <- superObjectPropertyExpression
     pure $ case sub of
-      Left s  -> ObjectPSubProperty annots s sup
-      Right x -> ObjectPChainSubProperty annots x sup
+      Left s  -> ObjectPropAxiomSubProperty annots s sup
+      Right x -> ObjectPropAxiomChainSubProperty annots x sup
 
 -- | Parses either an object expression or an object property chain
 --
@@ -504,38 +499,38 @@ propertyExpressionChain = do
 superObjectPropertyExpression :: Parser ObjectPropertyExpression
 superObjectPropertyExpression = objectPropertyExpression
 
-equivalentObjectProperties :: Parser ObjectPropertyAxiom
+equivalentObjectProperties :: Parser Axiom
 equivalentObjectProperties = do
   _ <- symbol "EquivalentObjectProperties"
-  parens $ ObjectPEquivalent <$> axiomAnnotations <*> doubleOrMany "" objectPropertyExpression
+  parens $ ObjectPropAxiomEquivalent <$> axiomAnnotations <*> doubleOrMany "" objectPropertyExpression
 
-disjointObjectProperties :: Parser ObjectPropertyAxiom
+disjointObjectProperties :: Parser Axiom
 disjointObjectProperties = do
   _ <- symbol "DisjointObjectProperties"
-  parens $ ObjectPDisjoint <$> axiomAnnotations <*> doubleOrMany "" objectPropertyExpression
+  parens $ ObjectPropAxiomDisjoint <$> axiomAnnotations <*> doubleOrMany "" objectPropertyExpression
 
-objectPropertyDomain :: Parser ObjectPropertyAxiom
+objectPropertyDomain :: Parser Axiom
 objectPropertyDomain = do
   _ <- symbol "ObjectPropertyDomain"
-  parens $ ObjectPDomain <$> axiomAnnotations <*> objectPropertyExpression <*> classExpression
+  parens $ ObjectPropAxiomDomain <$> axiomAnnotations <*> objectPropertyExpression <*> classExpression
 
-objectPropertyRange :: Parser ObjectPropertyAxiom
+objectPropertyRange :: Parser Axiom
 objectPropertyRange = do
   _ <- symbol "ObjectPropertyRange"
-  parens $ ObjectPRange <$> axiomAnnotations <*> objectPropertyExpression <*> classExpression
+  parens $ ObjectPropAxiomRange <$> axiomAnnotations <*> objectPropertyExpression <*> classExpression
 
-inverseObjectProperties :: Parser ObjectPropertyAxiom
+inverseObjectProperties :: Parser Axiom
 inverseObjectProperties = do
   _ <- symbol "InverseObjectProperties"
-  parens $ ObjectPInverse <$> axiomAnnotations <*> objectPropertyExpression <*> objectPropertyExpression
+  parens $ ObjectPropAxiomInverse <$> axiomAnnotations <*> objectPropertyExpression <*> objectPropertyExpression
 
-objectPropertyCharactersistics :: Parser ObjectPropertyAxiom
+objectPropertyCharactersistics :: Parser Axiom
 objectPropertyCharactersistics = do
   chc <- choice . fmap symbol $ M.keys objectPropertyCharacteristics
   parens $ do
     annots <- axiomAnnotations
     ope    <- objectPropertyExpression
-    pure $ ObjectPCharacteristics annots ope (objectPropertyCharacteristics M.! chc)
+    pure $ ObjectPropAxiomCharacteristics annots ope (objectPropertyCharacteristics M.! chc)
 
 objectPropertyCharacteristics :: Map Text ObjectPropertyCharacteristic
 objectPropertyCharacteristics = M.fromList
@@ -551,7 +546,7 @@ objectPropertyCharacteristics = M.fromList
 --------------------------
 -- Data Property Axioms --
 --------------------------
-dataPropertyAxiom :: Parser DataPropertyAxiom
+dataPropertyAxiom :: Parser Axiom
 dataPropertyAxiom =  subDataPropertyOf
                  <|> equivalentDataProperties
                  <|> disjointDataProperties
@@ -559,10 +554,10 @@ dataPropertyAxiom =  subDataPropertyOf
                  <|> dataPropertyRange
                  <|> functionalDataProperty
 
-subDataPropertyOf :: Parser DataPropertyAxiom
+subDataPropertyOf :: Parser Axiom
 subDataPropertyOf = do
   _ <- symbol "SubDataPropertyOf"
-  parens $ DataPSubProperty <$> axiomAnnotations <*> subDataPropertyExpression <*> superDataPropertyExpression
+  parens $ DataPropAxiomSubProperty <$> axiomAnnotations <*> subDataPropertyExpression <*> superDataPropertyExpression
 
 subDataPropertyExpression :: Parser DataPropertyIRI
 subDataPropertyExpression = dataPropertyExpression
@@ -570,37 +565,37 @@ subDataPropertyExpression = dataPropertyExpression
 superDataPropertyExpression :: Parser DataPropertyIRI
 superDataPropertyExpression = dataPropertyExpression
 
-equivalentDataProperties :: Parser DataPropertyAxiom
+equivalentDataProperties :: Parser Axiom
 equivalentDataProperties = do
   _ <- symbol "EquivalentDataProperties"
-  parens $ DataPEquivalent <$> axiomAnnotations <*> doubleOrMany "" dataPropertyExpression
+  parens $ DataPropAxiomEquivalent <$> axiomAnnotations <*> doubleOrMany "" dataPropertyExpression
 
-disjointDataProperties :: Parser DataPropertyAxiom
+disjointDataProperties :: Parser Axiom
 disjointDataProperties = do
   _ <- symbol "DisjointDataProperties"
-  parens $ DataPDisjoint <$> axiomAnnotations <*> doubleOrMany "" dataPropertyExpression
+  parens $ DataPropAxiomDisjoint <$> axiomAnnotations <*> doubleOrMany "" dataPropertyExpression
 
-dataPropertyDomain :: Parser DataPropertyAxiom
+dataPropertyDomain :: Parser Axiom
 dataPropertyDomain = do
   _ <- symbol "DataPropertyDomain"
-  parens $ DataPDomain <$> axiomAnnotations <*> dataPropertyExpression <*> classExpression
+  parens $ DataPropAxiomDomain <$> axiomAnnotations <*> dataPropertyExpression <*> classExpression
 
-dataPropertyRange :: Parser DataPropertyAxiom
+dataPropertyRange :: Parser Axiom
 dataPropertyRange = do
   _ <- symbol "DataPropertyRange"
-  parens $ DataPRange <$> axiomAnnotations <*> dataPropertyExpression <*> dataRange
+  parens $ DataPropAxiomRange <$> axiomAnnotations <*> dataPropertyExpression <*> dataRange
 
-functionalDataProperty :: Parser DataPropertyAxiom
+functionalDataProperty :: Parser Axiom
 functionalDataProperty = do
   _ <- symbol "FunctionalDataProperty"
-  parens $ DataPCharacteristics <$> axiomAnnotations <*> dataPropertyExpression <*> pure FUNCTIONAL_DPE
+  parens $ DataPropAxiomCharacteristics <$> axiomAnnotations <*> dataPropertyExpression <*> pure FUNCTIONAL_DPE
 
-datatypeDefinition :: Parser DatatypeAxiom
+datatypeDefinition :: Parser Axiom
 datatypeDefinition = do
   _ <- symbol "DatatypeDefinition"
   parens $ DatatypeAxiomEquivalent <$> axiomAnnotations <*> datatype <*> dataRange
 
-assertion :: Parser AssertionAxiom
+assertion :: Parser Axiom
 assertion =  sameIndividual
          <|> differentIndividuals
          <|> classAssertion
@@ -618,56 +613,56 @@ targetIndividual = individual
 targetValue :: Parser Literal
 targetValue = literal
 
-sameIndividual :: Parser AssertionAxiom
+sameIndividual :: Parser Axiom
 sameIndividual = do
   _ <- symbol "SameIndividual"
-  parens $ AssertionSameIndividuals <$> axiomAnnotations <*> doubleOrMany "" individual
+  parens $ AssertionAxiomSameIndividuals <$> axiomAnnotations <*> doubleOrMany "" individual
 
-differentIndividuals :: Parser AssertionAxiom
+differentIndividuals :: Parser Axiom
 differentIndividuals = do
   _ <- symbol "DifferentIndividuals"
-  parens $ AssertionDifferentIndividuals <$> axiomAnnotations <*> doubleOrMany "" individual
+  parens $ AssertionAxiomDifferentIndividuals <$> axiomAnnotations <*> doubleOrMany "" individual
 
-classAssertion :: Parser AssertionAxiom
+classAssertion :: Parser Axiom
 classAssertion = do
   _ <- symbol "ClassAssertion"
   parens $ do
     annots <- axiomAnnotations
     ce     <- classExpression
     ind    <- individual
-    pure $ AssertionClass annots ind ce
+    pure $ AssertionAxiomClass annots ind ce
 
-objectPropertyAssertion :: Parser AssertionAxiom
+objectPropertyAssertion :: Parser Axiom
 objectPropertyAssertion = do
   _ <- symbol "ObjectPropertyAssertion"
-  parens $ AssertionObjectProperty
+  parens $ AssertionAxiomObjectProperty
         <$> axiomAnnotations
         <*> objectPropertyExpression
         <*> sourceIndividual
         <*> targetIndividual
 
-negativeObjectPropertyAssertion :: Parser AssertionAxiom
+negativeObjectPropertyAssertion :: Parser Axiom
 negativeObjectPropertyAssertion = do
   _ <- symbol "NegativeObjectPropertyAssertion"
-  parens $ AssertionNegativeObjectProperty
+  parens $ AssertionAxiomNegativeObjectProperty
         <$> axiomAnnotations
         <*> objectPropertyExpression
         <*> sourceIndividual
         <*> targetIndividual
 
-dataPropertyAssertion :: Parser AssertionAxiom
+dataPropertyAssertion :: Parser Axiom
 dataPropertyAssertion = do
   _ <- symbol "DataPropertyAssertion"
-  parens $ AssertionDataProperty
+  parens $ AssertionAxiomDataProperty
         <$> axiomAnnotations
         <*> dataPropertyExpression
         <*> sourceIndividual
         <*> targetValue
 
-negativeDataPropertyAssertion :: Parser AssertionAxiom
+negativeDataPropertyAssertion :: Parser Axiom
 negativeDataPropertyAssertion = do
   _ <- symbol "NegativeDataPropertyAssertion"
-  parens $ AssertionNegativeDataProperty
+  parens $ AssertionAxiomNegativeDataProperty
         <$> axiomAnnotations
         <*> dataPropertyExpression
         <*> sourceIndividual
@@ -687,7 +682,7 @@ parseOntologyDoc file =
           putStrLn "Unable to parse file. Reason: "
           putStrLn (errorBundlePretty bundle)
           pure Nothing
-        Right doc -> do
+        Right _ -> do
           putStrLn "File parsed succesfully"
           pure (Just ())
 

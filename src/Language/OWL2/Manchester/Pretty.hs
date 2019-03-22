@@ -229,7 +229,7 @@ instance PrettyM Conjunction where
   pretty (ClassConj i rs) = pretty i <+> "that" <+> join "and" (NE.toList rs)
   pretty (PrimConj ps)    = join "and" (NE.toList ps)
 
-instance PrettyM DatatypeAxiom where
+instance PrettyM Axiom where
   pretty dta = undefined
 --instance PrettyM DatatypeAxiom where
 --  pretty (DatatypeF dt ma mdr) = "DatatypeFrame:" <+> pretty dt
@@ -253,26 +253,6 @@ instance PrettyM DatatypeAxiom where
 --   pretty (DisjointDataProperties as dpe)     = "DisjointProperties:"   <+> pretty as <+> pretty dpe
 --   pretty (SameIndividual as is)              = "SameIndividual:"       <+> pretty as <+> pretty is
 --   pretty (DifferentIndividuals as is)        = "DifferentIndividuals:" <+> pretty as <+> pretty is
-
-instance PrettyM ClassAxiom where
-  pretty (ClassAxiomAnnotation ans ce sans) = undefined
-  pretty (ClassAxiomSubClassOf ans sub super) = undefined
-  pretty (ClassAxiomEquivalentClasses ans cel) = "EquivalentClasses:" <+> pretty ans <+> pretty cel
-  pretty (ClassAxiomDisjointClasses ans cel) = "DisjointClasses:" <+> pretty ans <+> pretty cel 
-  pretty (ClassAxiomDisjointUnion ans ci cel) = undefined
-  pretty (ClassAxiomHasKey ans ce odpl) = undefined
-
-instance PrettyM ObjectPropertyAxiom where
-  pretty opa = undefined
-
-instance PrettyM DataPropertyAxiom where
-  pretty dpa = undefined
-
-instance PrettyM AnnotationPropertyAxiom where
-  pretty apa = undefined
-
-instance PrettyM AssertionAxiom where
-  pretty aa = undefined
 
 -- instance PrettyM ClassFrame where
 --   pretty (ClassF i ces) = "Class:" <+> pretty i
@@ -334,14 +314,6 @@ instance PrettyM ObjectPropertyCharacteristic where
 instance PrettyM DataPropertyCharacteristics where
   pretty FUNCTIONAL_DPE = "Functional"
 
-instance PrettyM Axiom where
-  pretty (AxiomDT df)  = pretty df
-  pretty (AxiomC cf)   = pretty cf
-  pretty (AxiomOP opf) = pretty opf
-  pretty (AxiomDP dpf) = pretty dpf
-  pretty (AxiomAP af ) = pretty af 
-  pretty (AxiomI ifr)  = pretty ifr
---  pretty (AxiomM m)    = pretty m 
 
 --instance PrettyM AnnotationPropertyFrame where
 --  pretty (AnnotationPropertyF i aps) = "AnnotationProperty:" <+> pretty i
