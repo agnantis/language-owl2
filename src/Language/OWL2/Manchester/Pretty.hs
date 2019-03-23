@@ -76,8 +76,8 @@ instance PrettyM a => PrettyM (Annotated a) where
 --   pretty (Description nel) = sep . punctuate " or " $ pretty <$> NE.toList nel
 instance PrettyM ClassExpression where
   pretty (CExpClass iri)                        = pretty iri
-  pretty (CExpObjectIntersectionOf ces)         = parens $ concatWith (surround " or ")  (pretty <$> (toList ces))
-  pretty (CExpObjectUnionOf ces)                = parens $ concatWith (surround " and ") (pretty <$> (toList ces))
+  pretty (CExpObjectIntersectionOf ces)         = parens $ concatWith (surround " or ")  (pretty <$> toList ces)
+  pretty (CExpObjectUnionOf ces)                = parens $ concatWith (surround " and ") (pretty <$> toList ces)
   pretty (CExpObjectComplementOf ce)            = "not" <+> pretty ce
   pretty (CExpObjectOneOf inds)                 = braces $ concatWith (surround ", ") (pretty <$> inds)
   pretty (CExpObjectSomeValuesFrom ope ce)      = pretty ope <+> "some"    <+> pretty ce

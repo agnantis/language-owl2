@@ -21,10 +21,6 @@ import           Language.OWL2.Internal.Parser
 -- >>> :set -XOverloadedStrings
 -- >>> import Data.Either
 
---------------------------
--- Parser related types --
---------------------------
-
 -- | It parses literals
 --
 -- >>> parseTest (literal *> eof) "\"32\"^^integer"

@@ -6,6 +6,7 @@ module Language.OWL2.Types where
 import           Data.List                                ( uncons )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import qualified Data.List.NonEmpty            as NE
+import           Data.Maybe                               ( fromMaybe )
 import           Language.OWL2.Import                     ( Text )
 
 ---------------
@@ -14,21 +15,6 @@ import           Language.OWL2.Import                     ( Text )
 
 -- TODO: Should I include a NonEmpty? I do not think so
 data AtLeast2List a = (a, a) :# [a] deriving (Eq, Ord, Show, Read, Functor)
-
-atLeast2List :: a -> a -> [a] -> AtLeast2List a
-atLeast2List x y = (:#) (x, y)
-
-atLeast2List' :: a -> NonEmpty a -> AtLeast2List a
-atLeast2List' x nx = let (x' :| xs) = nx in (x, x') :# xs
-
-toList :: AtLeast2List a -> [a]
-toList ~((x, y) :# xs) = x : y : xs
-
-toNonEmptyList :: AtLeast2List a -> NonEmpty a
-toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
-
--- annListToList :: AnnotatedList a -> [Annotated a]
--- annListToList (AnnList xs) = NE.toList xs
 
 -- Type synonyms --
 type LangTag = Text
@@ -43,15 +29,10 @@ type DataPropertyIRI = IRI
 type IndividualIRI = IRI
 type Individual = TotalIRI
 type PrefixName = Text
-type SomeAnnotations = AnnotatedList Annotation
-type Descriptions = AnnotatedList ClassExpression
 type Exponent = Integer
-type Fact = WithNegation FactElement
 type DataPropertyExpression = DataPropertyIRI
 type AnnotationProperty = AnnotationPropertyIRI
 type Annotations = [Annotated Annotation]
---type Description = ClassExpression
-type AnnotatedList a = NonEmpty (Annotated a)
 
 -- Data types --
 data ObjectPropertyExpression
@@ -177,7 +158,6 @@ data Literal
     | IntegerLiteralC IntegerLiteral
     | DecimalLiteralC DecimalLiteral
     | FloatingLiteralC FloatPoint deriving (Show)
---data Declaration = Declaration Annotations Entity deriving (Show)
 data Entity
     = EntityDatatype Datatype
     | EntityClass ClassIRI
@@ -189,40 +169,14 @@ data AnnotationValue
     = NodeAT NodeID
     | IriAT IRI
     | LiteralAT Literal deriving (Show)
-
-
----------------------------
----- utility functions ----
----------------------------
-flattenAnnList :: [AnnotatedList a] -> Maybe (AnnotatedList a)
-flattenAnnList [] = Nothing
-flattenAnnList xs = Just $ foldl1 (<>) xs
-
-singleton :: a -> NonEmpty a
-singleton x = x :| []
-
--------------------------
----- Class instances ----
--------------------------
-
--- instance Semigroup (AnnotatedList a) where
---   (AnnList xs) <> (AnnList ys) = AnnList (xs <> ys)  
-
--- data AtLeast2List a = (a, a) :# [a] deriving (Eq, Ord, Read, Functor)
--- instance Show a => Show (AtLeast2List a) where
---   show ((a, b) :# xs) = show $ a:b:xs 
-
 data Axiom
     = DeclarationAxiom Annotations Entity
-    -- | DatatypeAxiomAnnotation Annotations Datatype Annotation
     | DatatypeAxiomEquivalent Annotations Datatype DataRange
-    -- | ClassAxiomAnnotation Annotations ClassExpression Annotation -- TODO: I may have to move it from here as these axiom are included in all *Axioms*
     | ClassAxiomSubClassOf Annotations ClassExpression ClassExpression
     | ClassAxiomEquivalentClasses Annotations (AtLeast2List ClassExpression)
     | ClassAxiomDisjointClasses Annotations (AtLeast2List ClassExpression)
     | ClassAxiomDisjointUnion Annotations ClassIRI (AtLeast2List ClassExpression)
     | ClassAxiomHasKey Annotations ClassExpression (NonEmpty ObjectOrDataPE)
-    -- | ObjectPropAxiomAnnotation Annotations ObjectPropertyExpression Annotation
     | ObjectPropAxiomDomain Annotations ObjectPropertyExpression ClassExpression
     | ObjectPropAxiomRange Annotations ObjectPropertyExpression ClassExpression
     | ObjectPropAxiomCharacteristics Annotations ObjectPropertyExpression ObjectPropertyCharacteristic
@@ -231,19 +185,16 @@ data Axiom
     | ObjectPropAxiomEquivalent Annotations (AtLeast2List ObjectPropertyExpression)
     | ObjectPropAxiomDisjoint Annotations (AtLeast2List ObjectPropertyExpression)
     | ObjectPropAxiomInverse Annotations ObjectPropertyExpression ObjectPropertyExpression
-    -- | DataPropAxiomAnnotation Annotations DataPropertyExpression Annotation
     | DataPropAxiomDomain Annotations DataPropertyExpression ClassExpression
     | DataPropAxiomRange Annotations DataPropertyExpression DataRange
     | DataPropAxiomCharacteristics Annotations DataPropertyExpression DataPropertyCharacteristics
     | DataPropAxiomSubProperty Annotations DataPropertyExpression DataPropertyExpression
     | DataPropAxiomEquivalent Annotations (AtLeast2List DataPropertyExpression)
     | DataPropAxiomDisjoint Annotations (AtLeast2List DataPropertyExpression)
-    -- | AnnotationAxiomAnnotation Annotations AnnotationProperty Annotation
     | AnnotationAxiomDomain Annotations AnnotationProperty IRI
     | AnnotationAxiomRange Annotations AnnotationProperty IRI
     | AnnotationAxiomSubProperty Annotations AnnotationProperty AnnotationProperty
     | AnnotationAxiomAssertion Annotations TotalIRI Annotation
-    -- | AssertionAxiomAnnotation Annotations TotalIRI Annotation
     | AssertionAxiomSameIndividuals Annotations (AtLeast2List Individual)
     | AssertionAxiomDifferentIndividuals Annotations (AtLeast2List Individual)
     | AssertionAxiomClass Annotations Individual ClassExpression
@@ -253,37 +204,45 @@ data Axiom
     | AssertionAxiomNegativeDataProperty Annotations DataPropertyExpression Individual Literal deriving (Show)
 
 
+---------------------------
+---- utility functions ----
+---------------------------
+atLeast2List :: a -> a -> [a] -> AtLeast2List a
+atLeast2List x y = (:#) (x, y)
+
+atLeast2List' :: a -> NonEmpty a -> AtLeast2List a
+atLeast2List' x nx = let (x' :| xs) = nx in (x, x') :# xs
+
+toList :: AtLeast2List a -> [a]
+toList ~((x, y) :# xs) = x : y : xs
+
+toNonEmptyList :: AtLeast2List a -> NonEmpty a
+toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
+
+singleton :: a -> NonEmpty a
+singleton x = x :| []
 
 -- | Searches the provided intial element and the elements the list for an element that sutisfies
--- the predicate p. It returns a pair with this first element and a list with the rest, or Nothing
+-- the predicate p. It returns a pair with this first element and a list with the rest, or the default
+-- (i.e., arguments "a" and "NonEmpty a" if no such element exists
 -- if no element can satisfy the predicate
 --
 -- >>> xs = NE.fromList [4,7,6,12,9]
 -- >>> p = ((== 0) . (`mod` 3))
 -- >>> promote p 13 xs
--- Just (6,13 :| [4,7,12,9])
+-- (6,13 :| [4,7,12,9])
 --
 -- >>> promote p 12 xs
--- Just (12,4 :| [7,6,12,9])
+-- (12,4 :| [7,6,12,9])
 --
 -- >>> promote (const False) 12 xs
--- Nothing
+-- (12,4 :| [7,6,12,9])
 --
-promote :: (a -> Bool) -> a -> NonEmpty a -> Maybe (a, NonEmpty a)
+promote :: (a -> Bool) -> a -> NonEmpty a -> (a, NonEmpty a)
 promote p x xs
-  | p x = Just (x, xs)
-  | otherwise = result
+  | p x = (x, xs)
+  | otherwise = fromMaybe (x, xs) result
    where
     (xs1, xs2) = break p $ NE.toList xs
     els = uncons xs2
     result = (\(v, rest) -> (v, x :| (xs1 <> rest))) <$> els
-
-
--- safeHead :: [a] -> Maybe a
--- safeHead [] = Nothing
--- safehead (x:_) = Just x
--- 
--- safeTail :: [a] -> Maybe [a]
--- safeTail [] = Nothing
--- safeTail (_:xs) = Just xs
-

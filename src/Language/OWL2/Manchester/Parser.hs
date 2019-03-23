@@ -18,9 +18,18 @@ import           Language.OWL2.Internal.Parser
 -- >>> :set -XOverloadedStrings
 -- >>> import Text.Megaparsec.Char (string)
 
---------------------------
--- Parser related types --
---------------------------
+----------------------------------------------
+-- Parser related types & utility functions --
+----------------------------------------------
+type Descriptions = AnnotatedList ClassExpression
+type AnnotatedList a = NonEmpty (Annotated a)
+
+-- annListToList :: AnnotatedList a -> [Annotated a]
+-- annListToList (AnnList xs) = NE.toList xs
+
+flattenAnnList :: [AnnotatedList a] -> Maybe (AnnotatedList a)
+flattenAnnList [] = Nothing
+flattenAnnList xs = Just $ foldl1 (<>) xs
 
 -- | It parses literals
 --
@@ -431,13 +440,11 @@ atomic =  CExpClass       <$> classIRI
 datatypeAxiom :: Parser [Axiom]
 datatypeAxiom = do
   dtype <- symbol "Datatype:" *> datatype
+  let dtDeclaration = DeclarationAxiom [] (EntityDatatype dtype)
   axms <- many . choice $ ($ dtype) <$> [annotDTA, equDTA]  --choices
-  pure $ concat axms
+  pure $ dtDeclaration:concat axms
  where
-  annotDTA c = do
-    _ <- symbol "Annotations:"
-    mAn <- annotatedList mAnnotation
-    pure $ spreadAnnotations AnnotationAxiomAssertion (NamedIRI (unDatatype c)) mAn
+  annotDTA = annotationAxiom . NamedIRI . unDatatype
   equDTA c = do
     _ <- symbol "EquivalentTo:"
     annots <- annotationSection
@@ -478,13 +485,11 @@ classAxioms :: Parser [Axiom]
 classAxioms = do
   clsIRI <- symbol "Class:" *> classIRI
   let x = CExpClass clsIRI
+      classDeclaration = DeclarationAxiom [] (EntityClass clsIRI)
   axms <- many . choice $ ($ x) <$> [annotCA, subCA, equCA,  disCA, dscCA, keyCA]  --choices
-  pure $ concat axms
+  pure $ classDeclaration:concat axms
  where
-  annotCA (CExpClass cIRI) = do
-    _ <- symbol "Annotations:"
-    mAn <- annotatedList mAnnotation
-    pure $ spreadAnnotations AnnotationAxiomAssertion (NamedIRI cIRI) mAn
+  annotCA (CExpClass cIRI) = annotationAxiom $ NamedIRI cIRI
   annotCA _ = pure []
   subCA c = do
     _ <- symbol "SubClassOf:"
@@ -541,13 +546,11 @@ objectPropertyAxioms :: Parser [Axiom]
 objectPropertyAxioms = do
   opIRI <- symbol "ObjectProperty:" *> objectPropertyIRI
   let x = OPE opIRI
+      opDeclaration = DeclarationAxiom [] (EntityObjectProperty opIRI)
   axms <- many . choice $ ($ x) <$> [annotAxiom, domainAxiom, rangeAxiom, charAxiom, subAxiom, subChainAxiom, equAxiom, disAxiom, invAxiom] --choices
-  pure $ concat axms
+  pure $ opDeclaration:concat axms
  where
-  annotAxiom (OPE opIRI) = do
-    _ <- symbol "Annotations:"
-    mAn <- annotatedList mAnnotation
-    pure $ spreadAnnotations AnnotationAxiomAssertion (NamedIRI opIRI) mAn
+  annotAxiom (OPE opIRI) = annotationAxiom $ NamedIRI opIRI
   annotAxiom _ = pure []
   domainAxiom c = do
     _ <- symbol "Domain:"
@@ -639,13 +642,11 @@ objectPropertyCharacteristic =
 dataPropertyAxioms :: Parser [Axiom]
 dataPropertyAxioms = do
   dpIRI <- symbol "DataProperty:" *> dataPropertyIRI
+  let dpDeclaration = DeclarationAxiom [] (EntityDataProperty dpIRI)
   axms <- many . choice $ ($ dpIRI) <$> [annotAxiom, domainAxiom, rangeAxiom, charAxiom, subAxiom, equAxiom, disAxiom] --choices
-  pure $ concat axms
+  pure $ dpDeclaration:concat axms
  where
-  annotAxiom c = do
-    _ <- symbol "Annotations:"
-    annots <- annotatedList mAnnotation
-    pure $ spreadAnnotations AnnotationAxiomAssertion (NamedIRI c) annots
+  annotAxiom = annotationAxiom . NamedIRI
   domainAxiom c = do
     _ <- symbol "Domain:"
     exps <- annotatedList description
@@ -712,13 +713,11 @@ dataPropertyCharacteristic = symbol "Functional" $> FUNCTIONAL_DPE
 annotationPropertyAxioms :: Parser [Axiom]
 annotationPropertyAxioms = do
   apIRI <- symbol "AnnotationProperty:" *> annotationPropertyIRI
+  let apDeclaration = DeclarationAxiom [] (EntityAnnotationProperty apIRI)
   axms <- many . choice $ ($ apIRI) <$> [annotAxiom, domainAxiom, rangeAxiom, subAxiom] --choices
-  pure $ concat axms
+  pure $ apDeclaration:concat axms
  where
-  annotAxiom c = do
-    _ <- symbol "Annotations:"
-    annots <- annotatedList mAnnotation
-    pure $ spreadAnnotations AnnotationAxiomAssertion (NamedIRI c) annots
+  annotAxiom = annotationAxiom . NamedIRI
   domainAxiom c = do
     _ <- symbol "Domain:"
     iris <- annotatedList iri
@@ -731,6 +730,13 @@ annotationPropertyAxioms = do
     _ <- symbol "SubPropertyOf:"
     exps <- annotatedList annotationPropertyIRI
     pure $ spreadAnnotations AnnotationAxiomSubProperty c exps
+
+-- | Generic annotation axim parser
+annotationAxiom :: TotalIRI -> Parser [Axiom]
+annotationAxiom i = do
+    _ <- symbol "Annotations:"
+    annots <- annotatedList mAnnotation
+    pure $ spreadAnnotations AnnotationAxiomAssertion i annots
 
 -- | It parses an individual frame
 --
@@ -758,12 +764,11 @@ assertionAxioms :: Parser [Axiom]
 assertionAxioms = do
   ind <- symbol "Individual:" *> individual
   axms <- many . choice $ ($ ind) <$> [annotAxiom, domainAxiom, rangeAxiom, sameAxiom, diffAxiom] --choices
-  pure $ concat axms
+  pure $ declarationIfNamed ind <> concat axms
  where
-  annotAxiom c = do
-    _ <- symbol "Annotations:"
-    annots <- annotatedList mAnnotation
-    pure $ spreadAnnotations AnnotationAxiomAssertion c annots
+  declarationIfNamed (NamedIRI i) = [DeclarationAxiom [] (EntityIndividual i)]
+  declarationIfNamed _ = []
+  annotAxiom = annotationAxiom
   domainAxiom c = do
     _ <- symbol "Types:"
     classes <- annotatedList description
