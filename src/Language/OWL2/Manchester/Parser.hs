@@ -5,7 +5,9 @@ module Language.OWL2.Manchester.Parser where
 import           Data.Functor                             ( ($>) )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import qualified Data.List.NonEmpty            as NE
+import           Data.Maybe                               ( fromMaybe )
 import           Text.Megaparsec
+import           Text.Megaparsec.Debug
 
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import          as T
@@ -116,6 +118,8 @@ mAnnotation :: Parser Annotation
 mAnnotation = annotation literal
 
 -- | It parses annotation sections
+-- Notice: This parser (as optional) should never be combined with "some", "many" or any other
+-- similar parser, to avoid infinite loops. Use "many annotationSection'" instead
 --
 -- >>> :{
 -- let input :: [Text]
@@ -130,8 +134,26 @@ mAnnotation = annotation literal
 -- ()
 --
 annotationSection :: Parser Annotations
-annotationSection = let p = symbol "Annotations:" *> annotatedList mAnnotation
-                    in maybe [] NE.toList <$> optional p
+annotationSection = fromMaybe [] <$> optional annotationSection'
+
+-- >>> :{
+-- let input :: [Text]
+--     input =
+--      [ "Annotations: creator \"John\","
+--      , "             Annotations: rdfs:comment \"Creation Year\" creationYear 2008,"
+--      , "             mainClass Person"
+--      ]
+-- :}
+--
+-- >>> parseTest (annotationSection' *> eof) (T.unlines input)
+-- ()
+--
+-- >>> parseTest (some annotationSection' *> eof) (T.unlines $ input <> input)
+-- ()
+--
+annotationSection' :: Parser Annotations
+annotationSection' = let p = symbol "Annotations:" *> annotatedList mAnnotation
+                    in NE.toList <$> p
 
 ontologyDocument :: Parser OntologyDocument
 ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
@@ -152,9 +174,9 @@ ontology = do
   _       <- symbol "Ontology:"
   ontoIRI <- optional $ OntologyVersionIRI <$> ontologyIRI <*> optional versionIRI -- Maybe (iri, Maybe iri)
   imports <- many importStmt
-  annots  <- concat <$> many annotationSection
-  axms  <- many axioms
-  pure $ Ontology ontoIRI imports annots (concat axms)
+  annots  <- concat <$> many annotationSection'
+  axms  <- concat <$> many axioms --TODO problem here!!
+  pure $ Ontology ontoIRI imports annots axms
 
 -- | It parses import statements
 --
@@ -171,7 +193,7 @@ axioms =  datatypeAxiom
       <|> dataPropertyAxioms
       <|> annotationPropertyAxioms
       <|> assertionAxioms
-      <|> misc
+      <|> pure <$> misc -- Axiom -> [Axiom]
 
 
 -------------------------------------------
@@ -183,12 +205,15 @@ axioms =  datatypeAxiom
 -- >>> parseTest objectPropertyExpression "<http://object-property-iri.com>"
 -- OPE (FullIRI "http://object-property-iri.com")
 --
--- >>> parseTest objectPropertyExpression "inverse <http://object-property-iri.com>"
+-- >>> parseTest objectPropertyExpression "inverse (<http://object-property-iri.com>)"
 -- InverseOPE (FullIRI "http://object-property-iri.com")
+--
+-- >>> parseTest objectPropertyExpression "inverse (test-ont:object-property)"
+-- InverseOPE (AbbreviatedIRI "test-ont" "object-property")
 --
 objectPropertyExpression :: Parser ObjectPropertyExpression
 objectPropertyExpression =  OPE        <$> objectPropertyIRI
-                        <|> InverseOPE <$> (symbol "inverse" *> objectPropertyIRI)
+                        <|> InverseOPE <$> (symbol "inverse" *> parens objectPropertyIRI)
 
 -- | It parses a data property expression
 --
@@ -450,13 +475,6 @@ datatypeAxiom = do
     annots <- annotationSection
     dr <- dataRange
     pure [ DatatypeAxiomEquivalent annots c dr ]
---datatypeAxiom :: Parser DatatypeAxiom
---datatypeAxiom = do
---  dtype   <- symbol "Datatype:" *> datatype
---  annots  <- many $ symbol "Annotations:" *> annotatedList mAnnotation
---  equiv   <- optional $ AnnotDataRange <$> (symbol "EquivalentTo:" *> annotationSection) <*> dataRange -- TODO: in the specifications the EquivalentTo *should always* followed by the "Annotations:" string. However this may be an error, as a later example the EquivalentTo is not followed by any annotation
---  annots' <- many $ symbol "Annotations:" *> annotatedList mAnnotation
---  pure $ DatatypeF dtype (annots <> annots') equiv
 
 -- | It parses a class frame
 --
@@ -534,24 +552,24 @@ classAxioms = do
 --       , "  SubPropertyOf: hasSpouse, loves"
 --       , "  EquivalentTo: isMarriedTo"
 --       , "  DisjointWith: hates"
---       , "  InverseOf: hasSpouse, inverse hasSpouse"
+--       , "  InverseOf: hasSpouse, inverse (hasSpouse)"
 --       , "  SubPropertyChain: Annotations: rdfs:comment \"property chain\" hasChild o hasParent"
 --       ]
 -- :}
 --
--- >>> parseTest (objectPropertyAxioms *> eof) (T.unlines input)
+-- >>> parseTest (many objectPropertyAxioms *> eof) (T.unlines (input <> input))
 -- ()
 --
 objectPropertyAxioms :: Parser [Axiom]
 objectPropertyAxioms = do
-  opIRI <- symbol "ObjectProperty:" *> objectPropertyIRI
-  let x = OPE opIRI
-      opDeclaration = DeclarationAxiom [] (EntityObjectProperty opIRI)
+  x <- symbol "ObjectProperty:" *> objectPropertyExpression
   axms <- many . choice $ ($ x) <$> [annotAxiom, domainAxiom, rangeAxiom, charAxiom, subAxiom, subChainAxiom, equAxiom, disAxiom, invAxiom] --choices
-  pure $ opDeclaration:concat axms
+  pure $ declarationIfNamed x <> concat axms
  where
+  declarationIfNamed (OPE i) = [DeclarationAxiom [] (EntityObjectProperty i)]
+  declarationIfNamed _ = []
   annotAxiom (OPE opIRI) = annotationAxiom $ NamedIRI opIRI
-  annotAxiom _ = pure []
+  annotAxiom _ = fail "It parses only IRIs"
   domainAxiom c = do
     _ <- symbol "Domain:"
     mAn <- annotatedList description
@@ -732,6 +750,18 @@ annotationPropertyAxioms = do
     pure $ spreadAnnotations AnnotationAxiomSubProperty c exps
 
 -- | Generic annotation axim parser
+--
+-- >>> :{
+-- let input :: [Text]
+--     input =
+--     [ "Annotations:"
+--     , "  rdfs:comment \"Annot comment\","
+--     , "  owl:priorVersion _:genid2147483672"
+--     ]
+-- :}
+--
+-- >>> parseTest (annotationAxiom (NamedIRI (FullIRI "http://object-property-iri.com")) *> eof) (T.unlines input)
+-- ()
 annotationAxiom :: TotalIRI -> Parser [Axiom]
 annotationAxiom i = do
     _ <- symbol "Annotations:"
@@ -755,7 +785,7 @@ annotationAxiom i = do
 -- :}
 --
 -- >>> parseTest (length <$> assertionAxioms <* eof) (T.unlines input)
--- 10
+-- 11
 --
 -- >>> parseTest (length <$> assertionAxioms <* eof) (T.unlines input2)
 -- 10
@@ -831,8 +861,8 @@ dataPropertyFact o = do
 -- >>> parseTest (misc *> eof) (T.unlines input)
 -- ()
 --
-misc :: Parser [Axiom]
-misc = many . choice $ try <$> [equClM, disjClM, equOPM, disjOPM, equDPM, disjDPM, sameIndM, diffIndM]  --choices
+misc :: Parser Axiom
+misc = choice [equClM, disjClM, equOPM, disjOPM, equDPM, disjDPM, sameIndM, diffIndM]  --choices
  where
   equClM = do
     _ <- symbol "EquivalentClasses:"
