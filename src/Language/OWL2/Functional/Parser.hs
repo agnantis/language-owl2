@@ -419,16 +419,18 @@ superClassExpression = classExpression
 equivalentClasses :: Parser Axiom
 equivalentClasses = do
   _ <- symbol "EquivalentClasses"
-  parens $ ClassAxiomEquivalentClasses
-        <$> axiomAnnotations
-        <*> doubleOrMany "" classExpression
+  parens $ do
+    annots <- axiomAnnotations
+    (x, xs) <- extract filterClassIRI <$> doubleOrMany "" classExpression
+    pure $ ClassAxiomEquivalentClasses annots x xs
 
 disjointClasses :: Parser Axiom
 disjointClasses = do
   _ <- symbol "DisjointClasses"
-  parens $ ClassAxiomDisjointClasses
-        <$> axiomAnnotations
-        <*> doubleOrMany "" classExpression
+  parens $ do
+    annots <- axiomAnnotations
+    (x, xs) <- extract filterClassIRI <$> doubleOrMany "" classExpression
+    pure $ ClassAxiomDisjointClasses annots x xs
 
 disjointUnion :: Parser Axiom
 disjointUnion = do
@@ -498,12 +500,18 @@ superObjectPropertyExpression = objectPropertyExpression
 equivalentObjectProperties :: Parser Axiom
 equivalentObjectProperties = do
   _ <- symbol "EquivalentObjectProperties"
-  parens $ ObjectPropAxiomEquivalent <$> axiomAnnotations <*> doubleOrMany "" objectPropertyExpression
+  parens $ do
+    annots <- axiomAnnotations
+    (x, xs) <- extract filterObjectPropIRI <$> doubleOrMany "" objectPropertyExpression
+    pure $ ObjectPropAxiomEquivalent annots x xs
 
 disjointObjectProperties :: Parser Axiom
 disjointObjectProperties = do
   _ <- symbol "DisjointObjectProperties"
-  parens $ ObjectPropAxiomDisjoint <$> axiomAnnotations <*> doubleOrMany "" objectPropertyExpression
+  parens $ do
+    annots <- axiomAnnotations
+    (x, xs) <- extract filterObjectPropIRI <$> doubleOrMany "" objectPropertyExpression
+    pure $ ObjectPropAxiomDisjoint annots x xs
 
 objectPropertyDomain :: Parser Axiom
 objectPropertyDomain = do
@@ -564,12 +572,18 @@ superDataPropertyExpression = dataPropertyExpression
 equivalentDataProperties :: Parser Axiom
 equivalentDataProperties = do
   _ <- symbol "EquivalentDataProperties"
-  parens $ DataPropAxiomEquivalent <$> axiomAnnotations <*> doubleOrMany "" dataPropertyExpression
+  parens $ do
+    annots <- axiomAnnotations
+    (x, xs) <- extract (const True) <$> doubleOrMany "" dataPropertyExpression
+    pure $ DataPropAxiomEquivalent annots x xs
 
 disjointDataProperties :: Parser Axiom
 disjointDataProperties = do
   _ <- symbol "DisjointDataProperties"
-  parens $ DataPropAxiomDisjoint <$> axiomAnnotations <*> doubleOrMany "" dataPropertyExpression
+  parens $ do
+    annots <- axiomAnnotations
+    (x, xs) <- extract (const True) <$> doubleOrMany "" dataPropertyExpression
+    pure $ DataPropAxiomDisjoint annots x xs
 
 dataPropertyDomain :: Parser Axiom
 dataPropertyDomain = do

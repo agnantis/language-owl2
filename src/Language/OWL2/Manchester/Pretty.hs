@@ -406,8 +406,8 @@ join s xs = concatWith (surround (space <> pretty s <> space)) (pretty <$> xs)
 emptyLine :: Doc ann
 emptyLine = line <> line
 
--- | Like @(<+>), with bettrn handling of empty representations, in order to avoid 
--- having many spaces (e.g. when you _canncatenate_ Docs where are empty
+-- | Like `(<+>)`, with better handling of empty representations, in order to avoid 
+-- having many spaces (e.g. when you concatenate Docs where are empty
 --
 (<->) :: Doc ann -> Doc ann -> Doc ann
 d1 <-> d2

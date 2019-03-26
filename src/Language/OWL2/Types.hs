@@ -173,8 +173,8 @@ data Axiom
     = DeclarationAxiom Annotations Entity
     | DatatypeAxiomEquivalent Annotations Datatype DataRange
     | ClassAxiomSubClassOf Annotations ClassExpression ClassExpression
-    | ClassAxiomEquivalentClasses Annotations (AtLeast2List ClassExpression)
-    | ClassAxiomDisjointClasses Annotations (AtLeast2List ClassExpression)
+    | ClassAxiomEquivalentClasses Annotations ClassExpression (NonEmpty ClassExpression)
+    | ClassAxiomDisjointClasses Annotations ClassExpression (NonEmpty ClassExpression)
     | ClassAxiomDisjointUnion Annotations ClassIRI (AtLeast2List ClassExpression)
     | ClassAxiomHasKey Annotations ClassExpression (NonEmpty ObjectOrDataPE)
     | ObjectPropAxiomDomain Annotations ObjectPropertyExpression ClassExpression
@@ -182,15 +182,15 @@ data Axiom
     | ObjectPropAxiomCharacteristics Annotations ObjectPropertyExpression ObjectPropertyCharacteristic
     | ObjectPropAxiomSubProperty Annotations ObjectPropertyExpression ObjectPropertyExpression
     | ObjectPropAxiomChainSubProperty Annotations ObjectPropertyChain ObjectPropertyExpression
-    | ObjectPropAxiomEquivalent Annotations (AtLeast2List ObjectPropertyExpression)
-    | ObjectPropAxiomDisjoint Annotations (AtLeast2List ObjectPropertyExpression)
+    | ObjectPropAxiomEquivalent Annotations ObjectPropertyExpression (NonEmpty ObjectPropertyExpression)
+    | ObjectPropAxiomDisjoint Annotations ObjectPropertyExpression (NonEmpty ObjectPropertyExpression)
     | ObjectPropAxiomInverse Annotations ObjectPropertyExpression ObjectPropertyExpression
     | DataPropAxiomDomain Annotations DataPropertyExpression ClassExpression
     | DataPropAxiomRange Annotations DataPropertyExpression DataRange
     | DataPropAxiomCharacteristics Annotations DataPropertyExpression DataPropertyCharacteristics
     | DataPropAxiomSubProperty Annotations DataPropertyExpression DataPropertyExpression
-    | DataPropAxiomEquivalent Annotations (AtLeast2List DataPropertyExpression)
-    | DataPropAxiomDisjoint Annotations (AtLeast2List DataPropertyExpression)
+    | DataPropAxiomEquivalent Annotations DataPropertyExpression (NonEmpty DataPropertyExpression)
+    | DataPropAxiomDisjoint Annotations DataPropertyExpression (NonEmpty DataPropertyExpression)
     | AnnotationAxiomDomain Annotations AnnotationProperty IRI
     | AnnotationAxiomRange Annotations AnnotationProperty IRI
     | AnnotationAxiomSubProperty Annotations AnnotationProperty AnnotationProperty
@@ -222,7 +222,7 @@ toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
 singleton :: a -> NonEmpty a
 singleton x = x :| []
 
--- | Searches the provided intial element and the elements the list for an element that sutisfies
+-- | Searches the provided initial element and the elements the list for an element that sutisfies
 -- the predicate p. It returns a pair with this first element and a list with the rest, or the default
 -- (i.e., arguments "a" and "NonEmpty a" if no such element exists
 -- if no element can satisfy the predicate
@@ -246,3 +246,51 @@ promote p x xs
     (xs1, xs2) = break p $ NE.toList xs
     els = uncons xs2
     result = (\(v, rest) -> (v, x :| (xs1 <> rest))) <$> els
+
+-- | Provided a pair of elements it reolrder to the pair when the first element does not
+-- comply with the predicate but the other does comply. In any other case the order remains
+-- unchanged
+--
+-- >>> reorder ((== 1) . (`mod` 4)) (5,7)
+-- (5,7)
+--
+-- >>> reorder ((== 1) . (`mod` 4)) (4,9)
+-- (9,4)
+--
+-- >>> reorder ((== 1) . (`mod` 4)) (5,9)
+-- (5,9)
+--
+reorder :: (a -> Bool) -> (a, a) -> (a, a)
+reorder p (x1, x2)
+  | p x1 = (x1, x2)
+  | p x2 = (x2, x1)
+  | otherwise = (x1, x2) 
+-- | Like 'promote' but on a 'AtLeast2List a' list
+--
+-- >>> xs = atLeast2List 13 4 [7, 6,12,9]
+-- >>> xs' = atLeast2List 12 4 [7, 6,12,9]
+-- >>> p = ((== 0) . (`mod` 3))
+-- >>> extract p xs
+-- (6,13 :| [4,7,12,9])
+--
+-- >>> extract p xs'
+-- (12,4 :| [7,6,12,9])
+--
+-- >>> extract (const False) xs'
+-- (12,4 :| [7,6,12,9])
+--
+extract :: (a -> Bool) -> AtLeast2List a -> (a, NonEmpty a)
+extract p ((x1, x2) :# xs) = promote p x1 (x2 :| xs)
+
+-- | utility function that returns 'True' only if the 'ClassExpression' is about a named
+-- class, i.e., is an IRI
+filterClassIRI :: ClassExpression -> Bool
+filterClassIRI (CExpClass _) = True
+filterClassIRI _ = False
+
+-- | utility function that returns 'True' only if the 'ObjectPropertyExpression' is about a
+-- named property, i.e., is an IRI
+filterObjectPropIRI :: ObjectPropertyExpression -> Bool
+filterObjectPropIRI (OPE _) = True
+filterObjectPropIRI _ = False
+

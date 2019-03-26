@@ -516,11 +516,11 @@ classAxioms = do
   equCA c = do
     _ <- symbol "EquivalentTo:"
     ds <- annotatedList description
-    pure $ spreadAnnotationsIfExist ClassAxiomEquivalentClasses c ds 
+    pure $ spreadAnnotationsIfExist' ClassAxiomEquivalentClasses c ds 
   disCA c = do
     _ <- symbol "DisjointWith:"
     ds <- annotatedList description
-    pure $ spreadAnnotationsIfExist ClassAxiomDisjointClasses c ds
+    pure $ spreadAnnotationsIfExist' ClassAxiomDisjointClasses c ds
   dscCA (CExpClass cIRI) = do
     _ <- symbol "DisjointUnionOf:"
     an <- annotationSection
@@ -596,11 +596,11 @@ objectPropertyAxioms = do
   equAxiom c = do
     _ <- symbol "EquivalentTo:"
     exps <- annotatedList objectPropertyExpression
-    pure $ spreadAnnotationsIfExist ObjectPropAxiomEquivalent c exps
+    pure $ spreadAnnotationsIfExist' ObjectPropAxiomEquivalent c exps
   disAxiom c = do
     _ <- symbol "DisjointWith:"
     exps <- annotatedList objectPropertyExpression
-    pure $ spreadAnnotationsIfExist ObjectPropAxiomDisjoint c exps
+    pure $ spreadAnnotationsIfExist' ObjectPropAxiomDisjoint c exps
   invAxiom c = do
     _ <- symbol "InverseOf:"
     exps <- annotatedList objectPropertyExpression
@@ -684,11 +684,18 @@ dataPropertyAxioms = do
   equAxiom c = do
     _ <- symbol "EquivalentTo:"
     exps <- annotatedList dataPropertyExpression
-    pure $ spreadAnnotationsIfExist DataPropAxiomEquivalent c exps
+    pure $ spreadAnnotationsIfExist' DataPropAxiomEquivalent c exps
   disAxiom c = do
     _ <- symbol "DisjointWith:"
     exps <- annotatedList dataPropertyExpression
-    pure $ spreadAnnotationsIfExist DataPropAxiomDisjoint c exps
+    pure $ spreadAnnotationsIfExist' DataPropAxiomDisjoint c exps
+
+-- | A small utility function with specific functionallity, defined in order to avoid repetition
+spreadAnnotationsIfExist' :: (Annotations -> a -> NonEmpty a -> b) -> a -> AnnotatedList a -> [b]
+spreadAnnotationsIfExist' c e als = 
+    if noAnnotations als
+    then pure $ c [] e (removeAnnotations als)
+    else (\(Annotated (a, v)) -> c a e (singleton v)) <$> NE.toList als
 
 -- | A small utility function with specific functionallity, defined in order to avoid repetition
 spreadAnnotationsIfExist :: (Annotations -> AtLeast2List a -> b) -> a -> AnnotatedList a -> [b]
@@ -754,10 +761,11 @@ annotationPropertyAxioms = do
 -- >>> :{
 -- let input :: [Text]
 --     input =
---     [ "Annotations:"
---     , "  rdfs:comment \"Annot comment\","
---     , "  owl:priorVersion _:genid2147483672"
---     ]
+--       [
+--         "Annotations:"
+--       , "  rdfs:comment \"Annot comment\","
+--       , "  owl:priorVersion _:genid2147483672"
+--       ]
 -- :}
 --
 -- >>> parseTest (annotationAxiom (NamedIRI (FullIRI "http://object-property-iri.com")) *> eof) (T.unlines input)
@@ -858,30 +866,42 @@ dataPropertyFact o = do
 --       ]
 -- :}
 --
--- >>> parseTest (misc *> eof) (T.unlines input)
--- ()
+-- >>> parseTest ((length <$> many misc) <* eof) (T.unlines input)
+-- 7
 --
 misc :: Parser Axiom
 misc = choice [equClM, disjClM, equOPM, disjOPM, equDPM, disjDPM, sameIndM, diffIndM]  --choices
  where
   equClM = do
     _ <- symbol "EquivalentClasses:"
-    ClassAxiomEquivalentClasses <$> annotationSection <*> listOfAtLeast2 description
+    annots <- annotationSection
+    (x, xs) <- extract filterClassIRI <$> listOfAtLeast2 description
+    pure $ ClassAxiomEquivalentClasses annots x xs
   disjClM = do
     _ <- symbol "DisjointClasses:"
-    ClassAxiomDisjointClasses <$> annotationSection <*> listOfAtLeast2 description
+    annots <- annotationSection
+    (x, xs) <- extract filterClassIRI <$> listOfAtLeast2 description
+    pure $ ClassAxiomDisjointClasses annots x xs
   equOPM = do
     _ <- symbol "EquivalentProperties:"
-    ObjectPropAxiomEquivalent <$> annotationSection <*> listOfAtLeast2 objectPropertyExpression
+    annots <- annotationSection
+    (x, xs) <- extract filterObjectPropIRI <$> listOfAtLeast2 objectPropertyExpression
+    pure $ ObjectPropAxiomEquivalent annots x xs
   disjOPM = do
     _ <- symbol "DisjointProperties:"
-    ObjectPropAxiomDisjoint <$> annotationSection <*> listOfAtLeast2 objectPropertyExpression
+    annots <- annotationSection
+    (x, xs) <- extract filterObjectPropIRI <$> listOfAtLeast2 objectPropertyExpression
+    pure $ ObjectPropAxiomDisjoint annots x xs
   equDPM = do
     _ <- symbol "EquivalentProperties:"
-    DataPropAxiomEquivalent <$> annotationSection <*> listOfAtLeast2 dataPropertyExpression
+    annots <- annotationSection
+    (x, xs) <- extract (const True) <$> listOfAtLeast2 dataPropertyExpression
+    pure $ DataPropAxiomEquivalent annots x xs
   disjDPM = do
     _ <- symbol "DisjointProperties:"
-    DataPropAxiomDisjoint <$> annotationSection <*> listOfAtLeast2 dataPropertyExpression
+    annots <- annotationSection
+    (x, xs) <- extract (const True) <$> listOfAtLeast2 dataPropertyExpression
+    pure $ DataPropAxiomDisjoint annots x xs
   sameIndM = do
     _ <- symbol "SameIndividual:"
     AssertionAxiomSameIndividuals <$> annotationSection <*> listOfAtLeast2 individual
