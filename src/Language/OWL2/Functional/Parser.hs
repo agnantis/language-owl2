@@ -28,14 +28,14 @@ import           Language.OWL2.Internal.Parser
 -- unexpected '^'
 -- ...
 --
--- >>> parseTest (literal *> eof) "\"32\"^^xsd:integer"
--- ()
+-- >>> parseTest (literal <* eof) "\"32\"^^xsd:integer"
+-- TypedLiteralC ...
 --
--- >>> parseTest (literal *> eof) "\"stringLiteralNoLanguage\""
--- ()
+-- >>> parseTest (literal <* eof) "\"stringLiteralNoLanguage\""
+-- StringLiteralNoLang ...
 --
--- >>> parseTest (literal *> eof) "\"stringLiteralWithLang\"@en"
--- ()
+-- >>> parseTest (literal <* eof) "\"stringLiteralWithLang\"@en"
+-- StringLiteralLang ...
 --
 literal :: Parser Literal
 literal =  lexeme $ TypedLiteralC <$> try typedLiteral 
@@ -48,11 +48,11 @@ literal =  lexeme $ TypedLiteralC <$> try typedLiteral
 -- ...
 -- keyword "integer" cannot be an identifier
 --
--- >>> parseTest (literal *> eof) "\"32\"^^xsd:integer"
--- ()
+-- >>> parseTest (typedLiteral <* eof) "\"32\"^^xsd:integer"
+-- TypedL ...
 --
--- >>> parseTest (typedLiteral *> eof) "\"Jack\"^^xsd:string"
--- ()
+-- >>> parseTest (typedLiteral <* eof) "\"Jack\"^^xsd:string"
+-- TypedL ...
 --
 typedLiteral :: Parser TypedLiteral
 typedLiteral = TypedL <$> lexicalValue
@@ -63,11 +63,11 @@ ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
 
 -- | It parses a prefix declaration
 --
--- >>> parseTest (prefixDeclaration *> eof) "Prefix(owl:=<http://www.w3.org/2002/07/owl#>)"
--- ()
+-- >>> parseTest (prefixDeclaration <* eof) "Prefix(owl:=<http://www.w3.org/2002/07/owl#>)"
+-- PrefixD ...
 --
--- >>> parseTest (prefixDeclaration *> eof) "Prefix(:=<http://www.w3.org/2002/07/owl#>)"
--- ()
+-- >>> parseTest (prefixDeclaration <* eof) "Prefix(:=<http://www.w3.org/2002/07/owl#>)"
+-- PrefixD ...
 --
 prefixDeclaration :: Parser PrefixDeclaration
 prefixDeclaration = do
@@ -83,8 +83,8 @@ ontology = do
 
 -- | It parses import ontology declarations
 --
--- >>> parseTest (directImport *> eof) "Import(<http://www.w3.org/2002/07/owl#>)"
--- ()
+-- >>> parseTest (directImport <* eof) "Import(<http://www.w3.org/2002/07/owl#>)"
+-- ImportD ...
 --
 directImport :: Parser ImportDeclaration
 directImport = ImportD <$> (symbol "Import" *> parens iri)
@@ -97,11 +97,11 @@ axioms = many axiom
 
 -- | It parses  declarations
 --
--- >>> parseTest (declaration *> eof) "Declaration(Class(<http://www.uom.gr/ai/TestOntology.owl#Child>))"
--- ()
+-- >>> parseTest (declaration <* eof) "Declaration(Class(<http://www.uom.gr/ai/TestOntology.owl#Child>))"
+-- DeclarationAxiom ...
 --
--- >>> parseTest (declaration *> eof) "Declaration( NamedIndividual( a:Peter ))"
--- ()
+-- >>> parseTest (declaration <* eof) "Declaration( NamedIndividual( a:Peter ))"
+-- DeclarationAxiom ...
 --
 declaration :: Parser Axiom
 declaration = do
@@ -119,6 +119,14 @@ entity =  EntityClass              <$> (symbol "Class"              *> parens cl
 axiomAnnotations :: Parser [Annotated Annotation]
 axiomAnnotations = fannotations
 
+-- | It parses an annotation
+--
+-- >>> parseTest (fannotation <* eof) "Annotation( rdfs:comment \"Male people are people.\" )"
+-- Annotated ...
+--
+-- >>> parseTest (fannotation <* eof) "Annotation  ( rdfs:comment \"Male people are people.\" )"
+-- Annotated ...
+--
 fannotation :: Parser (Annotated Annotation)
 fannotation = do
   _ <- symbol "Annotation"
@@ -133,6 +141,8 @@ fannotations = many fannotation
 annotationAnnotations :: Parser [Annotated Annotation]
 annotationAnnotations = fannotations
 
+-- | It parses annotation axioms
+--
 annotationAxiom :: Parser Axiom
 annotationAxiom =  subAnnotationPropertyOf
                <|> annotationPropertyDomain
@@ -140,12 +150,11 @@ annotationAxiom =  subAnnotationPropertyOf
 
 -- | It parses annotation assertions
 --
--- >> parseTest (annotationAssertion *> eof) "AnnotationAssertion(rdfs:comment test-ont:kostasAnnot \"comment\")"
--- ()
--- >> parseTest (annotationAssertion *> eof) "AnnotationAssertion(owl:priorVersion _:node1 _:node2)"
--- ()
+-- >>> parseTest (annotationAssertion <* eof) "AnnotationAssertion(rdfs:comment test-ont:kostasAnnot \"comment\")"
+-- AnnotationAxiomAssertion ...
+-- >>> parseTest (annotationAssertion <* eof) "AnnotationAssertion(owl:priorVersion _:node1 _:node2)"
+-- AnnotationAxiomAssertion ...
 --
--- TODO: doctest inactive
 annotationAssertion :: Parser Axiom
 annotationAssertion = do
   _ <- symbol "AnnotationAssertion"
@@ -161,8 +170,8 @@ annotationSubject = totalIRI
 
 -- | It parses sub property annotation assertions
 --
--- >>> parseTest (subAnnotationPropertyOf *> eof) "SubAnnotationPropertyOf(test-ont:kostasAnnot rdfs:comment)"
--- ()
+-- >>> parseTest (subAnnotationPropertyOf <* eof) "SubAnnotationPropertyOf(test-ont:kostasAnnot rdfs:comment)"
+-- AnnotationAxiomSubProperty ...
 --
 subAnnotationPropertyOf :: Parser Axiom
 subAnnotationPropertyOf = do
@@ -178,6 +187,8 @@ subAnnotationProperty = annotationProperty
 superAnnotationProperty :: Parser AnnotationPropertyIRI
 superAnnotationProperty = annotationProperty
 
+-- | It parses an annotation property domain
+--
 annotationPropertyDomain :: Parser Axiom
 annotationPropertyDomain = do
   _ <- symbol "AnnotationPropertyDomain"
@@ -186,6 +197,8 @@ annotationPropertyDomain = do
         <*> annotationProperty
         <*> iri
 
+-- | It parses an annotation property range
+--
 annotationPropertyRange :: Parser Axiom
 annotationPropertyRange = do
   _ <- symbol "AnnotationPropertyRange"
@@ -209,9 +222,15 @@ objectPropertyExpression :: Parser ObjectPropertyExpression
 objectPropertyExpression =  OPE        <$> objectProperty
                         <|> InverseOPE <$> (symbol "ObjectInverseOf" *> parens objectProperty)
 
+-- | It parses a data property expression which is always an IRI; There are no compound data
+-- property expressions
+--
 dataPropertyExpression :: Parser DataPropertyIRI
 dataPropertyExpression = dataProperty
 
+-- | It parses a data range
+--
+--
 dataRange :: Parser DataRange
 dataRange =  DatatypeDR <$> datatype
          <|> dataIntersectionOf
@@ -550,6 +569,28 @@ objectPropertyCharacteristics = M.fromList
 --------------------------
 -- Data Property Axioms --
 --------------------------
+
+-- | It parses all data property related axioms
+--
+--
+-- >>> parseTest (subDataPropertyOf <* eof) "SubDataPropertyOf( a:hasLastName a:hasName  )"
+-- DataPropAxiomSubProperty ...
+--
+-- >>> parseTest (equivalentDataProperties <* eof) "EquivalentDataProperties( a:hasName a:hasAddress )"
+-- DataPropAxiomEquivalent ...
+--
+-- >>> parseTest (disjointDataProperties <* eof) "DisjointDataProperties( a:hasName a:hasAddress )"
+-- DataPropAxiomDisjoint ...
+--
+-- >>> parseTest (dataPropertyDomain <* eof) "DataPropertyDomain( a:hasName a:Person )"
+-- DataPropAxiomDomain ...
+--
+-- >>> parseTest (dataPropertyRange <* eof) "DataPropertyRange( a:hasName xsd:string )"
+-- DataPropAxiomRange ...
+--
+-- >>> parseTest (functionalDataProperty<* eof) "FunctionalDataProperty( a:hasAge )"
+-- DataPropAxiomCharacteristics ...
+--
 dataPropertyAxiom :: Parser Axiom
 dataPropertyAxiom =  subDataPropertyOf
                  <|> equivalentDataProperties
@@ -558,6 +599,11 @@ dataPropertyAxiom =  subDataPropertyOf
                  <|> dataPropertyRange
                  <|> functionalDataProperty
 
+-- | It parses a sub data property declaration
+--
+-- >>> parseTest (subDataPropertyOf <* eof) "SubDataPropertyOf( a:hasLastName a:hasName  )"
+-- DataPropAxiomSubProperty ...
+--
 subDataPropertyOf :: Parser Axiom
 subDataPropertyOf = do
   _ <- symbol "SubDataPropertyOf"
@@ -569,6 +615,11 @@ subDataPropertyExpression = dataPropertyExpression
 superDataPropertyExpression :: Parser DataPropertyIRI
 superDataPropertyExpression = dataPropertyExpression
 
+-- | It parses an equivalent data property declaration
+--
+-- >>> parseTest (equivalentDataProperties <* eof) "EquivalentDataProperties( a:hasName a:hasAddress )"
+-- DataPropAxiomEquivalent ...
+--
 equivalentDataProperties :: Parser Axiom
 equivalentDataProperties = do
   _ <- symbol "EquivalentDataProperties"
@@ -577,6 +628,11 @@ equivalentDataProperties = do
     (x, xs) <- extract (const True) <$> doubleOrMany "" dataPropertyExpression
     pure $ DataPropAxiomEquivalent annots x xs
 
+-- | It parses a disjoint data property declaration
+--
+-- >>> parseTest (disjointDataProperties <* eof) "DisjointDataProperties( a:hasName a:hasAddress )"
+-- DataPropAxiomDisjoint ...
+--
 disjointDataProperties :: Parser Axiom
 disjointDataProperties = do
   _ <- symbol "DisjointDataProperties"
@@ -585,16 +641,31 @@ disjointDataProperties = do
     (x, xs) <- extract (const True) <$> doubleOrMany "" dataPropertyExpression
     pure $ DataPropAxiomDisjoint annots x xs
 
+-- | It parses a data property domain declaration
+--
+-- >>> parseTest (dataPropertyDomain <* eof) "DataPropertyDomain( a:hasName a:Person )"
+-- DataPropAxiomDomain ...
+--
 dataPropertyDomain :: Parser Axiom
 dataPropertyDomain = do
   _ <- symbol "DataPropertyDomain"
   parens $ DataPropAxiomDomain <$> axiomAnnotations <*> dataPropertyExpression <*> classExpression
 
+-- | It parses a data property range declaration
+--
+-- >>> parseTest (dataPropertyRange <* eof) "DataPropertyRange( a:hasName xsd:string )"
+-- DataPropAxiomRange ...
+--
 dataPropertyRange :: Parser Axiom
 dataPropertyRange = do
   _ <- symbol "DataPropertyRange"
   parens $ DataPropAxiomRange <$> axiomAnnotations <*> dataPropertyExpression <*> dataRange
 
+-- | It parses a functional data property declaration
+--
+-- >>> parseTest (functionalDataProperty<* eof) "FunctionalDataProperty( a:hasAge )"
+-- DataPropAxiomCharacteristics ...
+--
 functionalDataProperty :: Parser Axiom
 functionalDataProperty = do
   _ <- symbol "FunctionalDataProperty"
