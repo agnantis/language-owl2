@@ -59,7 +59,7 @@ typedLiteral = TypedL <$> lexicalValue
                       <*> (symbol "^^" *> datatype)
 
 ontologyDocument :: Parser OntologyDocument
-ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
+ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontologyP
 
 -- | It parses a prefix declaration
 --
@@ -74,12 +74,12 @@ prefixDeclaration = do
   _ <- symbol "Prefix"
   parens $ PrefixD <$> prefixName <*> (symbol "=" *> fullIRI)
 
-ontology :: Parser Ontology
-ontology = do
+ontologyP :: Parser Ontology
+ontologyP = do
   _ <- symbol "Ontology"
   parens $ do
     ver <- optional $ OntologyVersionIRI <$> ontologyIRI <*> try (optional versionIRI)
-    Ontology <$> pure ver <*> many directImport <*> ontologyAnnotations <*> axioms
+    Ontology <$> pure ver <*> many directImport <*> ontologyAnnotations <*> axiomsP
 
 -- | It parses import ontology declarations
 --
@@ -92,8 +92,8 @@ directImport = ImportD <$> (symbol "Import" *> parens iri)
 ontologyAnnotations :: Parser [Annotated Annotation]
 ontologyAnnotations = fannotations
 
-axioms :: Parser [Axiom]
-axioms = many axiom 
+axiomsP :: Parser [Axiom]
+axiomsP = many axiom 
 
 -- | It parses  declarations
 --
@@ -101,6 +101,9 @@ axioms = many axiom
 -- DeclarationAxiom ...
 --
 -- >>> parseTest (declaration <* eof) "Declaration( NamedIndividual( a:Peter ))"
+-- DeclarationAxiom ...
+--
+-- >>> parseTest (declaration <* eof) "Declaration(AnnotationProperty(test-ont:userAnnot))"
 -- DeclarationAxiom ...
 --
 declaration :: Parser Axiom
@@ -136,7 +139,7 @@ fannotation = do
      pure $ Annotated (annots, a)
 
 fannotations :: Parser [Annotated Annotation]
-fannotations = many fannotation
+fannotations = many $ try fannotation
 
 annotationAnnotations :: Parser [Annotated Annotation]
 annotationAnnotations = fannotations
@@ -684,6 +687,7 @@ assertion =  sameIndividual
          <|> negativeObjectPropertyAssertion
          <|> dataPropertyAssertion
          <|> negativeDataPropertyAssertion
+         <|> annotationAssertion
 
 sourceIndividual :: Parser Individual
 sourceIndividual = individual
@@ -752,7 +756,7 @@ negativeDataPropertyAssertion = do
 ------------------
 -- Parser utils --
 ------------------
-parseOntologyDoc :: FilePath -> IO (Maybe ())
+parseOntologyDoc :: FilePath -> IO (Maybe OntologyDocument)
 parseOntologyDoc file =
   putStrLn ("Parsing ontology document: '" <> file <> "'") >>
   T.readFile file >>= parseContent
@@ -763,7 +767,7 @@ parseOntologyDoc file =
           putStrLn "Unable to parse file. Reason: "
           putStrLn (errorBundlePretty bundle)
           pure Nothing
-        Right _ -> do
+        Right x -> do
           putStrLn "File parsed succesfully"
-          pure (Just ())
+          pure (Just x)
 

@@ -156,7 +156,7 @@ annotationSection' = let p = symbol "Annotations:" *> annotatedList mAnnotation
                     in NE.toList <$> p
 
 ontologyDocument :: Parser OntologyDocument
-ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
+ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontologyP
 
 -- | It parses prefix names. Format: 'Prefix: <name>: <IRI>
 --
@@ -169,13 +169,13 @@ ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontology
 prefixDeclaration :: Parser PrefixDeclaration
 prefixDeclaration = PrefixD <$> (symbol "Prefix:" *> lexeme prefixName) <*> fullIRI
 
-ontology :: Parser Ontology
-ontology = do
+ontologyP :: Parser Ontology
+ontologyP = do
   _       <- symbol "Ontology:"
   ontoIRI <- optional $ OntologyVersionIRI <$> ontologyIRI <*> optional versionIRI -- Maybe (iri, Maybe iri)
   imports <- many importStmt
   annots  <- concat <$> many annotationSection'
-  axms  <- concat <$> many axioms --TODO problem here!!
+  axms  <- concat <$> many axiomsP --TODO problem here!!
   pure $ Ontology ontoIRI imports annots axms
 
 -- | It parses import statements
@@ -186,8 +186,8 @@ ontology = do
 importStmt :: Parser ImportDeclaration
 importStmt = ImportD <$> (symbol "Import:" *> iri)
 
-axioms :: Parser [Axiom]
-axioms =  datatypeAxiom
+axiomsP :: Parser [Axiom]
+axiomsP =  datatypeAxiom
       <|> classAxioms
       <|> objectPropertyAxioms
       <|> dataPropertyAxioms
