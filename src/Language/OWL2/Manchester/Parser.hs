@@ -7,7 +7,6 @@ import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
 import           Text.Megaparsec
-import           Text.Megaparsec.Debug
 
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import          as T
@@ -173,10 +172,10 @@ ontologyP :: Parser Ontology
 ontologyP = do
   _       <- symbol "Ontology:"
   ontoIRI <- optional $ OntologyVersionIRI <$> ontologyIRI <*> optional versionIRI -- Maybe (iri, Maybe iri)
-  imports <- many importStmt
+  imps    <- many importStmt
   annots  <- concat <$> many annotationSection'
-  axms  <- concat <$> many axiomsP --TODO problem here!!
-  pure $ Ontology ontoIRI imports annots axms
+  axms    <- concat <$> many axiomsP --TODO problem here!!
+  pure $ Ontology ontoIRI imps annots axms
 
 -- | It parses import statements
 --
@@ -419,8 +418,8 @@ restriction =  try (objectPropertyExpression >>= objectRestriction)
     <|> try (CExpObjectExactCardinality <$> (symbol "exactly" *> nonNegativeInteger) <*> pure o <*> optional primary)
   dataRestriction :: DataPropertyExpression -> Parser ClassExpression
   dataRestriction d =
-        try (CExpDataSomeValuesFrom d <$> (symbol "some" *> dataPrimary))
-    <|> try (CExpDataAllValuesFrom  d <$> (symbol "only" *> dataPrimary))
+        try (CExpDataSomeValuesFrom (singleton d) <$> (symbol "some" *> dataPrimary))
+    <|> try (CExpDataAllValuesFrom  (singleton d) <$> (symbol "only" *> dataPrimary))
     <|> try (CExpDataHasValue d       <$> (symbol "value"   *> literal))
     <|> try (CExpDataMinCardinality   <$> (symbol "min"     *> nonNegativeInteger) <*> pure d <*> optional dataPrimary)
     <|> try (CExpDataMaxCardinality   <$> (symbol "max"     *> nonNegativeInteger) <*> pure d <*> optional dataPrimary)
@@ -474,7 +473,7 @@ datatypeAxiom = do
     _ <- symbol "EquivalentTo:"
     annots <- annotationSection
     dr <- dataRange
-    pure [ DatatypeAxiomEquivalent annots c dr ]
+    pure [ DatatypeAxiomDefinition annots c dr ]
 
 -- | It parses a class frame
 --

@@ -14,6 +14,7 @@ import qualified Language.OWL2.Import          as T
 import           Language.OWL2.Types
 
 import           Language.OWL2.Internal.Parser
+import           Language.OWL2.Functional.Pretty as FP
 
 -- DocTest setup
 --
@@ -165,8 +166,8 @@ annotationAssertion = do
     annots <- axiomAnnotations
     prop   <- annotationProperty
     subj   <- annotationSubject
-    value  <- annotationValue literal
-    pure $ AnnotationAxiomAssertion annots subj (Annotation prop value)
+    val    <- annotationValue literal
+    pure $ AnnotationAxiomAssertion annots subj (Annotation prop val)
 
 annotationSubject :: Parser TotalIRI
 annotationSubject = totalIRI
@@ -373,14 +374,14 @@ objectExactCardinality = objectCardinality "ObjectExactCardinality" CExpObjectMi
 dataSomeValuesFrom :: Parser ClassExpression
 dataSomeValuesFrom = do
   _ <- symbol "DataSomeValuesFrom"
-  parens $ CExpDataSomeValuesFrom <$> dataPropertyExpression <*> dataRange
+  parens $ CExpDataSomeValuesFrom <$> singleOrMany "" dataPropertyExpression <*> dataRange
 
 -- TODO: Protege does not seem to support multiple data property expressions in a single "some"
 -- e.g. Was not possible to parse: "EquivalentClasses(test-ont:Test1 DataAllValuesFrom(test-ont:dataProp1 test-ont:dataPro2 xsd:integer)) 
 dataAllValuesFrom :: Parser ClassExpression
 dataAllValuesFrom = do
   _ <- symbol "DataAllValuesFrom"
-  parens $ CExpDataAllValuesFrom <$> dataPropertyExpression <*> dataRange
+  parens $ CExpDataAllValuesFrom <$> singleOrMany "" dataPropertyExpression <*> dataRange
 
 dataHasValue :: Parser ClassExpression
 dataHasValue = do
@@ -677,7 +678,7 @@ functionalDataProperty = do
 datatypeDefinition :: Parser Axiom
 datatypeDefinition = do
   _ <- symbol "DatatypeDefinition"
-  parens $ DatatypeAxiomEquivalent <$> axiomAnnotations <*> datatype <*> dataRange
+  parens $ DatatypeAxiomDefinition <$> axiomAnnotations <*> datatype <*> dataRange
 
 assertion :: Parser Axiom
 assertion =  sameIndividual
@@ -771,3 +772,7 @@ parseOntologyDoc file =
           putStrLn "File parsed succesfully"
           pure (Just x)
 
+parseAndSave :: FilePath -> IO ()
+parseAndSave f = do
+  (Just ontDoc) <- parseOntologyDoc f
+  writeFile "output.hs.owl" (show . FP.pretty $ ontDoc)

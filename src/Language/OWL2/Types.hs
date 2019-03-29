@@ -70,7 +70,10 @@ data Ontology = Ontology
     , axioms  :: [Axiom]
     } deriving (Eq, Ord, Show)
 data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Eq, Ord, Show)
-data Annotation = Annotation AnnotationProperty AnnotationValue deriving (Eq, Ord, Show)
+data Annotation = Annotation
+    { property :: AnnotationProperty
+    , value     :: AnnotationValue
+    } deriving (Eq, Ord, Show)
 newtype Datatype = Datatype { unDatatype :: DatatypeIRI } deriving (Eq, Ord, Show)
 data DatatypeRestriction = DatatypeRestriction Datatype (NonEmpty RestrictionExp) deriving (Eq, Ord, Show)
 data RestrictionExp = RestrictionExp Facet Literal deriving (Eq, Ord, Show)
@@ -115,8 +118,8 @@ data ClassExpression
     | CExpObjectMinCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
     | CExpObjectMaxCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
     | CExpObjectExactCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
-    | CExpDataSomeValuesFrom DataPropertyExpression DataRange 
-    | CExpDataAllValuesFrom DataPropertyExpression DataRange
+    | CExpDataSomeValuesFrom (NonEmpty DataPropertyExpression) DataRange 
+    | CExpDataAllValuesFrom (NonEmpty DataPropertyExpression) DataRange
     | CExpDataHasValue DataPropertyExpression Literal
     | CExpDataMinCardinality Int DataPropertyExpression (Maybe DataRange)
     | CExpDataMaxCardinality Int DataPropertyExpression (Maybe DataRange)
@@ -184,7 +187,7 @@ data Axiom
     | AnnotationAxiomRange Annotations AnnotationProperty IRI
     | AnnotationAxiomSubProperty Annotations AnnotationProperty AnnotationProperty
     | AnnotationAxiomAssertion Annotations TotalIRI Annotation
-    | DatatypeAxiomEquivalent Annotations Datatype DataRange
+    | DatatypeAxiomDefinition Annotations Datatype DataRange
     | ObjectPropAxiomDomain Annotations ObjectPropertyExpression ClassExpression
     | ObjectPropAxiomRange Annotations ObjectPropertyExpression ClassExpression
     | ObjectPropAxiomCharacteristics Annotations ObjectPropertyExpression ObjectPropertyCharacteristic

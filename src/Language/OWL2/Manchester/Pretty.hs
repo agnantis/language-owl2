@@ -87,8 +87,8 @@ instance PrettyM ClassExpression where
   pretty (CExpObjectMinCardinality i ope mce)   = pretty ope <+> "min"     <+> pretty i   <+> pretty mce
   pretty (CExpObjectMaxCardinality i ope mce)   = pretty ope <+> "max"     <+> pretty i   <+> pretty mce
   pretty (CExpObjectExactCardinality i ope mce) = pretty ope <+> "exactly" <+> pretty i   <+> pretty mce
-  pretty (CExpDataSomeValuesFrom dpe dr)        = pretty dpe <+> "some"    <+> pretty dr
-  pretty (CExpDataAllValuesFrom dpe dr)         = pretty dpe <+> "only"    <+> pretty dr
+  pretty (CExpDataSomeValuesFrom dps dr)        = pretty (NE.head dps) <+> "some"    <+> pretty dr --TODO: dpes is a list!
+  pretty (CExpDataAllValuesFrom dps dr)         = pretty (NE.head dps) <+> "only"    <+> pretty dr -- TODO: dpes is a list!
   pretty (CExpDataHasValue dpe l)               = pretty dpe <+> "value"   <+> pretty l
   pretty (CExpDataMinCardinality i dpe mdr)     = pretty dpe <+> "min"     <+> pretty i   <+> pretty mdr
   pretty (CExpDataMaxCardinality i dpe mdr)     = pretty dpe <+> "max"     <+> pretty i   <+> pretty mdr
