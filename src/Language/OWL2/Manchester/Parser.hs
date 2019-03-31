@@ -822,11 +822,11 @@ assertionAxioms = do
   sameAxiom c = do
     _ <- symbol "SameAs:"
     exps <- annotatedList individual
-    pure $ spreadAnnotationsIfExist AssertionAxiomSameIndividuals c exps
+    pure $ spreadAnnotationsIfExist' AssertionAxiomSameIndividuals c exps
   diffAxiom c = do
     _ <- symbol "DifferentFrom:"
     exps <- annotatedList individual
-    pure $ spreadAnnotationsIfExist AssertionAxiomDifferentIndividuals c exps
+    pure $ spreadAnnotationsIfExist' AssertionAxiomDifferentIndividuals c exps
 
 
 fact :: Parser FactElement
@@ -903,10 +903,14 @@ misc = choice [equClM, disjClM, equOPM, disjOPM, equDPM, disjDPM, sameIndM, diff
     pure $ DataPropAxiomDisjoint annots x xs
   sameIndM = do
     _ <- symbol "SameIndividual:"
-    AssertionAxiomSameIndividuals <$> annotationSection <*> listOfAtLeast2 individual
+    annots <- annotationSection
+    (x, xs) <- extract filterNamedIRI <$> listOfAtLeast2 individual
+    pure $ AssertionAxiomSameIndividuals annots x xs
   diffIndM = do
     _ <- symbol "DifferentIndividuals:"
-    AssertionAxiomDifferentIndividuals <$> annotationSection <*> listOfAtLeast2 individual
+    annots <- annotationSection
+    (x, xs) <- extract filterNamedIRI <$> listOfAtLeast2 individual
+    pure $ AssertionAxiomDifferentIndividuals annots x xs
 
 predifinedPrefixes :: [PrefixDeclaration]
 predifinedPrefixes =

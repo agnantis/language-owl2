@@ -4,6 +4,7 @@
 
 module Language.OWL2.Types where
 
+import           Control.Applicative                      ( (<|>) )
 import           Data.List                                ( uncons )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import qualified Data.List.NonEmpty            as NE
@@ -207,13 +208,118 @@ data Axiom
     | ClassAxiomDisjointClasses Annotations ClassExpression (NonEmpty ClassExpression)
     | ClassAxiomDisjointUnion Annotations ClassIRI (AtLeast2List ClassExpression)
     | ClassAxiomHasKey Annotations ClassExpression (NonEmpty ObjectOrDataPE)
-    | AssertionAxiomSameIndividuals Annotations (AtLeast2List Individual)
-    | AssertionAxiomDifferentIndividuals Annotations (AtLeast2List Individual)
+    | AssertionAxiomSameIndividuals Annotations Individual (NonEmpty Individual)
+    | AssertionAxiomDifferentIndividuals Annotations Individual (NonEmpty Individual)
     | AssertionAxiomClass Annotations Individual ClassExpression
     | AssertionAxiomObjectProperty Annotations ObjectPropertyExpression Individual Individual
     | AssertionAxiomNegativeObjectProperty Annotations ObjectPropertyExpression Individual Individual 
     | AssertionAxiomDataProperty Annotations DataPropertyExpression Individual Literal
     | AssertionAxiomNegativeDataProperty Annotations DataPropertyExpression Individual Literal deriving (Eq, Ord, Show)
+
+
+data AxiomType
+  = DeclarationAxiomType
+  | AnnotationAxiomType
+  | DatatypeAxiomType
+  | ObjectPropAxiomType
+  | DataPropAxiomType
+  | ClassAxiomType
+  | AssertionAxiomType deriving (Show, Eq)
+
+axiomType :: Axiom -> AxiomType
+axiomType DeclarationAxiom{}                     = DeclarationAxiomType
+axiomType AnnotationAxiomDomain{}                = AnnotationAxiomType
+axiomType AnnotationAxiomRange{}                 = AnnotationAxiomType
+axiomType AnnotationAxiomSubProperty{}           = AnnotationAxiomType
+axiomType AnnotationAxiomAssertion{}             = AnnotationAxiomType
+axiomType DatatypeAxiomDefinition{}              = DatatypeAxiomType
+axiomType ObjectPropAxiomDomain{}                = ObjectPropAxiomType
+axiomType ObjectPropAxiomRange{}                 = ObjectPropAxiomType
+axiomType ObjectPropAxiomCharacteristics{}       = ObjectPropAxiomType
+axiomType ObjectPropAxiomSubProperty{}           = ObjectPropAxiomType
+axiomType ObjectPropAxiomChainSubProperty{}      = ObjectPropAxiomType
+axiomType ObjectPropAxiomEquivalent{}            = ObjectPropAxiomType
+axiomType ObjectPropAxiomDisjoint{}              = ObjectPropAxiomType
+axiomType ObjectPropAxiomInverse{}               = ObjectPropAxiomType
+axiomType DataPropAxiomDomain{}                  = DataPropAxiomType
+axiomType DataPropAxiomRange{}                   = DataPropAxiomType
+axiomType DataPropAxiomCharacteristics{}         = DataPropAxiomType
+axiomType DataPropAxiomSubProperty{}             = DataPropAxiomType
+axiomType DataPropAxiomEquivalent{}              = DataPropAxiomType
+axiomType DataPropAxiomDisjoint{}                = DataPropAxiomType
+axiomType ClassAxiomSubClassOf{}                 = ClassAxiomType
+axiomType ClassAxiomEquivalentClasses{}          = ClassAxiomType
+axiomType ClassAxiomDisjointClasses{}            = ClassAxiomType
+axiomType ClassAxiomDisjointUnion{}              = ClassAxiomType
+axiomType ClassAxiomHasKey{}                     = ClassAxiomType
+axiomType AssertionAxiomSameIndividuals{}        = AssertionAxiomType
+axiomType AssertionAxiomDifferentIndividuals{}   = AssertionAxiomType
+axiomType AssertionAxiomClass{}                  = AssertionAxiomType
+axiomType AssertionAxiomObjectProperty{}         = AssertionAxiomType
+axiomType AssertionAxiomNegativeObjectProperty{} = AssertionAxiomType
+axiomType AssertionAxiomDataProperty{}           = AssertionAxiomType
+axiomType AssertionAxiomNegativeDataProperty{}   = AssertionAxiomType
+
+
+class HasIRI a where
+  getIRI :: a -> Maybe IRI
+
+instance HasIRI TotalIRI where
+  getIRI (NamedIRI i) = Just i
+  getIRI AnonymousIRI{} = Nothing
+
+instance HasIRI ObjectPropertyExpression where
+  getIRI (OPE o) = Just o
+  getIRI (InverseOPE _) = Nothing
+
+instance HasIRI ClassExpression where
+  getIRI (CExpClass c) = Just c
+  getIRI _ = Nothing
+
+instance HasIRI Datatype where
+  getIRI = Just . unDatatype
+
+instance HasIRI Axiom where
+  getIRI (DeclarationAxiom _ e)                           = getIRI e
+  getIRI (AnnotationAxiomDomain _ a _)                    = Just a
+  getIRI (AnnotationAxiomRange _ a _)                     = Just a
+  getIRI (AnnotationAxiomSubProperty _ a _)               = Just a
+  getIRI (AnnotationAxiomAssertion _ t _)                 = getIRI t
+  getIRI (DatatypeAxiomDefinition _ d _)                  = getIRI d
+  getIRI (ObjectPropAxiomDomain _ o _)                    = getIRI o
+  getIRI (ObjectPropAxiomRange _ o _)                     = getIRI o
+  getIRI (ObjectPropAxiomCharacteristics _ o _)           = getIRI o
+  getIRI (ObjectPropAxiomSubProperty _ o _)               = getIRI o
+  getIRI (ObjectPropAxiomChainSubProperty _ _ o)          = getIRI o
+  getIRI (ObjectPropAxiomEquivalent _ o _)                = getIRI o
+  getIRI (ObjectPropAxiomDisjoint _ o _)                  = getIRI o
+  getIRI (ObjectPropAxiomInverse _ o _)                   = getIRI o
+  getIRI (DataPropAxiomDomain _ d _)                      = Just d
+  getIRI (DataPropAxiomRange _ d _)                       = Just d
+  getIRI (DataPropAxiomCharacteristics _ d _)             = Just d
+  getIRI (DataPropAxiomSubProperty _ d _)                 = Just d
+  getIRI (DataPropAxiomEquivalent _ d _)                  = Just d
+  getIRI (DataPropAxiomDisjoint _ d _)                    = Just d
+  getIRI (ClassAxiomSubClassOf _ c _)                     = getIRI c
+  getIRI (ClassAxiomEquivalentClasses _ c _)              = getIRI c
+  getIRI (ClassAxiomDisjointClasses _ c _)                = getIRI c
+  getIRI (ClassAxiomDisjointUnion _ c _)                  = Just c
+  getIRI (ClassAxiomHasKey _ c _)                         = getIRI c
+  getIRI (AssertionAxiomSameIndividuals _ i _)            = getIRI i
+  getIRI (AssertionAxiomDifferentIndividuals _ i _)       = getIRI i
+  getIRI (AssertionAxiomClass _ i _)                      = getIRI i
+  getIRI (AssertionAxiomObjectProperty _ _ i1 i2)         = getIRI i1 <|> getIRI i2
+  getIRI (AssertionAxiomNegativeObjectProperty _ _ i1 i2) = getIRI i1 <|> getIRI i2
+  getIRI (AssertionAxiomDataProperty _ _ i _)             = getIRI i
+  getIRI (AssertionAxiomNegativeDataProperty _ _ i _)     = getIRI i
+
+instance HasIRI Entity where
+  getIRI (EntityDatatype d)           = getIRI d
+  getIRI (EntityClass c)              = Just c
+  getIRI (EntityObjectProperty o)     = Just o
+  getIRI (EntityDataProperty d)       = Just d
+  getIRI (EntityAnnotationProperty a) = Just a
+  getIRI (EntityIndividual i)         = Just i
 
 
 ---------------------------
@@ -294,15 +400,19 @@ reorder p (x1, x2)
 extract :: (a -> Bool) -> AtLeast2List a -> (a, NonEmpty a)
 extract p ((x1, x2) :# xs) = promote p x1 (x2 :| xs)
 
--- | utility function that returns 'True' only if the 'ClassExpression' is about a named
+-- | Utility function that returns 'True' only if the 'ClassExpression' is about a named
 -- class, i.e., is an IRI
 filterClassIRI :: ClassExpression -> Bool
 filterClassIRI (CExpClass _) = True
 filterClassIRI _ = False
 
--- | utility function that returns 'True' only if the 'ObjectPropertyExpression' is about a
+-- | Utility function that returns 'True' only if the 'ObjectPropertyExpression' is about a
 -- named property, i.e., is an IRI
 filterObjectPropIRI :: ObjectPropertyExpression -> Bool
 filterObjectPropIRI (OPE _) = True
 filterObjectPropIRI _ = False
 
+-- | Utility function that returns 'True' for named resources
+filterNamedIRI :: TotalIRI -> Bool
+filterNamedIRI (NamedIRI _) = True
+filterNamedIRI _ = False

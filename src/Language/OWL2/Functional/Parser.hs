@@ -702,12 +702,18 @@ targetValue = literal
 sameIndividual :: Parser Axiom
 sameIndividual = do
   _ <- symbol "SameIndividual"
-  parens $ AssertionAxiomSameIndividuals <$> axiomAnnotations <*> doubleOrMany "" individual
+  parens $ do
+    annots  <- axiomAnnotations
+    (i, is) <- extract filterNamedIRI <$> doubleOrMany "" individual
+    pure $ AssertionAxiomSameIndividuals annots i is
 
 differentIndividuals :: Parser Axiom
 differentIndividuals = do
   _ <- symbol "DifferentIndividuals"
-  parens $ AssertionAxiomDifferentIndividuals <$> axiomAnnotations <*> doubleOrMany "" individual
+  parens $ do
+    annots  <- axiomAnnotations
+    (i, is) <- extract filterNamedIRI <$> doubleOrMany "" individual
+    pure $ AssertionAxiomDifferentIndividuals annots i is
 
 classAssertion :: Parser Axiom
 classAssertion = do
