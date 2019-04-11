@@ -4,14 +4,21 @@
 
 module Language.OWL2.Manchester.Pretty where
 
---import           Data.List.NonEmpty            (NonEmpty)
+import           Control.Monad.State               hiding ( join )
+import           Data.List                                ( intersperse, sort )
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                               ( fromMaybe )
+import           Data.Map.Strict                          ( Map )
+import qualified Data.Map.Strict               as M
 import           Data.Text.Prettyprint.Doc         hiding ( pretty, prettyList )
 import qualified Data.Text.Prettyprint.Doc     as PP
 
 import qualified Language.OWL2.Import          as T
 import           Language.OWL2.Types
+import           Debug.Trace
+
+indSize :: Int
+indSize = 4
 
 class PrettyM a where
   pretty :: a -> Doc ann
@@ -63,23 +70,25 @@ instance PrettyM ImportDeclaration where
 --     where xs :: [Doc ann]
 --           xs = (\(ma, a) -> prependM "Annotations: " ma <-> pretty a) <$> NE.toList nelst
           
-instance PrettyM a => PrettyM (NE.NonEmpty (Annotated a)) where
-  pretty nelst = sep $ punctuate comma xs
-    where xs :: [Doc ann]
-          xs =  pretty <$> NE.toList nelst
+--instance PrettyM a => PrettyM (NE.NonEmpty (Annotated a)) where
+--  pretty nelst = sep $ punctuate comma xs
+--    where xs :: [Doc ann]
+--          xs =  pretty <$> NE.toList nelst
 
 instance PrettyM a => PrettyM (Annotated a) where
   pretty (Annotated ([], a)) = pretty a
   pretty (Annotated (xs, a)) = "Annotations:" <+> pretty xs <+> pretty a
+  prettyList [] = mempty
+  prettyList as = vsep $ pretty <$> as
           
 -- instance PrettyM Description where
 --   pretty (Description nel) = sep . punctuate " or " $ pretty <$> NE.toList nel
 instance PrettyM ClassExpression where
   pretty (CExpClass iri)                        = pretty iri
-  pretty (CExpObjectIntersectionOf ces)         = parens $ concatWith (surround " or ")  (pretty <$> toList ces)
-  pretty (CExpObjectUnionOf ces)                = parens $ concatWith (surround " and ") (pretty <$> toList ces)
+  pretty (CExpObjectIntersectionOf ces)         = parens $ concatWith (surround " and ")  (pretty <$> toList ces)
+  pretty (CExpObjectUnionOf ces)                = parens $ concatWith (surround " or ") (pretty <$> toList ces)
   pretty (CExpObjectComplementOf ce)            = "not" <+> pretty ce
-  pretty (CExpObjectOneOf inds)                 = braces $ concatWith (surround ", ") (pretty <$> inds)
+  pretty (CExpObjectOneOf inds)                 = parens . braces $ concatWith (surround ", ") (pretty <$> inds)
   pretty (CExpObjectSomeValuesFrom ope ce)      = pretty ope <+> "some"    <+> pretty ce
   pretty (CExpObjectAllValuesFrom ope ce)       = pretty ope <+> "only"    <+> pretty ce
   pretty (CExpObjectHasValue ope i)             = pretty ope <+> "value"   <+> pretty i
@@ -93,6 +102,7 @@ instance PrettyM ClassExpression where
   pretty (CExpDataMinCardinality i dpe mdr)     = pretty dpe <+> "min"     <+> pretty i   <+> pretty mdr
   pretty (CExpDataMaxCardinality i dpe mdr)     = pretty dpe <+> "max"     <+> pretty i   <+> pretty mdr
   pretty (CExpDataExactCardinality i dpe mdr)   = pretty dpe <+> "exactly" <+> pretty i   <+> pretty mdr
+  prettyList xs                                 = vsep (punctuate "," (pretty <$> xs))
 
 
 instance PrettyM Annotation where
@@ -141,13 +151,13 @@ instance PrettyM OntologyDocument where
   pretty (OntologyD pds o) = vsep (pretty <$> pds) <> emptyLine <> pretty o
 
 instance PrettyM Ontology where
-  pretty (Ontology mvi ims ans frs) = "Ontology:" <-> pretty mvi
+  pretty (Ontology mvi ims ans axms) = "Ontology:" <-> pretty mvi
                                    <> emptyLine
                                    <> vsep (pretty <$> ims)
                                    <> emptyLine
-                                   <> vsep (pretty <$> ans)
+                                   <> "Annotations:" <> nest indSize (line <> vsep (pretty <$> ans))
                                    <> emptyLine
-                                   <> vsep (pretty <$> frs)
+                                   <> prettyAxioms axms
 
 instance PrettyM OntologyVersionIRI where
   pretty (OntologyVersionIRI oIri mvIri) = pretty oIri <-> pretty mvIri
@@ -229,8 +239,120 @@ instance PrettyM Conjunction where
   pretty (ClassConj i rs) = pretty i <+> "that" <+> join "and" (NE.toList rs)
   pretty (PrimConj ps)    = join "and" (NE.toList ps)
 
+parensM :: Doc ann -> Doc ann
+parensM = nest indSize
+
 instance PrettyM Axiom where
-  pretty dta = undefined
+  pretty (DeclarationAxiom ans e) = pretty e <> parensM (line <> pretty ans)
+  --pretty (AnnotationAxiomDomain ans p i) = prettyAxiom "AnnotationPropertyDomain" (ans, p, i)
+  --pretty (AnnotationAxiomRange ans p i) = prettyAxiom "AnnotationPropertyRange" (ans, p, i)
+  --pretty (AnnotationAxiomSubProperty ans p1 p2) = prettyAxiom "SubAnnotationPropertyOf" (ans, p1, p2)
+  pretty (AnnotationAxiomAssertion ans _ (Annotation t v)) = pretty ans <-> pretty t <+> pretty v
+  --pretty (DatatypeAxiomDefinition ans d r) = prettyAxiom "DatatypeDefinition" (ans, d, r)
+  --pretty (ObjectPropAxiomDomain ans o e) = prettyAxiom "ObjectPropertyDomain" (ans, o, e)
+  --pretty (ObjectPropAxiomRange ans o e) = prettyAxiom "ObjectPropertyRange" (ans, o, e)
+  --pretty (ObjectPropAxiomCharacteristics ans o c) = pretty c <> "ObjectProperty" <> parens (pretty ans <-> pretty o)
+  --pretty (ObjectPropAxiomSubProperty ans o1 o2) = prettyAxiom "SubObjectPropertyOf" (ans, o1,  o2)
+  --pretty (ObjectPropAxiomChainSubProperty ans c o) = prettyAxiom "SubObjectPropertyOf" (ans, c, o)
+  --pretty (ObjectPropAxiomEquivalent ans o os) = prettyAxiom "EquivalentObjectProperties" (ans, o, os)
+  --pretty (ObjectPropAxiomDisjoint  ans o os) = prettyAxiom "DisjointObjectProperties" (ans, o, os)
+  --pretty (ObjectPropAxiomInverse ans o1 o2) = prettyAxiom "InverseObjectProperties" (ans, o1, o2)
+  --pretty (DataPropAxiomDomain ans d c) = prettyAxiom "DataPropertyDomain" (ans, d, c)
+  --pretty (DataPropAxiomRange ans d r) = prettyAxiom "DataPropertyRange" (ans, d, r)
+  --pretty (DataPropAxiomCharacteristics ans d c) = pretty c <> "DataProperty" <> parens (pretty ans <-> pretty d)
+  --pretty (DataPropAxiomSubProperty ans d1 d2) = prettyAxiom "SubDataPropertyOf" (ans, d1, d2)
+  --pretty (DataPropAxiomEquivalent ans d ds) = prettyAxiom "EquivalentDataProperties" (ans, d, ds)
+  --pretty (DataPropAxiomDisjoint ans d ds) = prettyAxiom "DisjointDataPropertiesDataProperties" (ans, d, ds)
+  pretty (ClassAxiomSubClassOf ans _ e) = pretty ans <-> pretty e
+  pretty (ClassAxiomEquivalentClasses ans _ es) = pretty ans <-> pretty (NE.toList es)
+  --pretty (ClassAxiomDisjointClasses ans e es) = prettyAxiom "DisjointClasses" (ans, e, es)
+  --pretty (ClassAxiomDisjointUnion ans i es) = prettyAxiom "DisjointUnion" (ans, i, es)
+  --pretty (ClassAxiomHasKey ans e od) = prettyAxiom "HasKey" (ans, e, od)
+  --pretty (AssertionAxiomSameIndividuals ans i is) = prettyAxiom "SameIndividual" (ans, i, is)
+  --pretty (AssertionAxiomDifferentIndividuals ans i is) = prettyAxiom "DifferentIndividuals" (ans, i, is)
+  pretty (AssertionAxiomClass ans _ e) = parensM (pretty ans <-> pretty e)
+  --pretty (AssertionAxiomObjectProperty ans o i1 i2) = prettyAxiom "ObjectPropertyAssertion" (ans, o, atLeast2List i1 i2 [])
+  --pretty (AssertionAxiomNegativeObjectProperty ans o i1 i2) = prettyAxiom "NegativeObjectPropertyAssertion" (ans, o, atLeast2List i1 i2 [])
+  --pretty (AssertionAxiomDataProperty ans d i l) = "DataPropertyAssertion" <> parens (pretty ans <-> pretty d <+> pretty i <+> pretty l)
+  --pretty (AssertionAxiomNegativeDataProperty ans d i l) = "NegativeDataPropertyAssertion" <> parens (pretty ans <-> pretty d <+> pretty i <+> pretty l)
+  pretty x = pretty $ show x
+  prettyList = prettyAxiomList
+
+prettyAxiomList :: [Axiom] -> Doc ann
+prettyAxiomList [] = mempty
+prettyAxiomList xs@(AssertionAxiomClass{}:_) = prettyWithTitle "Types:" xs
+prettyAxiomList xs@(AnnotationAxiomAssertion{}:_) = prettyWithTitle "Annotations:" xs
+prettyAxiomList xs@(ClassAxiomSubClassOf{}:_) = prettyWithTitle "SubClassOf:" xs
+prettyAxiomList xs@(ClassAxiomEquivalentClasses{}:_) = prettyWithTitle "EquivalentTo:" xs
+prettyAxiomList xs = vsep (punctuate "," (pretty <$> xs))
+
+
+prettyWithTitle :: Doc ann -> [Axiom] -> Doc ann
+prettyWithTitle title els = parensM $ vsep $ title : punctuate "," (pretty <$> els)
+
+
+prettyAxiomGroups :: [[Axiom]] -> Doc ann
+prettyAxiomGroups = vsep . fmap prettyAxiomGroup
+
+
+prettyAxiomGroup :: [Axiom] -> Doc ann
+prettyAxiomGroup xss = prettyFrame decls rst
+ where
+   (decls, rst) = runState (extractAxioms predicate) xss
+   predicate a = axiomType a == DeclarationAxiomType
+
+
+-- | The first axiom will be either a declaration axiom or nothing.
+-- The function suuports more than a single declaration axiom (e.g. when a class
+-- and a property share the same IRI). In that case all the other axioms that refer
+-- to these IRIs will be grouped together
+-- When there is no declaration axiom (i.e., the first argument is an empty list)
+-- means that all the other axioms are misc (independant) of a specifc entity axioms
+prettyFrame :: [Axiom] -> [Axiom] -> Doc ann
+prettyFrame [] ax = vsep (pretty <$> ax)
+                    <> line
+prettyFrame dclrs ax = vsep (pretty <$> dclrs) -- vsep implicitelly inserts a newline at the end
+                       <> parensM (vsep (pretty <$> groupAxiomsOnConstructor ax))
+                       <> emptyLine
+
+prettyAxioms :: [Axiom] -> Doc ann
+prettyAxioms as =
+  mkTitle "Axioms"
+  <> prettyAxiomGroups (groupAxiomsOnIRI as) 
+   where
+     predicate a = axiomType a == DeclarationAxiomType
+     (decls, rst) = runState (extractAxioms predicate) as
+     mkTitle :: Doc ann -> Doc ann
+     mkTitle title = vsep [ emptyLine
+                          , "##############################"
+                          , "#" <+> title
+                          , "##############################"
+                          , line
+                          ]
+
+--prettyAxioms' :: [Axiom] -> Doc ann
+--prettyAxioms' as =
+--  mkTitle "Axioms"
+--  <> pretty axs
+--  -- <> prettyAxiomGroups (groupAxiomsOnIRI as) 
+--   where
+--     iriAxiomMap = mapAxiomsOnIRI as
+--     (decls, rst) = runState (getAxioms DeclarationAxiomType) as
+--     iris = getIRI <$> sort decls
+--     axs = flip M.lookup iriAxiomMap <$> iris
+--     decAxPairs = (<$> sort decls) 
+--     -- TODO: we need to:
+--     --  1. Extract entities from declarations
+--     --  2. Build pair (entity, [axiom]) and pass it to prettyFrame below
+--     --
+--     mkTitle :: Doc ann -> Doc ann
+--     mkTitle title = vsep [ emptyLine
+--                          , "##############################"
+--                          , "#" <+> title
+--                          , "##############################"
+--                          , line
+--                          ]
+
 --instance PrettyM DatatypeAxiom where
 --  pretty (DatatypeF dt ma mdr) = "DatatypeFrame:" <+> pretty dt
 --                               <> line
@@ -339,7 +461,7 @@ instance PrettyM DataPropertyCharacteristics where
 --   pretty (DifferentFromIE ai) = "DifferentFrom" <+> pretty ai
 
 instance PrettyM FactElement where
-  pretty fe = undefined
+  pretty = undefined
 
 -- instance PrettyM FactElement where
 --   pretty (ObjectPropertyFE opf) = pretty opf 
@@ -365,12 +487,12 @@ instance PrettyM a => PrettyM (AtLeast2List a) where
   pretty = pretty . toList
 
 instance PrettyM Entity where
-  pretty (EntityDatatype de)           = "Datatype"           <+> "(" <+> pretty (unDatatype de) <+> ")"
-  pretty (EntityClass ce)              = "Class"              <+> "(" <+> pretty ce <+> ")"
-  pretty (EntityObjectProperty ie)     = "ObjectProperty"     <+> "(" <+> pretty ie <+> ")"
-  pretty (EntityDataProperty de)       = "DataProperty"       <+> "(" <+> pretty de <+> ")"
-  pretty (EntityAnnotationProperty ae) = "AnnotationProperty" <+> "(" <+> pretty ae <+> ")"
-  pretty (EntityIndividual ie)         = "NamedIndividual"    <+> "(" <+> pretty ie <+> ")"
+  pretty (EntityDatatype de)           = "Datatype:"           <+> pretty (_unDatatype de)
+  pretty (EntityClass ce)              = "Class:"              <+> pretty ce
+  pretty (EntityObjectProperty ie)     = "ObjectProperty:"     <+> pretty ie
+  pretty (EntityDataProperty de)       = "DataProperty:"       <+> pretty de
+  pretty (EntityAnnotationProperty ae) = "AnnotationProperty:" <+> pretty ae
+  pretty (EntityIndividual ie)         = "Individual:"         <+> pretty ie
 
 -----------------------
 -- Utility functions --
@@ -411,6 +533,9 @@ emptyLine = line <> line
 --
 (<->) :: Doc ann -> Doc ann -> Doc ann
 d1 <-> d2
- | null (show d1) = d2
- | null (show d2) = d1
- | otherwise = d1 <+> d2
+  | null (show d1) = d2
+  | null (show d2) = d1
+  | otherwise = d1 <+> d2
+
+
+

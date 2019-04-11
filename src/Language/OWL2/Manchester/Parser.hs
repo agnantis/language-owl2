@@ -4,14 +4,15 @@ module Language.OWL2.Manchester.Parser where
 
 import           Data.Functor                             ( ($>) )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
-import qualified Data.List.NonEmpty            as NE
+import qualified Data.List.NonEmpty              as NE
 import           Data.Maybe                               ( fromMaybe )
 import           Text.Megaparsec
 
 import           Language.OWL2.Import                     ( Text )
-import qualified Language.OWL2.Import          as T
+import qualified Language.OWL2.Import            as T
 import           Language.OWL2.Types
 import           Language.OWL2.Internal.Parser
+import           Language.OWL2.Manchester.Pretty as MP
 
 -- DocTest setup
 --
@@ -468,7 +469,7 @@ datatypeAxiom = do
   axms <- many . choice $ ($ dtype) <$> [annotDTA, equDTA]  --choices
   pure $ dtDeclaration:concat axms
  where
-  annotDTA = annotationAxiom . NamedIRI . unDatatype
+  annotDTA = annotationAxiom . NamedIRI . _unDatatype
   equDTA c = do
     _ <- symbol "EquivalentTo:"
     annots <- annotationSection
@@ -607,10 +608,10 @@ objectPropertyAxioms = do
 
 
 noAnnotations :: AnnotatedList a -> Bool
-noAnnotations = all (null . fst . unAnnotated) 
+noAnnotations = all (null . fst . _unAnnotated) 
 
 removeAnnotations :: AnnotatedList a -> NonEmpty a
-removeAnnotations = fmap (snd . unAnnotated) 
+removeAnnotations = fmap (snd . _unAnnotated) 
 
 -- | It parses one of the permitted object property characteristics
 --
@@ -935,6 +936,10 @@ parseOntologyDoc file =
           putStrLn "File parsed succesfully"
           pure (Just doc)
 
+parseAndSave :: FilePath -> IO ()
+parseAndSave f = do
+  (Just ontDoc) <- parseOntologyDoc f
+  writeFile "output.man.owl" (show . MP.pretty $ ontDoc)
 
 -- | It parses non empty annotated lists
 --

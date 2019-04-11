@@ -5,13 +5,9 @@
 module Language.OWL2.Functional.Pretty where
 
 import           Control.Monad.State
-import           Data.Function                            ( on )
-import           Data.List                                ( groupBy, intersperse, partition, sort )
+import           Data.List                                ( intersperse, sort )
 import           Data.List.NonEmpty                       ( NonEmpty )
 import qualified Data.List.NonEmpty            as NE
-import           Data.Maybe                               ( isJust )
-import           Data.Map.Strict                          ( Map )
-import qualified Data.Map.Strict               as Map
 import           Data.Text                                ( Text )
 import           Data.Text.Prettyprint.Doc         hiding ( pretty, prettyList )
 import qualified Data.Text.Prettyprint.Doc     as PP
@@ -206,29 +202,10 @@ prettyAxioms :: [Axiom] -> Doc ann
 prettyAxioms as =
   vsep (pretty <$> sort decls)
   <> mkTitle "Object Properties"
-  <> prettyAxiomGroups (groupAxiomsOnIRI objProps)
-  <> mkTitle "Data Properties"
-  <> prettyAxiomGroups (groupAxiomsOnIRI dataProps)
-  <> mkTitle "AnnotationProperties"
-  <> prettyAxiomGroups (groupAxiomsOnIRI annotProps)
-  <> mkTitle "Class Axioms"
-  <> prettyAxiomGroups (groupAxiomsOnIRI classAx)
-  <> mkTitle "Assertions"
-  <> prettyAxiomGroups (groupAxiomsOnIRI assertAx)
-  <> mkTitle "Misc Axioms"
-  <> prettyAxiomGroups (groupAxiomsOnIRI remAxioms)
+  <> prettyAxiomGroups (groupAxiomsOnIRI rst) 
    where
-     brokenAxioms :: AxiomState ([Axiom], [Axiom], [Axiom], [Axiom], [Axiom], [Axiom]) 
-     brokenAxioms = do
-       decls     <- getAxioms DeclarationAxiomType
-       objProps  <- getAxioms ObjectPropAxiomType
-       dataProps <- getAxioms DataPropAxiomType
-       annotProp <- getAxioms AnnotationAxiomType
-       classAx   <- getAxioms ClassAxiomType
-       assertAx  <- getAxioms AssertionAxiomType
-       pure (decls, objProps, dataProps, annotProp, classAx, assertAx)
-     (brAxioms, remAxioms) = runState brokenAxioms as
-     (decls, objProps, dataProps, annotProps, classAx, assertAx) = brAxioms
+     predicate a = axiomType a == DeclarationAxiomType || axiomType a == AnnotationPropAxiomType
+     (decls, rst) = runState (extractAxioms predicate) as
      mkTitle :: Doc ann -> Doc ann
      mkTitle title = vsep [ emptyLine
                           , "##############################"
@@ -238,17 +215,40 @@ prettyAxioms as =
                           ]
 
 
-type AxiomState = State [Axiom]
-
-getAxioms :: AxiomType -> AxiomState [Axiom]
-getAxioms at = do
-  axms <- get
-  let  (sel, rest) = partition ((at ==) . axiomType) axms
-  put rest
-  pure sel
-
-groupAxiomsOnIRI :: [Axiom] -> [[Axiom]]
-groupAxiomsOnIRI = groupBy ((==) `on` getIRI)
+--prettyAxioms' :: [Axiom] -> Doc ann
+--prettyAxioms' as =
+--  vsep (pretty <$> sort decls)
+--  <> mkTitle "Object Properties"
+--  <> prettyAxiomGroups (groupAxiomsOnIRI objProps) 
+--  <> mkTitle "Data Properties"
+--  <> prettyAxiomGroups (groupAxiomsOnIRI dataProps)
+--  <> mkTitle "AnnotationProperties"
+--  <> prettyAxiomGroups (groupAxiomsOnIRI annotProps)
+--  <> mkTitle "Class Axioms"
+--  <> prettyAxiomGroups (groupAxiomsOnIRI classAx)
+--  <> mkTitle "Assertions"
+--  <> prettyAxiomGroups (groupAxiomsOnIRI assertAx)
+--  <> mkTitle "Misc Axioms"
+--  <> prettyAxiomGroups (groupAxiomsOnIRI remAxioms)
+--   where
+--     brokenAxioms :: AxiomState ([Axiom], [Axiom], [Axiom], [Axiom], [Axiom], [Axiom]) 
+--     brokenAxioms = do
+--       dcls    <- getAxioms DeclarationAxiomType
+--       objPrps <- getAxioms ObjectPropAxiomType
+--       dtPrps  <- getAxioms DataPropAxiomType
+--       anntPrp <- getAxioms AnnotationAxiomType
+--       clssAx  <- getAxioms ClassAxiomType
+--       assrtAx <- getAxioms AssertionAxiomType
+--       pure (dcls, objPrps, dtPrps, anntPrp, clssAx, assrtAx)
+--     (brAxioms, remAxioms) = runState brokenAxioms as
+--     (decls, objProps, dataProps, annotProps, classAx, assertAx) = brAxioms
+--     mkTitle :: Doc ann -> Doc ann
+--     mkTitle title = vsep [ emptyLine
+--                          , "##############################"
+--                          , "#" <+> title
+--                          , "##############################"
+--                          , line
+--                          ]
 
 instance PrettyM ObjectPropertyExpression where
   pretty (OPE i) = pretty i
