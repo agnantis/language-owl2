@@ -472,9 +472,8 @@ datatypeAxiom = do
   annotDTA = annotationAxiom . NamedIRI . _unDatatype
   equDTA c = do
     _ <- symbol "EquivalentTo:"
-    annots <- annotationSection
-    dr <- dataRange
-    pure [ DatatypeAxiomDefinition annots c dr ]
+    exps <- annotatedList dataRange
+    pure $ spreadAnnotations DatatypeAxiomDefinition c exps
 
 -- | It parses a class frame
 --

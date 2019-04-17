@@ -37,6 +37,20 @@ Its current version is able to parse and pretty print the [Manchester](https://w
   > The inverse of the object-property-A is sub-property of the inverse of object-property-B
   > In Functional: `SubObjectPropertyOf(ObjectInverseOf(test-ont:ObjectProp2) ObjectInverseOf(test-ont:ObjectProp1))`
   - Note: Protege is able to parse it and represent it on the UI (albeit, to the _Usage_ window only), but trying to save the ontology in Manchester format, the axiom will be discarder
+- Based on the syntax a `DataFrame` can have at most one `EquivalentTo` data range. However:
+  - Functional syntax supports equivalence with more than a single data range
+  - Protege accepts more than a single data range and print them in a comma separated list when Manchester format is selected:
+    ```
+    EquivalentTo:
+       owl:real,
+       not xsd:negativeInteger
+    ``` 
+  - However when annotations are being attahced to the equivalent data ranges, Protege does not save them in the exproted (Manchester formatted) file. Also, Protege is not able to parse a (Manchester formatted) file, which contains annotations in this place:
+    ```
+    EquivalentTo:
+       Annotations: rdfs:comment "Some comment" not xsd:negativeInteger
+    ``` 
+  
 
 
 ## Possible issues in Functional syntax specification
