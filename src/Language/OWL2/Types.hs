@@ -7,7 +7,7 @@ module Language.OWL2.Types where
 
 import           Control.Applicative                      ( (<|>) )
 import           Control.Monad.State
-import           Data.Data
+import           Data.Data                                ( Data, Typeable, toConstr )
 import           Data.Function                            ( on )
 import           Data.List                                ( partition, uncons, groupBy )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
