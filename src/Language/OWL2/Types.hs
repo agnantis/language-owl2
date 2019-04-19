@@ -2,8 +2,75 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-
-module Language.OWL2.Types where
+module Language.OWL2.Types
+  ( Annotated(..)
+  , Annotation(..)
+  , AnnotationPropertyIRI
+  , AnnotationValue(..)
+  , Annotations
+  , AtLeast2List(..)
+  , Atomic(..)
+  , Axiom(..)
+  , AxiomType(..)
+  , ClassExpression(..)
+  , ClassIRI
+  , Conjunction(..)
+  , DataPropertyCharacteristics(..)
+  , DataPropertyExpression
+  , DataPropertyIRI
+  , DataPropertyRestriction(..)
+  , DataPropertyRestrictionType(..)
+  , DataRange(..)
+  , Datatype(..)
+  , DatatypeRestriction(..)
+  , DecimalLiteral(..)
+  , Entity(..)
+  , Exponent
+  , Facet(..)
+  , FactElement(..)
+  , FloatPoint(..)
+  , IRI(..)
+  , ImportDeclaration(..)
+  , Individual
+  , IndividualIRI
+  , IntegerLiteral(..)
+  , LangTag
+  , Literal(..)
+  , LiteralWithLang(..)
+  , NodeID(..)
+  , ObjectOrDataPE(..)
+  , ObjectPropertyChain(..)
+  , ObjectPropertyCharacteristic(..)
+  , ObjectPropertyExpression(..)
+  , ObjectPropertyIRI
+  , ObjectPropertyRestriction(..)
+  , ObjectPropertyRestrictionType(..)
+  , Ontology(..)
+  , OntologyDocument(..)
+  , OntologyVersionIRI(..)
+  , PrefixDeclaration(..)
+  , Primary(..)
+  , Restriction(..)
+  , RestrictionExp(..)
+  , TotalIRI(..)
+  , TypedLiteral(..)
+  , WithNegation(..)
+  , atLeast2List
+  , atLeast2List'
+  , axiomType
+  , extract
+  , extractAxioms
+  , filterClassIRI
+  , filterNamedIRI
+  , filterObjectPropIRI
+  , groupAxiomsOnConstructor
+  , groupAxiomsOnIRI
+  , mapAxiomsOnIRI
+  , reorder
+  , singleton
+  , toList
+  )
+where
 
 import           Control.Applicative                      ( (<|>) )
 import           Control.Monad.State
@@ -28,7 +95,6 @@ data AtLeast2List a = (a, a) :# [a] deriving (Eq, Ord, Show, Read, Functor, Type
 
 -- Type synonyms --
 type LangTag = Text
-type ImportIRI = IRI
 type AnnotationPropertyIRI = IRI
 type VersionIRI = IRI
 type OntologyIRI = IRI
@@ -343,8 +409,8 @@ atLeast2List' x nx = let (x' :| xs) = nx in (x, x') :# xs
 toList :: AtLeast2List a -> [a]
 toList ~((x, y) :# xs) = x : y : xs
 
-toNonEmptyList :: AtLeast2List a -> NonEmpty a
-toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
+--toNonEmptyList :: AtLeast2List a -> NonEmpty a
+--toNonEmptyList ~((x, y) :# xs) = x :| (y : xs)
 
 singleton :: a -> NonEmpty a
 singleton x = x :| []
@@ -392,6 +458,7 @@ reorder p (x1, x2)
   | p x1 = (x1, x2)
   | p x2 = (x2, x1)
   | otherwise = (x1, x2) 
+
 -- | Like 'promote' but on a 'AtLeast2List a' list
 --
 -- >>> xs = atLeast2List 13 4 [7, 6,12,9]

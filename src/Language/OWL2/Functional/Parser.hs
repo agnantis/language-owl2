@@ -1,6 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.OWL2.Functional.Parser where
+module Language.OWL2.Functional.Parser
+  ( exportOntologyDoc
+  , exportOntologyDocToFile
+  , parseOntologyDoc
+  )
+where
 
 import           Prelude                           hiding ( exponent )
 import           Data.Functor                             ( ($>) )
@@ -141,9 +146,6 @@ fannotation = do
 
 fannotations :: Parser [Annotated Annotation]
 fannotations = many $ try fannotation
-
-annotationAnnotations :: Parser [Annotated Annotation]
-annotationAnnotations = fannotations
 
 -- | It parses annotation axioms
 --
@@ -763,22 +765,54 @@ negativeDataPropertyAssertion = do
 ------------------
 -- Parser utils --
 ------------------
-parseOntologyDoc :: FilePath -> IO (Maybe OntologyDocument)
+
+------------------
+-- External API --
+------------------
+
+-- | It tries to parse an ontology in Manchester format
+--
+parseOntology :: Text -- ^ the text to parse
+              -> Either Text OntologyDocument -- ^ the parse error message or the parse ontology doc 
+parseOntology text = case parse ontologyDocument "(stdin)" text of
+  Left bundle -> Left . T.pack . errorBundlePretty $ bundle
+  Right doc   -> Right doc
+ 
+
+-- | It tries to parse an ontology file in functional format
+--
+parseOntologyDoc :: FilePath                    -- ^ the file path
+                 -> IO (Maybe OntologyDocument) -- ^ the parsed ontology doc or nothing if the parse fails
 parseOntologyDoc file =
   putStrLn ("Parsing ontology document: '" <> file <> "'") >>
   T.readFile file >>= parseContent
   where
     parseContent content =
-      case parse (ontologyDocument <* eof) file content of
-        Left bundle -> do
+      case parseOntology content of
+        Left errorMsg -> do
           putStrLn "Unable to parse file. Reason: "
-          putStrLn (errorBundlePretty bundle)
+          putStrLn . T.unpack $ errorMsg
           pure Nothing
-        Right x -> do
+        Right doc -> do
           putStrLn "File parsed succesfully"
-          pure (Just x)
+          pure (Just doc)
 
-parseAndSave :: FilePath -> IO ()
-parseAndSave f = do
-  (Just ontDoc) <- parseOntologyDoc f
-  writeFile "output.hs.owl" (show . FP.pretty $ ontDoc)
+-- | Exports the ontology document in Functional format
+--
+exportOntologyDoc :: OntologyDocument -- ^ The ontology document
+                  -> Text             -- ^ the output in Manchster format
+exportOntologyDoc = T.pack . show . FP.pretty
+
+
+-- | Exports the ontology document in a file in Functional format
+--
+exportOntologyDocToFile :: FilePath         -- ^ The file to save the ontology
+                        -> OntologyDocument -- ^ The ontology document
+                        -> IO ()
+exportOntologyDocToFile f ontDoc = T.writeFile f (exportOntologyDoc ontDoc)
+
+--parseAndSave :: FilePath -> IO ()
+--parseAndSave f = do
+--  (Just ontDoc) <- parseOntologyDoc f
+--  writeFile "output.hs.owl" (show . FP.pretty $ ontDoc)
+

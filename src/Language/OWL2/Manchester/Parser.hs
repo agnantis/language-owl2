@@ -1,6 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.OWL2.Manchester.Parser where
+module Language.OWL2.Manchester.Parser
+  ( exportOntologyDoc
+  , exportOntologyDocToFile
+  , parseOntologyDoc
+  , predifinedPrefixes
+  )
+where
 
 import           Data.Functor                             ( ($>) )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
@@ -10,6 +16,7 @@ import           Text.Megaparsec
 
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import            as T
+
 import           Language.OWL2.Types
 import           Language.OWL2.Internal.Parser
 import           Language.OWL2.Manchester.Pretty as MP
@@ -23,20 +30,12 @@ import           Language.OWL2.Manchester.Pretty as MP
 ----------------------------------------------
 -- Parser related types & utility functions --
 ----------------------------------------------
-type Descriptions = AnnotatedList ClassExpression
 type AnnotatedList a = NonEmpty (Annotated a)
-
--- annListToList :: AnnotatedList a -> [Annotated a]
--- annListToList (AnnList xs) = NE.toList xs
-
-flattenAnnList :: [AnnotatedList a] -> Maybe (AnnotatedList a)
-flattenAnnList [] = Nothing
-flattenAnnList xs = Just $ foldl1 (<>) xs
 
 -- | It parses literals
 --
 -- >>> parseTest literal "\"32\"^^integer"
--- TypedLiteralC (TypedL "32" (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}))
+-- TypedLiteralC (TypedL "32" (Datatype {_unDatatype = AbbreviatedIRI "xsd" "integer"}))
 --
 -- >>> parseTest literal "\"stringLiteralNoLanguage\""
 -- StringLiteralNoLang "stringLiteralNoLanguage"
@@ -55,10 +54,10 @@ literal =  lexeme $ TypedLiteralC <$> try typedLiteral
 -- | It parses a typed literal
 --
 -- >>> parseTest typedLiteral "\"32\"^^integer"
--- TypedL "32" (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"})
+-- TypedL "32" (Datatype {_unDatatype = AbbreviatedIRI "xsd" "integer"})
 --
 -- >>> parseTest typedLiteral "\"Jack\"^^xsd:string"
--- TypedL "Jack" (Datatype {unDatatype = AbbreviatedIRI "xsd" "string"})
+-- TypedL "Jack" (Datatype {_unDatatype = AbbreviatedIRI "xsd" "string"})
 --
 typedLiteral :: Parser TypedLiteral
 typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" *> datatype)
@@ -70,13 +69,13 @@ classIRI = iri
 -- | It parses datatypes
 --
 -- >>> parseTest datatype "<http://example.iri>"
--- Datatype {unDatatype = FullIRI "http://example.iri"}
+-- Datatype {_unDatatype = FullIRI "http://example.iri"}
 --
 -- >>> parseTest datatype "integer"
--- Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}
+-- Datatype {_unDatatype = AbbreviatedIRI "xsd" "integer"}
 --
 -- >>> parseTest datatype "xsd:string"
--- Datatype {unDatatype = AbbreviatedIRI "xsd" "string"}
+-- Datatype {_unDatatype = AbbreviatedIRI "xsd" "string"}
 --
 datatype :: Parser Datatype
 datatype =  Datatype <$> (try datatypeIRI <|> knownDTs)
@@ -95,20 +94,6 @@ objectPropertyIRI = iri
 
 dataPropertyIRI :: Parser IRI
 dataPropertyIRI = iri
-
-entity :: Parser Entity
-entity = choice $ fmap (\(s, p) -> symbol s *> p) alts
- where
-  alts :: [(Text, Parser Entity)]
-  alts =
-    [ ("Datatype"          , EntityDatatype           <$> datatype)
-    , ("Class"             , EntityClass              <$> classIRI)
-    , ("ObjectProperty"    , EntityObjectProperty     <$> objectPropertyIRI)
-    , ("DataProperty"      , EntityDataProperty       <$> dataPropertyIRI)
-    , ("AnnotationProperty", EntityAnnotationProperty <$> annotationPropertyIRI)
-    , ("NamedIndividual"   , EntityIndividual         <$> namedIndividual)
-    ]
-
 
 ------------------------------
 -- Ontology and Annotations --
@@ -251,7 +236,7 @@ dataConjunction = do
 -- | It parses a data primary
 --
 -- >>> parseTest dataPrimary "integer[<0]"
--- RestrictionDR (DatatypeRestriction (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))
+-- RestrictionDR (DatatypeRestriction (Datatype {_unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))
 --
 dataPrimary :: Parser DataRange
 dataPrimary = do
@@ -286,7 +271,7 @@ literalList = OneOfDR <$> nonEmptyList literal
 -- ()
 --
 -- >>> parseTest datatypeRestriction "integer[< 0]"
--- RestrictionDR (DatatypeRestriction (Datatype {unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))
+-- RestrictionDR (DatatypeRestriction (Datatype {_unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))
 --
 datatypeRestriction :: Parser DataRange
 datatypeRestriction = do
@@ -515,11 +500,11 @@ classAxioms = do
   equCA c = do
     _ <- symbol "EquivalentTo:"
     ds <- annotatedList description
-    pure $ spreadAnnotationsIfExist' ClassAxiomEquivalentClasses c ds 
+    pure $ spreadAnnotationsIfExist ClassAxiomEquivalentClasses c ds 
   disCA c = do
     _ <- symbol "DisjointWith:"
     ds <- annotatedList description
-    pure $ spreadAnnotationsIfExist' ClassAxiomDisjointClasses c ds
+    pure $ spreadAnnotationsIfExist ClassAxiomDisjointClasses c ds
   dscCA (CExpClass cIRI) = do
     _ <- symbol "DisjointUnionOf:"
     an <- annotationSection
@@ -562,7 +547,7 @@ classAxioms = do
 objectPropertyAxioms :: Parser [Axiom]
 objectPropertyAxioms = do
   x <- symbol "ObjectProperty:" *> objectPropertyExpression
-  axms <- many . choice $ ($ x) <$> [annotAxiom, domainAxiom, rangeAxiom, charAxiom, subAxiom, subChainAxiom, equAxiom, disAxiom, invAxiom] --choices
+  axms <- many . choice $ ($ x) <$> [annotAxiom, domainAxiom, rangeAxiom, charAxiom, subAxiom, subChainAxiom, equAxiom, disAxiom, invAxiom]
   pure $ declarationIfNamed x <> concat axms
  where
   declarationIfNamed (OPE i) = [DeclarationAxiom [] (EntityObjectProperty i)]
@@ -595,11 +580,11 @@ objectPropertyAxioms = do
   equAxiom c = do
     _ <- symbol "EquivalentTo:"
     exps <- annotatedList objectPropertyExpression
-    pure $ spreadAnnotationsIfExist' ObjectPropAxiomEquivalent c exps
+    pure $ spreadAnnotationsIfExist ObjectPropAxiomEquivalent c exps
   disAxiom c = do
     _ <- symbol "DisjointWith:"
     exps <- annotatedList objectPropertyExpression
-    pure $ spreadAnnotationsIfExist' ObjectPropAxiomDisjoint c exps
+    pure $ spreadAnnotationsIfExist ObjectPropAxiomDisjoint c exps
   invAxiom c = do
     _ <- symbol "InverseOf:"
     exps <- annotatedList objectPropertyExpression
@@ -683,25 +668,18 @@ dataPropertyAxioms = do
   equAxiom c = do
     _ <- symbol "EquivalentTo:"
     exps <- annotatedList dataPropertyExpression
-    pure $ spreadAnnotationsIfExist' DataPropAxiomEquivalent c exps
+    pure $ spreadAnnotationsIfExist DataPropAxiomEquivalent c exps
   disAxiom c = do
     _ <- symbol "DisjointWith:"
     exps <- annotatedList dataPropertyExpression
-    pure $ spreadAnnotationsIfExist' DataPropAxiomDisjoint c exps
+    pure $ spreadAnnotationsIfExist DataPropAxiomDisjoint c exps
 
 -- | A small utility function with specific functionallity, defined in order to avoid repetition
-spreadAnnotationsIfExist' :: (Annotations -> a -> NonEmpty a -> b) -> a -> AnnotatedList a -> [b]
-spreadAnnotationsIfExist' c e als = 
+spreadAnnotationsIfExist :: (Annotations -> a -> NonEmpty a -> b) -> a -> AnnotatedList a -> [b]
+spreadAnnotationsIfExist c e als = 
     if noAnnotations als
     then pure $ c [] e (removeAnnotations als)
     else (\(Annotated (a, v)) -> c a e (singleton v)) <$> NE.toList als
-
--- | A small utility function with specific functionallity, defined in order to avoid repetition
-spreadAnnotationsIfExist :: (Annotations -> AtLeast2List a -> b) -> a -> AnnotatedList a -> [b]
-spreadAnnotationsIfExist c e als = 
-    if noAnnotations als
-    then pure $ c [] (atLeast2List' e (removeAnnotations als)) 
-    else (\(Annotated (a, v)) -> c a (atLeast2List e v [])) <$> NE.toList als
 
 spreadAnnotations :: (Annotations -> a1 -> a2 -> b) -> a1 -> NonEmpty (Annotated a2) -> [b]
 spreadAnnotations c e als = (\(Annotated (a, v)) -> c a e v) <$> NE.toList als
@@ -822,12 +800,11 @@ assertionAxioms = do
   sameAxiom c = do
     _ <- symbol "SameAs:"
     exps <- annotatedList individual
-    pure $ spreadAnnotationsIfExist' AssertionAxiomSameIndividuals c exps
+    pure $ spreadAnnotationsIfExist AssertionAxiomSameIndividuals c exps
   diffAxiom c = do
     _ <- symbol "DifferentFrom:"
     exps <- annotatedList individual
-    pure $ spreadAnnotationsIfExist' AssertionAxiomDifferentIndividuals c exps
-
+    pure $ spreadAnnotationsIfExist AssertionAxiomDifferentIndividuals c exps
 
 fact :: Parser FactElement
 fact = do
@@ -920,26 +897,6 @@ predifinedPrefixes =
   , PrefixD "owl"  (FullIRI "http://www.w3.org/2002/07/owl#")
   ]
 
-parseOntologyDoc :: FilePath -> IO (Maybe OntologyDocument)
-parseOntologyDoc file =
-  putStrLn ("Parsing ontology document: '" <> file <> "'") >>
-  T.readFile file >>= parseContent
-  where
-    parseContent content =
-      case parse ontologyDocument file content of
-        Left bundle -> do
-          putStrLn "Unable to parse file. Reason: "
-          putStrLn (errorBundlePretty bundle)
-          pure Nothing
-        Right doc -> do
-          putStrLn "File parsed succesfully"
-          pure (Just doc)
-
-parseAndSave :: FilePath -> IO ()
-parseAndSave f = do
-  (Just ontDoc) <- parseOntologyDoc f
-  writeFile "output.man.owl" (show . MP.pretty $ ontDoc)
-
 -- | It parses non empty annotated lists
 --
 -- >>> parseTest (annotatedList description *> eof) "Man, Person"
@@ -950,4 +907,54 @@ annotatedList p =
   let annotatedElement = Annotated <$> ((,) <$> annotationSection <*> p)
   in  nonEmptyList annotatedElement
 
+
+------------------
+-- External API --
+------------------
+
+-- | It tries to parse an ontology in Manchester format
+--
+parseOntology :: Text -- ^ the text to parse
+              -> Either Text OntologyDocument -- ^ the parse error message or the parse ontology doc 
+parseOntology text = case parse ontologyDocument "(stdin)" text of
+  Left bundle -> Left . T.pack . errorBundlePretty $ bundle
+  Right doc   -> Right doc
+ 
+
+-- | It tries to parse an ontology file in Manchester format
+--
+parseOntologyDoc :: FilePath                    -- ^ the file path
+                 -> IO (Maybe OntologyDocument) -- ^ the parsed ontology doc or nothing if the parse fails
+parseOntologyDoc file =
+  putStrLn ("Parsing ontology document: '" <> file <> "'") >>
+  T.readFile file >>= parseContent
+  where
+    parseContent content =
+      case parseOntology content of
+        Left errorMsg -> do
+          putStrLn "Unable to parse file. Reason: "
+          putStrLn . T.unpack $ errorMsg
+          pure Nothing
+        Right doc -> do
+          putStrLn "File parsed succesfully"
+          pure (Just doc)
+
+-- | Exports the ontology document in Manchester format
+--
+exportOntologyDoc :: OntologyDocument -- ^ The ontology document
+                  -> Text             -- ^ the output in Manchster format
+exportOntologyDoc = T.pack . show . MP.pretty
+
+
+-- | Exports the ontology document in a file in Manchster format
+--
+exportOntologyDocToFile :: FilePath         -- ^ The file to save the ontology
+                        -> OntologyDocument -- ^ The ontology document
+                        -> IO ()
+exportOntologyDocToFile f ontDoc = T.writeFile f (exportOntologyDoc ontDoc)
+
+-- parseAndSave :: FilePath -> IO ()
+-- parseAndSave f = do
+--   (Just ontDoc) <- parseOntologyDoc f
+--   writeFile "output.man.owl" (show . MP.pretty $ ontDoc)
 

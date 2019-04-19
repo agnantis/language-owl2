@@ -1,7 +1,42 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.OWL2.Internal.Parser where
+module Language.OWL2.Internal.Parser
+  ( Parser
+  , annotation
+  , annotationProperty
+  , annotationPropertyIRI
+  , annotationValue
+  , clazz
+  , dataProperty
+  , decimalLiteral
+  , doubleOrMany
+  , enclosedS
+  , floatingPointLiteral
+  , fullIRI
+  , individual
+  , integerLiteral
+  , iri
+  , lexeme
+  , lexicalValue
+  , listOfAtLeast2
+  , namedIndividual
+  , nonEmptyList
+  , nonNegativeInteger
+  , objectProperty
+  , ontologyIRI
+  , optionalNegation
+  , parens
+  , prefixName
+  , sc
+  , singleOrMany
+  , stringLiteralNoLanguage
+  , stringLiteralWithLanguage
+  , symbol
+  , totalIRI
+  , versionIRI
+  )
+where
 
 import           Data.Maybe                               ( fromMaybe )
 import           Data.List.NonEmpty                       ( NonEmpty(..) )
@@ -17,14 +52,17 @@ import           Language.OWL2.Types
 
 type Parser = Parsec Void Text
 
+
 -- | Parses white space and line comments
 --
 -- >>> parseTest (sc *> many (satisfy (const True))) "    some indented text"
 -- "some indented text"
+--
 sc :: Parser ()
 sc = L.space space1 (L.skipLineComment "#") empty
 
 -- | Parses the actual lexeme and then any remaining space
+--
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
@@ -65,6 +103,7 @@ symbol = L.symbol sc
 --
 -- >>> parseTest zero "0"
 -- '0'
+--
 zero :: Parser Char
 zero = char '0'
 
@@ -72,6 +111,7 @@ zero = char '0'
 --
 -- >>> parseTest nonZero "1"
 -- '1'
+--
 nonZero :: Parser Char
 nonZero = notFollowedBy zero *> digitChar
 
@@ -98,6 +138,7 @@ positiveInteger = do
 -- 13
 -- >>> parseTest nonNegativeInteger "0"
 -- 0
+--
 nonNegativeInteger :: Parser Int
 nonNegativeInteger =
   let num = (0 <$ zero) <|> positiveInteger
@@ -111,6 +152,7 @@ nonNegativeInteger =
 -- "-"
 -- >>> parseTest sign ""
 -- ""
+--
 sign :: Parser Text
 sign = do
   mSign <- optional $ "" <$ symbol "+" <|> symbol "-"
@@ -136,11 +178,13 @@ sign = do
 -- >>> parseTest identifier "Ontology"
 -- ...
 -- keyword "Ontology" cannot be an identifier
+--
 identifier :: Parser Text
 identifier = lexeme identifier_
 
 -- | It parses arbitrary alpharithmetics provived that it does not belong to
 -- the list of reserved keywords. It does not parse any space after the identifier
+--
 identifier_ :: Parser Text
 identifier_ = try (anyIdentifier_ >>= check)
  where
@@ -150,10 +194,12 @@ identifier_ = try (anyIdentifier_ >>= check)
     else pure x
 
 -- | It parses arbitrary alpharithmetics. It does not parse any space after the identifier
+--
 anyIdentifier_ :: Parser Text
 anyIdentifier_ = T.pack <$> try ((:) <$> letterChar <*> many (alphaNumChar <|> char '_' <|> char '-'))
 
 -- | It parses arbitrary alpharithmetics. It parses any space after the identifier
+--
 anyIdentifier :: Parser Text
 anyIdentifier = lexeme anyIdentifier_
 
@@ -315,7 +361,6 @@ nodeID = NodeID <$> (symbol "_:" *> identifier)
 stringLiteralNoLanguage :: Parser Text
 stringLiteralNoLanguage = quotedString
 
-
 -- | It parses a string value with language tag
 --
 -- >>> parseTest stringLiteralWithLanguage "\"hello there\"@en"
@@ -474,7 +519,6 @@ allKeywords = concat [manchesterKeywords, functionalKeywords]
 -----------------------
 --- Generic parsers ---
 -----------------------
-
 optionalNegation :: Parser (WithNegation ())
 optionalNegation = maybe (Positive ()) (const (Negative ())) <$> (optional . symbol $ "not")
 

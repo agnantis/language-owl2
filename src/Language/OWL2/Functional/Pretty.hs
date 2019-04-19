@@ -2,7 +2,11 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Language.OWL2.Functional.Pretty where
+module Language.OWL2.Functional.Pretty
+  ( pretty
+  , prettyList
+  )
+where
 
 import           Control.Monad.State
 import           Data.List                                ( intersperse, sort )

@@ -2,7 +2,11 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Language.OWL2.Manchester.Pretty where
+module Language.OWL2.Manchester.Pretty
+  ( pretty
+  , prettyList
+  )
+where
 
 import           Control.Monad.State               hiding ( join )
 import           Data.Data                                ( toConstr )
@@ -15,6 +19,7 @@ import           Language.OWL2.Types
 
 
 -- | Wrapper typeclass of 'Pretty' typeclass for the Manchester format
+--
 class PrettyM a where
   pretty :: a -> Doc ann
   default pretty :: PP.Pretty a => a -> Doc ann
