@@ -34,8 +34,11 @@ Its current version is able to parse and pretty print the [Manchester](https://w
   - Based on the syntax, a `conjunction` like `classIRI that { :ind1, :ind2 }` is not permitted, as the `classIRI` should be followed by the keyword `that` and then a `restriction` (with an option `not` between them). However `Protege` parses this syntax without an issue, while _Functional Syntax_ seems to allow that as well.
     - Also the `classIRI` does not seem to be correct either, as in place of a _class iri_ we can use other descriptions as well. E.g. `(classIRI1 or classIRI2) that { :ind1, :ind2 }` can be successfully parsed 
   - Based on its syntax tree an `ObjectPropertyFrame` should describe axioms of an `objectPropertyIRI`. However, OWL2 (at least based on Functional Syntax) seems to support arbitrary `ObjectPropertyExpression`. For example in Manchester syntax you cannot defined the following axiom:
-  > The inverse of the object-property-A is sub-property of the inverse of object-property-B
-  > In Functional: `SubObjectPropertyOf(ObjectInverseOf(test-ont:ObjectProp2) ObjectInverseOf(test-ont:ObjectProp1))`
+  - The inverse of the object-property-A is sub-property of the inverse of object-property-B
+  - In _Functional_ you can model this as:
+    ```
+    SubObjectPropertyOf(ObjectInverseOf(test-ont:ObjectProp2) ObjectInverseOf(test-ont:ObjectProp1))
+    ```
   - Note: Protege is able to parse it and represent it on the UI (albeit, to the _Usage_ window only), but trying to save the ontology in Manchester format, the axiom will be discarder
 - Based on the syntax a `DataFrame` can have at most one `EquivalentTo` data range. However:
   - Functional syntax supports equivalence with more than a single data range
@@ -55,9 +58,16 @@ Its current version is able to parse and pretty print the [Manchester](https://w
 
 ## Possible issues in Functional syntax specification
 
-- Protege does not seem to support multiple data property expressions in a single `DataAllValuesFrom` class expression. For example it was not possible to parse: `EquivalentClasses(test-ont:Test1 DataAllValuesFrom(test-ont:dataProp1 test-ont:dataPro2 xsd:integer))`. However the the specifications define this constructor as:
-  `DataSomeValuesFrom := 'DataSAllValuesFrom' '(' DataPropertyExpression { DataPropertyExpression } DataRange ')'`
+- Protege does not seem to support multiple data property expressions in a single `DataAllValuesFrom` class expression. For example it was not possible to parse:
+  ```
+  EquivalentClasses(test-ont:Test1 DataAllValuesFrom(test-ont:dataProp1 test-ont:dataPro2 xsd:integer))
+  ```
+  - However the the specifications define this constructor as:
+    ```
+    DataSomeValuesFrom := 'DataSAllValuesFrom' '(' DataPropertyExpression { DataPropertyExpression } DataRange ')'
+    ```
   - The same applies for `DataDomeValuesFrom` class expression
+
 
 ## Possible issues in Protege
 
