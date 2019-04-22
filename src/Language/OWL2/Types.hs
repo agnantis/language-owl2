@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Language.OWL2.Types
   ( Annotated(..)
@@ -73,6 +74,7 @@ module Language.OWL2.Types
 where
 
 import           Control.Applicative                      ( (<|>) )
+import           Lens.Micro.Platform
 import           Control.Monad.State
 import           Data.Data                                ( Data, Typeable, toConstr )
 import           Data.Function                            ( on )
@@ -112,15 +114,15 @@ type Annotations = [Annotated Annotation]
 
 -- Data types --
 data ObjectPropertyExpression
-    = OPE ObjectPropertyIRI
-    | InverseOPE ObjectPropertyIRI deriving (Eq, Ord, Show, Typeable, Data)
+    = OPE { _objectPropertyIri :: ObjectPropertyIRI }
+    | InverseOPE { _objectPropertyIri :: ObjectPropertyIRI } deriving (Eq, Ord, Show, Typeable, Data)
 data DataRange
-    = DatatypeDR Datatype
-    | IntersectionDR (AtLeast2List DataRange)
-    | UnionDR (AtLeast2List DataRange)
-    | ComplementDR DataRange
-    | OneOfDR (NonEmpty Literal)
-    | RestrictionDR DatatypeRestriction deriving (Eq, Ord, Show, Typeable, Data)
+    = DatatypeDR { _datatype :: Datatype }
+    | IntersectionDR { _dataRanges :: AtLeast2List DataRange }
+    | UnionDR { _dataRanges :: AtLeast2List DataRange }
+    | ComplementDR { _dataRange :: DataRange }
+    | OneOfDR { _literals :: NonEmpty Literal }
+    | RestrictionDR { _restriction :: DatatypeRestriction } deriving (Eq, Ord, Show, Typeable, Data)
 newtype DecimalLiteral = DecimalL Double deriving (Eq, Ord, Show, Typeable, Data)
 newtype IntegerLiteral = IntegerL Integer deriving (Eq, Ord, Show, Typeable, Data)
 newtype NodeID = NodeID Text deriving (Eq, Ord, Show, Typeable, Data)
@@ -516,4 +518,9 @@ mapAxiomsOnIRI as = M.fromListWith (++) pairs
   pairs :: [(Maybe IRI, [Axiom])]
   pairs = zip (getIRI <$> as) (pure <$> as) 
 
+-------------------------
+--- Lenses Definition ---
+-------------------------
 
+makeLenses ''ObjectPropertyExpression
+makeLenses ''DataRange
