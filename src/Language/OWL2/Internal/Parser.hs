@@ -35,6 +35,7 @@ module Language.OWL2.Internal.Parser
   , symbol
   , totalIRI
   , versionIRI
+  , WithNegation(..)
   )
 where
 
@@ -52,6 +53,9 @@ import           Language.OWL2.Types
 
 type Parser = Parsec Void Text
 
+data WithNegation a
+    = Positive a
+    | Negative a deriving (Show)
 
 -- | Parses white space and line comments
 --
@@ -519,6 +523,7 @@ allKeywords = concat [manchesterKeywords, functionalKeywords]
 -----------------------
 --- Generic parsers ---
 -----------------------
+
 optionalNegation :: Parser (WithNegation ())
 optionalNegation = maybe (Positive ()) (const (Negative ())) <$> (optional . symbol $ "not")
 

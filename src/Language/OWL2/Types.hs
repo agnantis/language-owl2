@@ -10,17 +10,17 @@ module Language.OWL2.Types
   , AnnotationValue(..)
   , Annotations
   , AtLeast2List(..)
-  , Atomic(..)
+  -- , Atomic(..)
   , Axiom(..)
   , AxiomType(..)
   , ClassExpression(..)
   , ClassIRI
-  , Conjunction(..)
+  --, Conjunction(..)
   , DataPropertyCharacteristics(..)
   , DataPropertyExpression
   , DataPropertyIRI
-  , DataPropertyRestriction(..)
-  , DataPropertyRestrictionType(..)
+  --, DataPropertyRestriction(..)
+  --, DataPropertyRestrictionType(..)
   , DataRange(..)
   , Datatype(..)
   , DatatypeRestriction(..)
@@ -28,7 +28,7 @@ module Language.OWL2.Types
   , Entity(..)
   , Exponent
   , Facet(..)
-  , FactElement(..)
+  --, FactElement(..)
   , FloatPoint(..)
   , IRI(..)
   , ImportDeclaration(..)
@@ -44,18 +44,14 @@ module Language.OWL2.Types
   , ObjectPropertyCharacteristic(..)
   , ObjectPropertyExpression(..)
   , ObjectPropertyIRI
-  , ObjectPropertyRestriction(..)
-  , ObjectPropertyRestrictionType(..)
   , Ontology(..)
   , OntologyDocument(..)
   , OntologyVersionIRI(..)
   , PrefixDeclaration(..)
-  , Primary(..)
-  , Restriction(..)
   , RestrictionExp(..)
   , TotalIRI(..)
   , TypedLiteral(..)
-  , WithNegation(..)
+  --, WithNegation(..)
   , atLeast2List
   , atLeast2List'
   , axiomType
@@ -123,37 +119,37 @@ data DataRange
     | ComplementDR { _dataRange :: DataRange }
     | OneOfDR { _literals :: NonEmpty Literal }
     | RestrictionDR { _restriction :: DatatypeRestriction } deriving (Eq, Ord, Show, Typeable, Data)
-newtype DecimalLiteral = DecimalL Double deriving (Eq, Ord, Show, Typeable, Data)
-newtype IntegerLiteral = IntegerL Integer deriving (Eq, Ord, Show, Typeable, Data)
-newtype NodeID = NodeID Text deriving (Eq, Ord, Show, Typeable, Data)
+newtype DecimalLiteral = DecimalL { _dvalue :: Double } deriving (Eq, Ord, Show, Typeable, Data)
+newtype IntegerLiteral = IntegerL { _ivalue :: Integer } deriving (Eq, Ord, Show, Typeable, Data)
+newtype NodeID = NodeID {_nLabel :: Text } deriving (Eq, Ord, Show, Typeable, Data)
 newtype Annotated a = Annotated { _unAnnotated :: ([Annotated Annotation], a) } deriving (Eq, Ord, Show, Typeable, Data) -- TODO: use a sum type instead of pair for easier access
-newtype ImportDeclaration = ImportD IRI deriving (Eq, Ord, Show, Typeable, Data)
+newtype ImportDeclaration = ImportD { _importIRI :: IRI } deriving (Eq, Ord, Show, Typeable, Data)
 data IRI
-    = FullIRI Text
-    | AbbreviatedIRI PrefixName Text
-    | SimpleIRI Text deriving (Eq, Ord, Show, Typeable, Data)
-data TypedLiteral = TypedL Text Datatype deriving (Eq, Ord, Show, Typeable, Data)
-data FloatPoint = FloatP Double (Maybe Exponent) deriving (Eq, Ord, Show, Typeable, Data)
-data LiteralWithLang = LiteralWithLang Text LangTag deriving (Eq, Ord, Show, Typeable, Data)
+    = FullIRI { _iriName :: Text }
+    | AbbreviatedIRI { _prefixName :: PrefixName, _prefixValue :: Text }
+    | SimpleIRI { _simpleIRI :: Text } deriving (Eq, Ord, Show, Typeable, Data)
+data TypedLiteral = TypedL { _literalvalue :: Text, _literalType :: Datatype } deriving (Eq, Ord, Show, Typeable, Data)
+data FloatPoint = FloatP { _floatValue :: Double, _mExponent :: Maybe Exponent } deriving (Eq, Ord, Show, Typeable, Data)
+data LiteralWithLang = LiteralWithLang { _literalText ::Text, _langTag :: LangTag } deriving (Eq, Ord, Show, Typeable, Data)
 data OntologyDocument = OntologyD
     { _prefixes :: [PrefixDeclaration]
     , _ontology :: Ontology
     } deriving (Eq, Ord, Show, Typeable, Data)
-data PrefixDeclaration = PrefixD PrefixName IRI deriving (Eq, Ord, Show, Typeable, Data)
+data PrefixDeclaration = PrefixD { _declerationPrefix :: PrefixName, _declerationIRI :: IRI } deriving (Eq, Ord, Show, Typeable, Data)
 data Ontology = Ontology 
     { _version :: Maybe OntologyVersionIRI
     , _imports :: [ImportDeclaration]
     , _ants    :: Annotations
     , _axioms  :: [Axiom]
     } deriving (Eq, Ord, Show, Typeable, Data)
-data OntologyVersionIRI = OntologyVersionIRI OntologyIRI (Maybe VersionIRI) deriving (Eq, Ord, Show, Typeable, Data)
+data OntologyVersionIRI = OntologyVersionIRI { _ontologyIRI :: OntologyIRI, _mVersionIRI :: Maybe VersionIRI } deriving (Eq, Ord, Show, Typeable, Data)
 data Annotation = Annotation
     { _property :: AnnotationProperty
     , _value     :: AnnotationValue
     } deriving (Eq, Ord, Show, Typeable, Data)
 newtype Datatype = Datatype { _unDatatype :: DatatypeIRI } deriving (Eq, Ord, Show, Typeable, Data)
-data DatatypeRestriction = DatatypeRestriction Datatype (NonEmpty RestrictionExp) deriving (Eq, Ord, Show, Typeable, Data)
-data RestrictionExp = RestrictionExp Facet Literal deriving (Eq, Ord, Show, Typeable, Data)
+data DatatypeRestriction = DatatypeRestriction { _restrDatatype :: Datatype, _restrExpr :: NonEmpty RestrictionExp } deriving (Eq, Ord, Show, Typeable, Data)
+data RestrictionExp = RestrictionExp { _restrFacet :: Facet, _restrLiteral :: Literal } deriving (Eq, Ord, Show, Typeable, Data)
 data Facet
     = LENGTH_FACET
     | MIN_LENGTH_FACET
@@ -165,66 +161,57 @@ data Facet
     | GE_FACET
     | G_FACET deriving (Eq, Ord, Show, Typeable, Data)
 data ObjectOrDataPE
-    = ObjectPE ObjectPropertyExpression
-    | DataPE DataPropertyExpression deriving (Eq, Ord, Show, Typeable, Data)
-data WithNegation a
-    = Positive a
-    | Negative a deriving (Eq, Ord, Show, Functor, Typeable, Data)
-data WithInversion a
-    = Plain a
-    | Inverse a deriving (Eq, Ord, Show, Functor, Typeable, Data)
-data Conjunction
-    = ClassConj IRI (NonEmpty (WithNegation Restriction))
-    | PrimConj (NonEmpty Primary) deriving (Eq, Ord, Show, Typeable, Data)
-data Primary
-    = PrimaryR (WithNegation Restriction)
-    | PrimaryA (WithNegation Atomic) deriving (Eq, Ord, Show, Typeable, Data)
-data Restriction
-    = OPRestriction ObjectPropertyRestriction
-    | DPRestriction DataPropertyRestriction deriving (Eq, Ord, Show, Typeable, Data)
+    = ObjectPE { _objectPropExpr :: ObjectPropertyExpression }
+    | DataPE { _dataPropExpr :: DataPropertyExpression } deriving (Eq, Ord, Show, Typeable, Data)
+--data WithNegation a
+--    = Positive a
+--    | Negative a deriving (Eq, Ord, Show, Functor, Typeable, Data)
+--data WithInversion a
+--    = Plain a
+--    | Inverse a deriving (Eq, Ord, Show, Functor, Typeable, Data)
 data ClassExpression
-    = CExpClass ClassIRI
-    | CExpObjectIntersectionOf (AtLeast2List ClassExpression)
-    | CExpObjectUnionOf (AtLeast2List ClassExpression)
-    | CExpObjectComplementOf ClassExpression
-    | CExpObjectOneOf (NonEmpty Individual)
-    | CExpObjectSomeValuesFrom ObjectPropertyExpression ClassExpression
-    | CExpObjectAllValuesFrom ObjectPropertyExpression ClassExpression
-    | CExpObjectHasValue ObjectPropertyExpression Individual
-    | CExpObjectHasSelf ObjectPropertyExpression
-    | CExpObjectMinCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
-    | CExpObjectMaxCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
-    | CExpObjectExactCardinality Int ObjectPropertyExpression (Maybe ClassExpression)
-    | CExpDataSomeValuesFrom (NonEmpty DataPropertyExpression) DataRange 
-    | CExpDataAllValuesFrom (NonEmpty DataPropertyExpression) DataRange
-    | CExpDataHasValue DataPropertyExpression Literal
-    | CExpDataMinCardinality Int DataPropertyExpression (Maybe DataRange)
-    | CExpDataMaxCardinality Int DataPropertyExpression (Maybe DataRange)
-    | CExpDataExactCardinality Int DataPropertyExpression (Maybe DataRange) deriving (Eq, Ord, Show, Typeable, Data)
-data ObjectPropertyRestrictionType
-    = SelfOPR
-    | SomeOPR Primary
-    | OnlyOPR Primary
-    | ValueOPR Individual
-    | MinOPR Int (Maybe Primary) -- TODO: Int -> Nat
-    | MaxOPR Int (Maybe Primary) -- TODO: Int -> Nat
-    | ExactlyOPR Int (Maybe Primary) deriving (Eq, Ord, Show, Typeable, Data) -- TODO: Int -> Nat
-data DataPropertyRestrictionType
-    = SomeDPR DataRange
-    | OnlyDPR DataRange
-    | ValueDPR Literal
-    | MinDPR Int (Maybe DataRange) -- TODO: Int -> Nat
-    | MaxDPR Int (Maybe DataRange) -- TODO: Int -> Nat
-    | ExactlyDPR Int (Maybe DataRange) deriving (Eq, Ord, Show, Typeable, Data) -- TODO: Int -> Nat
-data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRestrictionType deriving (Eq, Ord, Show, Typeable, Data)
-data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType deriving (Eq, Ord, Show, Typeable, Data)
+    = CExpClass { _classIRI :: ClassIRI }
+    | CExpObjectIntersectionOf { _objIntrxExprs :: AtLeast2List ClassExpression }
+    | CExpObjectUnionOf { _objUnionExprs :: AtLeast2List ClassExpression }
+    | CExpObjectComplementOf { _objComplExpr :: ClassExpression }
+    | CExpObjectOneOf { _objOneOf :: NonEmpty Individual }
+    | CExpObjectSomeValuesFrom { _objSomeSubject :: ObjectPropertyExpression, _objSomeValues :: ClassExpression }
+    | CExpObjectAllValuesFrom { _objAllSubject :: ObjectPropertyExpression, _objAllValues :: ClassExpression }
+    | CExpObjectHasValue { _objHasSubject :: ObjectPropertyExpression, _objHasvalue :: Individual }
+    | CExpObjectHasSelf { _objSelfSubject :: ObjectPropertyExpression }
+    | CExpObjectMinCardinality { _objMinNo :: Int, _objMinSubject :: ObjectPropertyExpression, _objMinObject :: Maybe ClassExpression }
+    | CExpObjectMaxCardinality { _objMaxNo :: Int, _objMaxSubject :: ObjectPropertyExpression, _objMaxObject :: Maybe ClassExpression }
+    | CExpObjectExactCardinality { _objExactNo :: Int, _objExactSubject :: ObjectPropertyExpression, _objExactObject :: Maybe ClassExpression }
+    | CExpDataSomeValuesFrom { _dataSomeExprs :: NonEmpty DataPropertyExpression, _dataSomeRange :: DataRange }
+    | CExpDataAllValuesFrom { _dataAllExprs :: NonEmpty DataPropertyExpression, _dataAllRange :: DataRange }
+    | CExpDataHasValue { _dataHasSubject :: DataPropertyExpression, _dataHasValue :: Literal }
+    | CExpDataMinCardinality { _dataMinNo :: Int, _dataMinSubject :: DataPropertyExpression, _dataMinRange :: Maybe DataRange }
+    | CExpDataMaxCardinality { _dataMaxNo :: Int, _dataMaxSubjectInt :: DataPropertyExpression, _dataMaxRange :: Maybe DataRange }
+    | CExpDataExactCardinality { _dataExactNo :: Int, _dataExactSubjectInt :: DataPropertyExpression, _dataExactRange :: Maybe DataRange } deriving (Eq, Ord, Show, Typeable, Data)
+--data ObjectPropertyRestrictionType
+--    = SelfOPR
+--    | SomeOPR Primary
+--    | OnlyOPR Primary
+--    | ValueOPR Individual
+--    | MinOPR Int (Maybe Primary) -- TODO: Int -> Nat
+--    | MaxOPR Int (Maybe Primary) -- TODO: Int -> Nat
+--    | ExactlyOPR Int (Maybe Primary) deriving (Eq, Ord, Show, Typeable, Data) -- TODO: Int -> Nat
+--data DataPropertyRestrictionType
+--    = SomeDPR DataRange
+--    | OnlyDPR DataRange
+--    | ValueDPR Literal
+--    | MinDPR Int (Maybe DataRange) -- TODO: Int -> Nat
+--    | MaxDPR Int (Maybe DataRange) -- TODO: Int -> Nat
+--    | ExactlyDPR Int (Maybe DataRange) deriving (Eq, Ord, Show, Typeable, Data) -- TODO: Int -> Nat
+--data ObjectPropertyRestriction = OPR ObjectPropertyExpression ObjectPropertyRestrictionType deriving (Eq, Ord, Show, Typeable, Data)
+--data DataPropertyRestriction = DPR DataPropertyExpression DataPropertyRestrictionType deriving (Eq, Ord, Show, Typeable, Data)
 data TotalIRI
-    = NamedIRI IRI
-    | AnonymousIRI NodeID deriving (Eq, Ord, Show, Typeable, Data)
-data Atomic
-    = AtomicClass ClassIRI
-    | AtomicIndividuals (NonEmpty Individual)
-    | AtomicDescription ClassExpression deriving (Eq, Ord, Show, Typeable, Data)
+    = NamedIRI { _namedIRI :: IRI }
+    | AnonymousIRI { _nodeID :: NodeID } deriving (Eq, Ord, Show, Typeable, Data)
+-- data Atomic
+--     = AtomicClass ClassIRI
+--     | AtomicIndividuals (NonEmpty Individual)
+--     | AtomicDescription ClassExpression deriving (Eq, Ord, Show, Typeable, Data)
 newtype ObjectPropertyChain = ObjectPropertyChain { unChain :: AtLeast2List ObjectPropertyExpression } deriving (Eq, Ord, Show, Typeable, Data)
 data ObjectPropertyCharacteristic
     = FUNCTIONAL
@@ -235,11 +222,11 @@ data ObjectPropertyCharacteristic
     | ASYMMETRIC
     | TRANSITIVE deriving (Eq, Ord, Show, Typeable, Data)
 data DataPropertyCharacteristics = FUNCTIONAL_DPE deriving (Eq, Ord, Show, Typeable, Data)
-data FactElement
-    = ObjectPropertyFact ObjectPropertyIRI Individual
-    | NegativeObjectPropertyFact ObjectPropertyIRI Individual
-    | DataPropertyFact DataPropertyIRI Literal
-    | NegativeDataPropertyFact DataPropertyIRI Literal deriving (Eq, Ord, Show, Typeable, Data)
+-- data FactElement
+--     = ObjectPropertyFact ObjectPropertyIRI Individual
+--     | NegativeObjectPropertyFact ObjectPropertyIRI Individual
+--     | DataPropertyFact DataPropertyIRI Literal
+--     | NegativeDataPropertyFact DataPropertyIRI Literal deriving (Eq, Ord, Show, Typeable, Data)
 data Literal
     = TypedLiteralC TypedLiteral
     | StringLiteralNoLang Text
@@ -522,5 +509,8 @@ mapAxiomsOnIRI as = M.fromListWith (++) pairs
 --- Lenses Definition ---
 -------------------------
 
-makeLenses ''ObjectPropertyExpression
-makeLenses ''DataRange
+--makeLenses ''ObjectPropertyExpression
+--makeLenses ''DataRange
+--makeLenses ''DecimalLiteral
+--makeLenses ''IntegerLiteral
+

@@ -32,6 +32,16 @@ import           Language.OWL2.Manchester.Pretty as MP
 ----------------------------------------------
 type AnnotatedList a = NonEmpty (Annotated a)
 
+--------------------
+-- Utility types ---
+--------------------
+
+data FactElement
+    = ObjectPropertyFact ObjectPropertyIRI Individual
+    | NegativeObjectPropertyFact ObjectPropertyIRI Individual
+    | DataPropertyFact DataPropertyIRI Literal
+    | NegativeDataPropertyFact DataPropertyIRI Literal deriving (Show)
+
 -- | It parses literals
 --
 -- >>> parseTest literal "\"32\"^^integer"
@@ -943,7 +953,7 @@ parseOntologyDoc file =
 --
 exportOntologyDoc :: OntologyDocument -- ^ The ontology document
                   -> Text             -- ^ the output in Manchster format
-exportOntologyDoc = T.pack . show . MP.pretty
+exportOntologyDoc = undefined -- T.pack . show . MP.pretty
 
 
 -- | Exports the ontology document in a file in Manchster format
