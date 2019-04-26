@@ -12,6 +12,7 @@ module Language.OWL2.Types
   , AtLeast2List(..)
   -- , Atomic(..)
   , Axiom(..)
+  , AxiomValue(..)
   , AxiomType(..)
   , ClassExpression(..)
   , ClassIRI
@@ -63,6 +64,8 @@ module Language.OWL2.Types
   , groupAxiomsOnConstructor
   , groupAxiomsOnIRI
   , mapAxiomsOnIRI
+  , mkAxiom
+  , mkAxiomWithAnnotations
   , reorder
   , singleton
   , toList
@@ -212,7 +215,7 @@ data TotalIRI
 --     = AtomicClass ClassIRI
 --     | AtomicIndividuals (NonEmpty Individual)
 --     | AtomicDescription ClassExpression deriving (Eq, Ord, Show, Typeable, Data)
-newtype ObjectPropertyChain = ObjectPropertyChain { unChain :: AtLeast2List ObjectPropertyExpression } deriving (Eq, Ord, Show, Typeable, Data)
+newtype ObjectPropertyChain = ObjectPropertyChain { _unChain :: AtLeast2List ObjectPropertyExpression } deriving (Eq, Ord, Show, Typeable, Data)
 data ObjectPropertyCharacteristic
     = FUNCTIONAL
     | INVERSE_FUNCTIONAL
@@ -228,56 +231,91 @@ data DataPropertyCharacteristics = FUNCTIONAL_DPE deriving (Eq, Ord, Show, Typea
 --     | DataPropertyFact DataPropertyIRI Literal
 --     | NegativeDataPropertyFact DataPropertyIRI Literal deriving (Eq, Ord, Show, Typeable, Data)
 data Literal
-    = TypedLiteralC TypedLiteral
-    | StringLiteralNoLang Text
-    | StringLiteralLang LiteralWithLang
-    | IntegerLiteralC IntegerLiteral
-    | DecimalLiteralC DecimalLiteral
-    | FloatingLiteralC FloatPoint deriving (Eq, Ord, Show, Typeable, Data)
+    = TypedLiteralC { _typedLiteral :: TypedLiteral }
+    | StringLiteralNoLang { _noLangLiteral :: Text }
+    | StringLiteralLang { _literalWithLang :: LiteralWithLang }
+    | IntegerLiteralC { _intLiteral :: IntegerLiteral }
+    | DecimalLiteralC { _decLiteral :: DecimalLiteral }
+    | FloatingLiteralC { _floatLiteral :: FloatPoint } deriving (Eq, Ord, Show, Typeable, Data)
 data Entity
-    = EntityClass ClassIRI
-    | EntityDatatype Datatype
-    | EntityObjectProperty ObjectPropertyIRI
-    | EntityDataProperty DataPropertyIRI
-    | EntityAnnotationProperty AnnotationProperty
-    | EntityIndividual IndividualIRI deriving (Eq, Ord, Show, Typeable, Data)
+    = EntityClass { _entityClassIRI :: ClassIRI }
+    | EntityDatatype { _entityDatatype :: Datatype }
+    | EntityObjectProperty { _entityObjProp :: ObjectPropertyIRI }
+    | EntityDataProperty { _entityDataProp :: DataPropertyIRI }
+    | EntityAnnotationProperty { _entityAnnotProp :: AnnotationProperty }
+    | EntityIndividual { _entityInd :: IndividualIRI } deriving (Eq, Ord, Show, Typeable, Data)
 data AnnotationValue
-    = NodeAT NodeID
-    | IriAT IRI
-    | LiteralAT Literal deriving (Eq, Ord, Show, Typeable, Data)
-data Axiom
-    = DeclarationAxiom Annotations Entity
-    | AnnotationAxiomDomain Annotations AnnotationProperty IRI
-    | AnnotationAxiomRange Annotations AnnotationProperty IRI
-    | AnnotationAxiomSubProperty Annotations AnnotationProperty AnnotationProperty
-    | AnnotationAxiomAssertion Annotations TotalIRI Annotation
-    | DatatypeAxiomDefinition Annotations Datatype DataRange
-    | ObjectPropAxiomDomain Annotations ObjectPropertyExpression ClassExpression
-    | ObjectPropAxiomRange Annotations ObjectPropertyExpression ClassExpression
-    | ObjectPropAxiomCharacteristics Annotations ObjectPropertyExpression ObjectPropertyCharacteristic
-    | ObjectPropAxiomSubProperty Annotations ObjectPropertyExpression ObjectPropertyExpression
-    | ObjectPropAxiomChainSubProperty Annotations ObjectPropertyChain ObjectPropertyExpression
-    | ObjectPropAxiomEquivalent Annotations ObjectPropertyExpression (NonEmpty ObjectPropertyExpression)
-    | ObjectPropAxiomDisjoint Annotations ObjectPropertyExpression (NonEmpty ObjectPropertyExpression)
-    | ObjectPropAxiomInverse Annotations ObjectPropertyExpression ObjectPropertyExpression
-    | DataPropAxiomDomain Annotations DataPropertyExpression ClassExpression
-    | DataPropAxiomRange Annotations DataPropertyExpression DataRange
-    | DataPropAxiomCharacteristics Annotations DataPropertyExpression DataPropertyCharacteristics
-    | DataPropAxiomSubProperty Annotations DataPropertyExpression DataPropertyExpression
-    | DataPropAxiomEquivalent Annotations DataPropertyExpression (NonEmpty DataPropertyExpression)
-    | DataPropAxiomDisjoint Annotations DataPropertyExpression (NonEmpty DataPropertyExpression)
-    | ClassAxiomSubClassOf Annotations ClassExpression ClassExpression
-    | ClassAxiomEquivalentClasses Annotations ClassExpression (NonEmpty ClassExpression)
-    | ClassAxiomDisjointClasses Annotations ClassExpression (NonEmpty ClassExpression)
-    | ClassAxiomDisjointUnion Annotations ClassIRI (AtLeast2List ClassExpression)
-    | ClassAxiomHasKey Annotations ClassExpression (NonEmpty ObjectOrDataPE)
-    | AssertionAxiomSameIndividuals Annotations Individual (NonEmpty Individual)
-    | AssertionAxiomDifferentIndividuals Annotations Individual (NonEmpty Individual)
-    | AssertionAxiomClass Annotations Individual ClassExpression
-    | AssertionAxiomObjectProperty Annotations ObjectPropertyExpression Individual Individual
-    | AssertionAxiomNegativeObjectProperty Annotations ObjectPropertyExpression Individual Individual 
-    | AssertionAxiomDataProperty Annotations DataPropertyExpression Individual Literal
-    | AssertionAxiomNegativeDataProperty Annotations DataPropertyExpression Individual Literal deriving (Eq, Ord, Show, Typeable, Data)
+    = NodeAT { _annotValueNode :: NodeID }
+    | IriAT { _annotValueIRI :: IRI }
+    | LiteralAT { _annotValuuLiteral :: Literal } deriving (Eq, Ord, Show, Typeable, Data)
+data Axiom = Axiom { _axiomAnnotations :: Annotations, _axiomValue :: AxiomValue } deriving (Eq, Ord, Show, Typeable, Data)
+
+data AxiomValue
+    = DeclarationAxiom Entity
+    | AnnotationAxiomDomain AnnotationProperty IRI
+    | AnnotationAxiomRange AnnotationProperty IRI
+    | AnnotationAxiomSubProperty AnnotationProperty AnnotationProperty
+    | AnnotationAxiomAssertion TotalIRI Annotation
+    | DatatypeAxiomDefinition Datatype DataRange
+    | ObjectPropAxiomDomain ObjectPropertyExpression ClassExpression
+    | ObjectPropAxiomRange ObjectPropertyExpression ClassExpression
+    | ObjectPropAxiomCharacteristics ObjectPropertyExpression ObjectPropertyCharacteristic
+    | ObjectPropAxiomSubProperty ObjectPropertyExpression ObjectPropertyExpression
+    | ObjectPropAxiomChainSubProperty ObjectPropertyChain ObjectPropertyExpression
+    | ObjectPropAxiomEquivalent ObjectPropertyExpression (NonEmpty ObjectPropertyExpression)
+    | ObjectPropAxiomDisjoint ObjectPropertyExpression (NonEmpty ObjectPropertyExpression)
+    | ObjectPropAxiomInverse ObjectPropertyExpression ObjectPropertyExpression
+    | DataPropAxiomDomain DataPropertyExpression ClassExpression
+    | DataPropAxiomRange DataPropertyExpression DataRange
+    | DataPropAxiomCharacteristics DataPropertyExpression DataPropertyCharacteristics
+    | DataPropAxiomSubProperty DataPropertyExpression DataPropertyExpression
+    | DataPropAxiomEquivalent DataPropertyExpression (NonEmpty DataPropertyExpression)
+    | DataPropAxiomDisjoint DataPropertyExpression (NonEmpty DataPropertyExpression)
+    | ClassAxiomSubClassOf ClassExpression ClassExpression
+    | ClassAxiomEquivalentClasses ClassExpression (NonEmpty ClassExpression)
+    | ClassAxiomDisjointClasses ClassExpression (NonEmpty ClassExpression)
+    | ClassAxiomDisjointUnion ClassIRI (AtLeast2List ClassExpression)
+    | ClassAxiomHasKey ClassExpression (NonEmpty ObjectOrDataPE)
+    | AssertionAxiomSameIndividuals Individual (NonEmpty Individual)
+    | AssertionAxiomDifferentIndividuals Individual (NonEmpty Individual)
+    | AssertionAxiomClass Individual ClassExpression
+    | AssertionAxiomObjectProperty ObjectPropertyExpression Individual Individual
+    | AssertionAxiomNegativeObjectProperty ObjectPropertyExpression Individual Individual 
+    | AssertionAxiomDataProperty DataPropertyExpression Individual Literal
+    | AssertionAxiomNegativeDataProperty DataPropertyExpression Individual Literal deriving (Eq, Ord, Show, Typeable, Data)
+--data Axiom
+--    = DeclarationAxiom Annotations Entity
+--    | AnnotationAxiomDomain Annotations AnnotationProperty IRI
+--    | AnnotationAxiomRange Annotations AnnotationProperty IRI
+--    | AnnotationAxiomSubProperty Annotations AnnotationProperty AnnotationProperty
+--    | AnnotationAxiomAssertion Annotations TotalIRI Annotation
+--    | DatatypeAxiomDefinition Annotations Datatype DataRange
+--    | ObjectPropAxiomDomain Annotations ObjectPropertyExpression ClassExpression
+--    | ObjectPropAxiomRange Annotations ObjectPropertyExpression ClassExpression
+--    | ObjectPropAxiomCharacteristics Annotations ObjectPropertyExpression ObjectPropertyCharacteristic
+--    | ObjectPropAxiomSubProperty Annotations ObjectPropertyExpression ObjectPropertyExpression
+--    | ObjectPropAxiomChainSubProperty Annotations ObjectPropertyChain ObjectPropertyExpression
+--    | ObjectPropAxiomEquivalent Annotations ObjectPropertyExpression (NonEmpty ObjectPropertyExpression)
+--    | ObjectPropAxiomDisjoint Annotations ObjectPropertyExpression (NonEmpty ObjectPropertyExpression)
+--    | ObjectPropAxiomInverse Annotations ObjectPropertyExpression ObjectPropertyExpression
+--    | DataPropAxiomDomain Annotations DataPropertyExpression ClassExpression
+--    | DataPropAxiomRange Annotations DataPropertyExpression DataRange
+--    | DataPropAxiomCharacteristics Annotations DataPropertyExpression DataPropertyCharacteristics
+--    | DataPropAxiomSubProperty Annotations DataPropertyExpression DataPropertyExpression
+--    | DataPropAxiomEquivalent Annotations DataPropertyExpression (NonEmpty DataPropertyExpression)
+--    | DataPropAxiomDisjoint Annotations DataPropertyExpression (NonEmpty DataPropertyExpression)
+--    | ClassAxiomSubClassOf Annotations ClassExpression ClassExpression
+--    | ClassAxiomEquivalentClasses Annotations ClassExpression (NonEmpty ClassExpression)
+--    | ClassAxiomDisjointClasses Annotations ClassExpression (NonEmpty ClassExpression)
+--    | ClassAxiomDisjointUnion Annotations ClassIRI (AtLeast2List ClassExpression)
+--    | ClassAxiomHasKey Annotations ClassExpression (NonEmpty ObjectOrDataPE)
+--    | AssertionAxiomSameIndividuals Annotations Individual (NonEmpty Individual)
+--    | AssertionAxiomDifferentIndividuals Annotations Individual (NonEmpty Individual)
+--    | AssertionAxiomClass Annotations Individual ClassExpression
+--    | AssertionAxiomObjectProperty Annotations ObjectPropertyExpression Individual Individual
+--    | AssertionAxiomNegativeObjectProperty Annotations ObjectPropertyExpression Individual Individual 
+--    | AssertionAxiomDataProperty Annotations DataPropertyExpression Individual Literal
+--    | AssertionAxiomNegativeDataProperty Annotations DataPropertyExpression Individual Literal deriving (Eq, Ord, Show, Typeable, Data)
 
 
 data AxiomType
@@ -290,7 +328,13 @@ data AxiomType
   | ClassAxiomType
   | AssertionAxiomType deriving (Show, Eq)
 
-axiomType :: Axiom -> AxiomType
+mkAxiom :: AxiomValue -> Axiom
+mkAxiom = Axiom []
+
+mkAxiomWithAnnotations :: Annotations -> AxiomValue -> Axiom
+mkAxiomWithAnnotations = Axiom
+
+axiomType :: AxiomValue -> AxiomType
 axiomType DeclarationAxiom{}                     = DeclarationAxiomType
 axiomType AnnotationAxiomDomain{}                = AnnotationAxiomType
 axiomType AnnotationAxiomRange{}                 = AnnotationAxiomType
@@ -344,38 +388,41 @@ instance HasIRI Datatype where
   getIRI = Just . _unDatatype
 
 instance HasIRI Axiom where
-  getIRI (DeclarationAxiom _ e)                           = getIRI e
-  getIRI (AnnotationAxiomDomain _ a _)                    = Just a
-  getIRI (AnnotationAxiomRange _ a _)                     = Just a
-  getIRI (AnnotationAxiomSubProperty _ a _)               = Just a
-  getIRI (AnnotationAxiomAssertion _ t _)                 = getIRI t
-  getIRI (DatatypeAxiomDefinition _ d _)                  = getIRI d
-  getIRI (ObjectPropAxiomDomain _ o _)                    = getIRI o
-  getIRI (ObjectPropAxiomRange _ o _)                     = getIRI o
-  getIRI (ObjectPropAxiomCharacteristics _ o _)           = getIRI o
-  getIRI (ObjectPropAxiomSubProperty _ o _)               = getIRI o
-  getIRI (ObjectPropAxiomChainSubProperty _ _ o)          = getIRI o
-  getIRI (ObjectPropAxiomEquivalent _ o _)                = getIRI o
-  getIRI (ObjectPropAxiomDisjoint _ o _)                  = getIRI o
-  getIRI (ObjectPropAxiomInverse _ o _)                   = getIRI o
-  getIRI (DataPropAxiomDomain _ d _)                      = Just d
-  getIRI (DataPropAxiomRange _ d _)                       = Just d
-  getIRI (DataPropAxiomCharacteristics _ d _)             = Just d
-  getIRI (DataPropAxiomSubProperty _ d _)                 = Just d
-  getIRI (DataPropAxiomEquivalent _ d _)                  = Just d
-  getIRI (DataPropAxiomDisjoint _ d _)                    = Just d
-  getIRI (ClassAxiomSubClassOf _ c _)                     = getIRI c
-  getIRI (ClassAxiomEquivalentClasses _ c _)              = getIRI c
-  getIRI (ClassAxiomDisjointClasses _ c _)                = getIRI c
-  getIRI (ClassAxiomDisjointUnion _ c _)                  = Just c
-  getIRI (ClassAxiomHasKey _ c _)                         = getIRI c
-  getIRI (AssertionAxiomSameIndividuals _ i _)            = getIRI i
-  getIRI (AssertionAxiomDifferentIndividuals _ i _)       = getIRI i
-  getIRI (AssertionAxiomClass _ i _)                      = getIRI i
-  getIRI (AssertionAxiomObjectProperty _ _ i1 i2)         = getIRI i1 <|> getIRI i2
-  getIRI (AssertionAxiomNegativeObjectProperty _ _ i1 i2) = getIRI i1 <|> getIRI i2
-  getIRI (AssertionAxiomDataProperty _ _ i _)             = getIRI i
-  getIRI (AssertionAxiomNegativeDataProperty _ _ i _)     = getIRI i
+  getIRI = getIRI . _axiomValue
+
+instance HasIRI AxiomValue where
+  getIRI (DeclarationAxiom e)                           = getIRI e
+  getIRI (AnnotationAxiomDomain a _)                    = Just a
+  getIRI (AnnotationAxiomRange a _)                     = Just a
+  getIRI (AnnotationAxiomSubProperty a _)               = Just a
+  getIRI (AnnotationAxiomAssertion t _)                 = getIRI t
+  getIRI (DatatypeAxiomDefinition d _)                  = getIRI d
+  getIRI (ObjectPropAxiomDomain o _)                    = getIRI o
+  getIRI (ObjectPropAxiomRange o _)                     = getIRI o
+  getIRI (ObjectPropAxiomCharacteristics o _)           = getIRI o
+  getIRI (ObjectPropAxiomSubProperty o _)               = getIRI o
+  getIRI (ObjectPropAxiomChainSubProperty _ o)          = getIRI o
+  getIRI (ObjectPropAxiomEquivalent o _)                = getIRI o
+  getIRI (ObjectPropAxiomDisjoint o _)                  = getIRI o
+  getIRI (ObjectPropAxiomInverse o _)                   = getIRI o
+  getIRI (DataPropAxiomDomain d _)                      = Just d
+  getIRI (DataPropAxiomRange d _)                       = Just d
+  getIRI (DataPropAxiomCharacteristics d _)             = Just d
+  getIRI (DataPropAxiomSubProperty d _)                 = Just d
+  getIRI (DataPropAxiomEquivalent d _)                  = Just d
+  getIRI (DataPropAxiomDisjoint d _)                    = Just d
+  getIRI (ClassAxiomSubClassOf c _)                     = getIRI c
+  getIRI (ClassAxiomEquivalentClasses c _)              = getIRI c
+  getIRI (ClassAxiomDisjointClasses c _)                = getIRI c
+  getIRI (ClassAxiomDisjointUnion c _)                  = Just c
+  getIRI (ClassAxiomHasKey c _)                         = getIRI c
+  getIRI (AssertionAxiomSameIndividuals i _)            = getIRI i
+  getIRI (AssertionAxiomDifferentIndividuals i _)       = getIRI i
+  getIRI (AssertionAxiomClass i _)                      = getIRI i
+  getIRI (AssertionAxiomObjectProperty _ i1 i2)         = getIRI i1 <|> getIRI i2
+  getIRI (AssertionAxiomNegativeObjectProperty _ i1 i2) = getIRI i1 <|> getIRI i2
+  getIRI (AssertionAxiomDataProperty _ i _)             = getIRI i
+  getIRI (AssertionAxiomNegativeDataProperty _ i _)     = getIRI i
 
 instance HasIRI Entity where
   getIRI (EntityDatatype d)           = getIRI d
