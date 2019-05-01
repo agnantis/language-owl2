@@ -17,7 +17,7 @@ import           Text.Megaparsec
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import            as T
 
-import           Language.OWL2.Types
+import           Language.OWL2.Types             hiding   ( datatype, objectPropertyIRI, dataRange, restriction )
 import           Language.OWL2.Internal.Parser
 import           Language.OWL2.Manchester.Pretty as MP
 
@@ -45,13 +45,13 @@ data FactElement
 -- | It parses literals
 --
 -- >>> parseTest literal "\"32\"^^integer"
--- TypedLiteralC (TypedL "32" (Datatype {_unDatatype = AbbreviatedIRI "xsd" "integer"}))
+-- TypedLiteralC {_typedLiteral = TypedL {_literalvalue = "32", _literalType = Datatype {_unDatatype = AbbreviatedIRI {_prefixName = "xsd", _prefixValue = "integer"}}}}
 --
 -- >>> parseTest literal "\"stringLiteralNoLanguage\""
--- StringLiteralNoLang "stringLiteralNoLanguage"
+-- StringLiteralNoLang {_noLangLiteral = "stringLiteralNoLanguage"}
 --
 -- >>> parseTest literal "\"stringLiteralWithLang\"@en"
--- StringLiteralLang (LiteralWithLang "stringLiteralWithLang" "en")
+-- StringLiteralLang {_literalWithLang = LiteralWithLang {_literalText = "stringLiteralWithLang", _langTag = "en"}}
 --
 literal :: Parser Literal
 literal =  lexeme $ TypedLiteralC <$> try typedLiteral
@@ -64,10 +64,10 @@ literal =  lexeme $ TypedLiteralC <$> try typedLiteral
 -- | It parses a typed literal
 --
 -- >>> parseTest typedLiteral "\"32\"^^integer"
--- TypedL "32" (Datatype {_unDatatype = AbbreviatedIRI "xsd" "integer"})
+-- TypedL {_literalvalue = "32", _literalType = Datatype {_unDatatype = AbbreviatedIRI {_prefixName = "xsd", _prefixValue = "integer"}}}
 --
 -- >>> parseTest typedLiteral "\"Jack\"^^xsd:string"
--- TypedL "Jack" (Datatype {_unDatatype = AbbreviatedIRI "xsd" "string"})
+-- TypedL {_literalvalue = "Jack", _literalType = Datatype {_unDatatype = AbbreviatedIRI {_prefixName = "xsd", _prefixValue = "string"}}}
 --
 typedLiteral :: Parser TypedLiteral
 typedLiteral = TypedL <$> lexicalValue <*> (symbol "^^" *> datatype)
@@ -79,13 +79,13 @@ classIRI = iri
 -- | It parses datatypes
 --
 -- >>> parseTest datatype "<http://example.iri>"
--- Datatype {_unDatatype = FullIRI "http://example.iri"}
+-- Datatype {_unDatatype = FullIRI {_iriName = "http://example.iri"}}
 --
 -- >>> parseTest datatype "integer"
--- Datatype {_unDatatype = AbbreviatedIRI "xsd" "integer"}
+-- Datatype {_unDatatype = AbbreviatedIRI {_prefixName = "xsd", _prefixValue = "integer"}}
 --
 -- >>> parseTest datatype "xsd:string"
--- Datatype {_unDatatype = AbbreviatedIRI "xsd" "string"}
+-- Datatype {_unDatatype = AbbreviatedIRI {_prefixName = "xsd", _prefixValue = "string"}}
 --
 datatype :: Parser Datatype
 datatype =  Datatype <$> (try datatypeIRI <|> knownDTs)
@@ -156,10 +156,10 @@ ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontologyP
 -- | It parses prefix names. Format: 'Prefix: <name>: <IRI>
 --
 -- >>> parseTest prefixDeclaration "Prefix: g: <http://ex.com/owl2/families#>"
--- PrefixD "g" (FullIRI "http://ex.com/owl2/families#")
+-- PrefixD {_declerationPrefix = "g", _declerationIRI = FullIRI {_iriName = "http://ex.com/owl2/families#"}}
 --
 -- >>> parseTest prefixDeclaration "Prefix: : <http://ex.com/owl/families#>"
--- PrefixD "" (FullIRI "http://ex.com/owl/families#")
+-- PrefixD {_declerationPrefix = "", _declerationIRI = FullIRI {_iriName = "http://ex.com/owl/families#"}}
 --
 prefixDeclaration :: Parser PrefixDeclaration
 prefixDeclaration = PrefixD <$> (symbol "Prefix:" *> lexeme prefixName) <*> fullIRI
@@ -176,7 +176,7 @@ ontologyP = do
 -- | It parses import statements
 --
 -- >>> parseTest importStmt "Import: <http://ex.com/owl2/families.owl>"
--- ImportD (FullIRI "http://ex.com/owl2/families.owl")
+-- ImportD {_importIRI = FullIRI {_iriName = "http://ex.com/owl2/families.owl"}}
 --
 importStmt :: Parser ImportDeclaration
 importStmt = ImportD <$> (symbol "Import:" *> iri)
@@ -198,13 +198,13 @@ axiomsP =  datatypeAxiom
 -- | It parses an object property expression
 --
 -- >>> parseTest objectPropertyExpression "<http://object-property-iri.com>"
--- OPE (FullIRI "http://object-property-iri.com")
+-- OPE {_objectPropertyIRI = FullIRI {_iriName = "http://object-property-iri.com"}}
 --
 -- >>> parseTest objectPropertyExpression "inverse (<http://object-property-iri.com>)"
--- InverseOPE (FullIRI "http://object-property-iri.com")
+-- InverseOPE {_objectPropertyIRI = FullIRI {_iriName = "http://object-property-iri.com"}}
 --
 -- >>> parseTest objectPropertyExpression "inverse (test-ont:object-property)"
--- InverseOPE (AbbreviatedIRI "test-ont" "object-property")
+-- InverseOPE {_objectPropertyIRI = AbbreviatedIRI {_prefixName = "test-ont", _prefixValue = "object-property"}}
 --
 objectPropertyExpression :: Parser ObjectPropertyExpression
 objectPropertyExpression =  OPE        <$> objectPropertyIRI
@@ -213,7 +213,7 @@ objectPropertyExpression =  OPE        <$> objectPropertyIRI
 -- | It parses a data property expression
 --
 -- >>> parseTest dataPropertyExpression "<http://object-property-iri.com>"
--- FullIRI "http://object-property-iri.com"
+-- FullIRI {_iriName = "http://object-property-iri.com"}
 --
 dataPropertyExpression :: Parser DataPropertyExpression
 dataPropertyExpression = dataPropertyIRI
@@ -246,7 +246,7 @@ dataConjunction = do
 -- | It parses a data primary
 --
 -- >>> parseTest dataPrimary "integer[<0]"
--- RestrictionDR (DatatypeRestriction (Datatype {_unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))
+-- RestrictionDR {_restriction = DatatypeRestriction {_restrDatatype = Datatype {_unDatatype = AbbreviatedIRI {_prefixName = "xsd", _prefixValue = "integer"}}, _restrExpr = RestrictionExp {_restrFacet = L_FACET, _restrLiteral = IntegerLiteralC {_intLiteral = IntegerL {_ivalue = 0}}} :| []}}
 --
 dataPrimary :: Parser DataRange
 dataPrimary = do
@@ -270,7 +270,7 @@ dataAtomic =  try datatypeRestriction
 -- | It parsers a non empty list of literal
 --
 -- >>> parseTest literalList "\"kostas\", 32, \"true\""
--- OneOfDR (StringLiteralNoLang "kostas" :| [IntegerLiteralC (IntegerL 32),StringLiteralNoLang "true"])
+-- OneOfDR {_literals = StringLiteralNoLang {_noLangLiteral = "kostas"} :| [IntegerLiteralC {_intLiteral = IntegerL {_ivalue = 32}},StringLiteralNoLang {_noLangLiteral = "true"}]}
 --
 literalList :: Parser DataRange
 literalList = OneOfDR <$> nonEmptyList literal
@@ -281,7 +281,7 @@ literalList = OneOfDR <$> nonEmptyList literal
 -- ()
 --
 -- >>> parseTest datatypeRestriction "integer[< 0]"
--- RestrictionDR (DatatypeRestriction (Datatype {_unDatatype = AbbreviatedIRI "xsd" "integer"}) (RestrictionExp L_FACET (IntegerLiteralC (IntegerL 0)) :| []))
+-- RestrictionDR {...}
 --
 datatypeRestriction :: Parser DataRange
 datatypeRestriction = do
@@ -339,7 +339,7 @@ description = do
 -- ()
 --
 -- >>> parseTest conjunction "Person"
--- CExpClass (SimpleIRI "Person")
+-- CExpClass {_classIRI = SimpleIRI {_simpleIRI = "Person"}}
 --
 -- >>> parseTest (conjunction *> eof) "owl:Thing that hasFirstName exactly 1"
 -- ()
@@ -348,7 +348,7 @@ description = do
 -- ()
 --
 -- >>> parseTest (conjunction <* eof) "test:Class1 that not test:Class2"
--- CExpObjectIntersectionOf ((CExpClass (AbbreviatedIRI "test" "Class1"),CExpObjectComplementOf (CExpClass (AbbreviatedIRI "test" "Class2"))) :# [])
+-- CExpObjectIntersectionOf {_objIntrxExprs = (CExpClass {_classIRI = AbbreviatedIRI {_prefixName = "test", _prefixValue = "Class1"}},CExpObjectComplementOf {_objComplExpr = CExpClass {_classIRI = AbbreviatedIRI {_prefixName = "test", _prefixValue = "Class2"}}}) :# []}
 --
 conjunction :: Parser ClassExpression
 conjunction =  try restrictions <|> try prims
@@ -375,7 +375,7 @@ conjunction =  try restrictions <|> try prims
 -- ()
 --
 -- >>> parseTest primary "not Person"
--- CExpObjectComplementOf (CExpClass (SimpleIRI "Person"))
+-- CExpObjectComplementOf {_objComplExpr = CExpClass {_classIRI = SimpleIRI {_simpleIRI = "Person"}}}
 --
 -- >>> parseTest (primary *> eof) "not hasFirstName value \"John\""
 -- ()
@@ -391,10 +391,10 @@ primary = do
 -- | It parses one of the many differnt type of restrictions on object or data properties
 --
 -- >>> parseTest (restriction <* eof) "hasFirstName value \"John\""
--- CExpDataHasValue (SimpleIRI "hasFirstName") (StringLiteralNoLang "John")
+-- CExpDataHasValue {_dataHasSubject = SimpleIRI {_simpleIRI = "hasFirstName"}, _dataHasValue = StringLiteralNoLang {_noLangLiteral = "John"}}
 --
 -- >>> parseTest (restriction <* eof) "hasFirstName exactly 1"
--- CExpObjectExactCardinality 1 (OPE (SimpleIRI "hasFirstName")) Nothing
+-- CExpObjectExactCardinality {_objExactNo = 1, _objExactSubject = OPE {_objectPropertyIRI = SimpleIRI {_simpleIRI = "hasFirstName"}}, _objExactObject = Nothing}
 --
 -- >>> parseTest (restriction *> eof) "hasFirstName only string[minLength 1]"
 -- ()
@@ -424,13 +424,13 @@ restriction =  try (objectPropertyExpression >>= objectRestriction)
 -- | It parses a class IRI or a list of individual IRIs
 --
 -- >>> parseTest atomic "<class.iri>"
--- CExpClass (FullIRI "class.iri")
+-- CExpClass {_classIRI = FullIRI {_iriName = "class.iri"}}
 --
 -- >>> parseTest atomic "Person"
--- CExpClass (SimpleIRI "Person")
+-- CExpClass {_classIRI = SimpleIRI {_simpleIRI = "Person"}}
 --
 -- >>> parseTest atomic "{ <class.iri#ind1>, <class.iri#ind2> }"
--- CExpObjectOneOf (NamedIRI (FullIRI "class.iri#ind1") :| [NamedIRI (FullIRI "class.iri#ind2")])
+-- CExpObjectOneOf {_objOneOf = NamedIRI {_namedIRI = FullIRI {_iriName = "class.iri#ind1"}} :| [NamedIRI {_namedIRI = FullIRI {_iriName = "class.iri#ind2"}}]}
 --
 atomic :: Parser ClassExpression
 atomic =  CExpClass       <$> classIRI

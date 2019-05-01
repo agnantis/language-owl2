@@ -197,7 +197,7 @@ prettyAxioms as =
   <> mkTitle "Object Properties"
   <> prettyAxiomGroups (groupAxiomsOnIRI rst) 
    where
-     predicate (Axiom an a) = axiomType a == DeclarationAxiomType || axiomType a == AnnotationPropAxiomType
+     predicate (Axiom _ a) = axiomType a == DeclarationAxiomType || axiomType a == AnnotationPropAxiomType
      (decls, rst) = runState (extractAxioms predicate) as
 
 instance PrettyF ObjectPropertyExpression where

@@ -228,7 +228,7 @@ prefixName = (identifier_ <|> pure "") <* string ":"
 -- Check: http://www.rfc-editor.org/rfc/rfc3987.txt for BNF representation
 --
 -- >>> parseTest fullIRI "<http://www.uom.gr/ai/TestOntology.owl#Child>"
--- FullIRI "http://www.uom.gr/ai/TestOntology.owl#Child"
+-- FullIRI {_iriName = "http://www.uom.gr/ai/TestOntology.owl#Child"}
 --
 -- >>> parseTest fullIRI "<http://www.uom.gr/ai/TestOntology.owl#Child"
 -- ...
@@ -245,7 +245,7 @@ fullIRI = FullIRI <$> (lexeme . iriParens $ takeWhileP Nothing (/= '>'))
 
 -- | It parses abbreviated IRIs. Format: 'prefix:term'
 -- >>> parseTest abbreviatedIRI "xsd:string"
--- AbbreviatedIRI "xsd" "string"
+-- AbbreviatedIRI {_prefixName = "xsd", _prefixValue = "string"}
 --
 -- >>> parseTest abbreviatedIRI "owl:   user1"
 -- ...
@@ -260,20 +260,20 @@ abbreviatedIRI = AbbreviatedIRI <$> prefixName <*> anyIdentifier
 --
 -- TODO: Simplified to a simple identifier parser
 -- >>> parseTest simpleIRI "John"
--- SimpleIRI "John"
+-- SimpleIRI {_simpleIRI = "John"}
 --
 simpleIRI :: Parser IRI
 simpleIRI = SimpleIRI <$> identifier
 
 -- | It parses any of the three different formats of IRIs
 -- >>> parseTest iri "John"
--- SimpleIRI "John"
+-- SimpleIRI {_simpleIRI = "John"}
 --
 -- >>> parseTest iri "owl:John"
--- AbbreviatedIRI "owl" "John"
+-- AbbreviatedIRI {_prefixName = "owl", _prefixValue = "John"}
 --
 -- >>> parseTest iri "<http://www.uom.gr/ai/TestOntology.owl#Child>"
--- FullIRI "http://www.uom.gr/ai/TestOntology.owl#Child"
+-- FullIRI {_iriName = "http://www.uom.gr/ai/TestOntology.owl#Child"}
 --
 iri :: Parser IRI
 iri = fullIRI <|> try abbreviatedIRI <|> try simpleIRI
@@ -299,10 +299,10 @@ annotationProperty = annotationPropertyIRI
 -- | It parses an annotation property name. The annotation property can be either a IRI or an node id
 --
 -- >>> parseTest (totalIRI) "<http://example.com/ontology#name>"
--- NamedIRI (FullIRI "http://example.com/ontology#name")
+-- NamedIRI {_namedIRI = FullIRI {_iriName = "http://example.com/ontology#name"}}
 --
 -- >>> parseTest (totalIRI) "_:randomNode"
--- AnonymousIRI (NodeID "randomNode")
+-- AnonymousIRI {_nodeID = NodeID {_nLabel = "randomNode"}}
 --
 totalIRI :: Parser TotalIRI
 totalIRI = AnonymousIRI <$> nodeID <|> NamedIRI <$> iri
@@ -342,7 +342,7 @@ annotation l = Annotation <$> annotationProperty <*> annotationValue l
 -- | It parses blank nodes
 --
 -- >>> parseTest nodeID "_:blank"
--- NodeID "blank"
+-- NodeID {_nLabel = "blank"}
 --
 -- >>> parseTest nodeID ":blank"
 -- ...
@@ -368,7 +368,7 @@ stringLiteralNoLanguage = quotedString
 -- | It parses a string value with language tag
 --
 -- >>> parseTest stringLiteralWithLanguage "\"hello there\"@en"
--- LiteralWithLang "hello there" "en"
+-- LiteralWithLang {_literalText = "hello there", _langTag = "en"}
 --
 stringLiteralWithLanguage :: Parser LiteralWithLang
 stringLiteralWithLanguage = LiteralWithLang <$> quotedString <*> languageTag
@@ -389,11 +389,11 @@ languageTag = char '@' *> identifier_ -- (U+40) followed a nonempty sequence of 
 -- | It parser decimal values
 --
 -- >>> parseTest decimalLiteral "10.345"
--- DecimalL 10.345
+-- DecimalL {_dvalue = 10.345}
 -- >>> parseTest decimalLiteral "-10.345"
--- DecimalL (-10.345)
+-- DecimalL {_dvalue = -10.345}
 -- >>> parseTest decimalLiteral "+10.345"
--- DecimalL 10.345
+-- DecimalL {_dvalue = 10.345}
 --
 decimalLiteral :: Parser DecimalLiteral
 decimalLiteral = do
@@ -405,11 +405,11 @@ decimalLiteral = do
 -- | It parser integer values
 --
 -- >>> parseTest integerLiteral "10"
--- IntegerL 10
+-- IntegerL {_ivalue = 10}
 -- >>> parseTest integerLiteral "-10"
--- IntegerL (-10)
+-- IntegerL {_ivalue = -10}
 -- >>> parseTest integerLiteral"+10"
--- IntegerL 10
+-- IntegerL {_ivalue = 10}
 --
 integerLiteral :: Parser IntegerLiteral
 integerLiteral = do
@@ -447,17 +447,17 @@ quotedString = do
 --   * -12.3F
 --
 -- >>> parseTest floatingPointLiteral "12F"
--- FloatP 12.0 Nothing
+-- FloatP {_floatValue = 12.0, _mExponent = Nothing}
 -- >>> parseTest floatingPointLiteral "12.3f"
--- FloatP 12.3 Nothing
+-- FloatP {_floatValue = 12.3, _mExponent = Nothing}
 -- >>> parseTest floatingPointLiteral "-12.332F"
--- FloatP (-12.332) Nothing
+-- FloatP {_floatValue = -12.332, _mExponent = Nothing}
 -- >>> parseTest floatingPointLiteral ".3f"
--- FloatP 0.3 Nothing
+-- FloatP {_floatValue = 0.3, _mExponent = Nothing}
 -- >>> parseTest floatingPointLiteral ".3e10f"
--- FloatP 0.3 (Just 10)
+-- FloatP {_floatValue = 0.3, _mExponent = Just 10}
 -- >>> parseTest floatingPointLiteral "-12.3e-10F"
--- FloatP (-12.3) (Just (-10))
+-- FloatP {_floatValue = -12.3, _mExponent = Just (-10)}
 --
 floatingPointLiteral :: Parser FloatPoint
 floatingPointLiteral = do

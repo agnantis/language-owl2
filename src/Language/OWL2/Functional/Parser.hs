@@ -16,7 +16,7 @@ import           Text.Megaparsec
 
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import          as T
-import           Language.OWL2.Types
+import           Language.OWL2.Types             hiding   ( datatype, objectPropertyIRI, dataRange, restriction )
 
 import           Language.OWL2.Internal.Parser
 import           Language.OWL2.Functional.Pretty as FP
@@ -101,25 +101,31 @@ ontologyAnnotations = fannotations
 axiomsP :: Parser [Axiom]
 axiomsP = many axiom 
 
--- | It parses  declarations
+-- | It parses declarations
 --
--- >>> parseTest (declaration <* eof) "Declaration(Class(<http://www.uom.gr/ai/TestOntology.owl#Child>))"
--- DeclarationAxiom ...
+-- >>> parseTest (declaration <* eof) "Declaration( Class(<http://www.uom.gr/ai/TestOntology.owl#Child>))"
+-- Axiom {_axiomAnnotations = [], _axiomValue = DeclarationAxiom (EntityClass {_entityClassIRI = FullIRI {_iriName = "http://www.uom.gr/ai/TestOntology.owl#Child"}})}
 --
 -- >>> parseTest (declaration <* eof) "Declaration( NamedIndividual( a:Peter ))"
--- DeclarationAxiom ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DeclarationAxiom (EntityIndividual {_entityInd = AbbreviatedIRI {_prefixName = "a", _prefixValue = "Peter"}})}
 --
 -- >>> parseTest (declaration <* eof) "Declaration(AnnotationProperty(test-ont:userAnnot))"
--- DeclarationAxiom ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DeclarationAxiom (EntityAnnotationProperty {_entityAnnotProp = AbbreviatedIRI {_prefixName = "test-ont", _prefixValue = "userAnnot"}})}
 --
 declaration :: Parser Axiom
 declaration = do
   _ <- symbol "Declaration"
-  annots <- axiomAnnotations
-  ent <- entity
-  let axiomValue = DeclarationAxiom ent
-  parens $ pure (Axiom annots axiomValue)
+  parens $ do
+    annots <- axiomAnnotations
+    ent <- entity
+    let axiomValue = DeclarationAxiom ent
+    pure (Axiom annots axiomValue)
 
+-- | It parses entities
+--
+-- >>> parseTest (entity <* eof) "Class(<http://www.uom.gr/ai/TestOntology.owl#Child>)"
+-- EntityClass {_entityClassIRI = FullIRI {_iriName = "http://www.uom.gr/ai/TestOntology.owl#Child"}}
+--
 entity :: Parser Entity
 entity =  EntityClass              <$> (symbol "Class"              *> parens clazz)
       <|> EntityDatatype           <$> (symbol "Datatype"           *> parens datatype)
@@ -160,9 +166,10 @@ annotationAxiom =  subAnnotationPropertyOf
 -- | It parses annotation assertions
 --
 -- >>> parseTest (annotationAssertion <* eof) "AnnotationAssertion(rdfs:comment test-ont:kostasAnnot \"comment\")"
--- AnnotationAxiomAssertion ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = AnnotationAxiomAssertion (NamedIRI {_namedIRI = AbbreviatedIRI {_prefixName = "test-ont", _prefixValue = "kostasAnnot"}}) (Annotation {_property = AbbreviatedIRI {_prefixName = "rdfs", _prefixValue = "comment"}, _value = LiteralAT {_annotValuuLiteral = StringLiteralNoLang {_noLangLiteral = "comment"}}})}
+--
 -- >>> parseTest (annotationAssertion <* eof) "AnnotationAssertion(owl:priorVersion _:node1 _:node2)"
--- AnnotationAxiomAssertion ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = AnnotationAxiomAssertion (AnonymousIRI {_nodeID = NodeID {_nLabel = "node1"}}) (Annotation {_property = AbbreviatedIRI {_prefixName = "owl", _prefixValue = "priorVersion"}, _value = NodeAT {_annotValueNode = NodeID {_nLabel = "node2"}}})}
 --
 annotationAssertion :: Parser Axiom
 annotationAssertion = do
@@ -180,7 +187,7 @@ annotationSubject = totalIRI
 -- | It parses sub property annotation assertions
 --
 -- >>> parseTest (subAnnotationPropertyOf <* eof) "SubAnnotationPropertyOf(test-ont:kostasAnnot rdfs:comment)"
--- AnnotationAxiomSubProperty ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = AnnotationAxiomSubProperty (AbbreviatedIRI {_prefixName = "test-ont", _prefixValue = "kostasAnnot"}) (AbbreviatedIRI {_prefixName = "rdfs", _prefixValue = "comment"})}
 --
 subAnnotationPropertyOf :: Parser Axiom
 subAnnotationPropertyOf = do
@@ -219,10 +226,10 @@ datatype = Datatype <$> iri
 -- | It parses an object property expression
 --
 -- >>> parseTest objectPropertyExpression "<http://object-property-iri.com>"
--- OPE (FullIRI "http://object-property-iri.com")
+-- OPE {_objectPropertyIRI = FullIRI {_iriName = "http://object-property-iri.com"}}
 --
 -- >>> parseTest objectPropertyExpression "ObjectInverseOf(<http://object-property-iri.com>)"
--- InverseOPE (FullIRI "http://object-property-iri.com")
+-- InverseOPE {_objectPropertyIRI = FullIRI {_iriName = "http://object-property-iri.com"}}
 --
 objectPropertyExpression :: Parser ObjectPropertyExpression
 objectPropertyExpression =  OPE        <$> objectProperty
@@ -590,22 +597,22 @@ objectPropertyCharacteristics = M.fromList
 --
 --
 -- >>> parseTest (subDataPropertyOf <* eof) "SubDataPropertyOf( a:hasLastName a:hasName  )"
--- DataPropAxiomSubProperty ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomSubProperty (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasLastName"}) (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasName"})}
 --
 -- >>> parseTest (equivalentDataProperties <* eof) "EquivalentDataProperties( a:hasName a:hasAddress )"
--- DataPropAxiomEquivalent ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomEquivalent (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasName"}) (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasAddress"} :| [])}
 --
 -- >>> parseTest (disjointDataProperties <* eof) "DisjointDataProperties( a:hasName a:hasAddress )"
--- DataPropAxiomDisjoint ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomDisjoint (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasName"}) (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasAddress"} :| [])}
 --
 -- >>> parseTest (dataPropertyDomain <* eof) "DataPropertyDomain( a:hasName a:Person )"
--- DataPropAxiomDomain ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomDomain (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasName"}) (CExpClass {_classIRI = AbbreviatedIRI {_prefixName = "a", _prefixValue = "Person"}})}
 --
 -- >>> parseTest (dataPropertyRange <* eof) "DataPropertyRange( a:hasName xsd:string )"
--- DataPropAxiomRange ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomRange (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasName"}) (DatatypeDR {_datatype = Datatype {_unDatatype = AbbreviatedIRI {_prefixName = "xsd", _prefixValue = "string"}}})}
 --
 -- >>> parseTest (functionalDataProperty<* eof) "FunctionalDataProperty( a:hasAge )"
--- DataPropAxiomCharacteristics ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomCharacteristics (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasAge"}) FUNCTIONAL_DPE}
 --
 dataPropertyAxiom :: Parser Axiom
 dataPropertyAxiom =  subDataPropertyOf
@@ -618,7 +625,7 @@ dataPropertyAxiom =  subDataPropertyOf
 -- | It parses a sub data property declaration
 --
 -- >>> parseTest (subDataPropertyOf <* eof) "SubDataPropertyOf( a:hasLastName a:hasName  )"
--- DataPropAxiomSubProperty ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomSubProperty (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasLastName"}) (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasName"})}
 --
 subDataPropertyOf :: Parser Axiom
 subDataPropertyOf = do
@@ -638,7 +645,7 @@ superDataPropertyExpression = dataPropertyExpression
 -- | It parses an equivalent data property declaration
 --
 -- >>> parseTest (equivalentDataProperties <* eof) "EquivalentDataProperties( a:hasName a:hasAddress )"
--- DataPropAxiomEquivalent ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomEquivalent (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasName"}) (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasAddress"} :| [])}
 --
 equivalentDataProperties :: Parser Axiom
 equivalentDataProperties = do
@@ -651,7 +658,7 @@ equivalentDataProperties = do
 -- | It parses a disjoint data property declaration
 --
 -- >>> parseTest (disjointDataProperties <* eof) "DisjointDataProperties( a:hasName a:hasAddress )"
--- DataPropAxiomDisjoint ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomDisjoint (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasName"}) (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasAddress"} :| [])}
 --
 disjointDataProperties :: Parser Axiom
 disjointDataProperties = do
@@ -664,7 +671,7 @@ disjointDataProperties = do
 -- | It parses a data property domain declaration
 --
 -- >>> parseTest (dataPropertyDomain <* eof) "DataPropertyDomain( a:hasName a:Person )"
--- DataPropAxiomDomain ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomDomain (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasName"}) (CExpClass {_classIRI = AbbreviatedIRI {_prefixName = "a", _prefixValue = "Person"}})}
 --
 dataPropertyDomain :: Parser Axiom
 dataPropertyDomain = do
@@ -678,7 +685,7 @@ dataPropertyDomain = do
 -- | It parses a data property range declaration
 --
 -- >>> parseTest (dataPropertyRange <* eof) "DataPropertyRange( a:hasName xsd:string )"
--- DataPropAxiomRange ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomRange (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasName"}) (DatatypeDR {_datatype = Datatype {_unDatatype = AbbreviatedIRI {_prefixName = "xsd", _prefixValue = "string"}}})}
 --
 dataPropertyRange :: Parser Axiom
 dataPropertyRange = do
@@ -692,7 +699,7 @@ dataPropertyRange = do
 -- | It parses a functional data property declaration
 --
 -- >>> parseTest (functionalDataProperty<* eof) "FunctionalDataProperty( a:hasAge )"
--- DataPropAxiomCharacteristics ...
+-- Axiom {_axiomAnnotations = [], _axiomValue = DataPropAxiomCharacteristics (AbbreviatedIRI {_prefixName = "a", _prefixValue = "hasAge"}) FUNCTIONAL_DPE}
 --
 functionalDataProperty :: Parser Axiom
 functionalDataProperty = do

@@ -56,6 +56,7 @@ module Language.OWL2.Types
   , atLeast2List
   , atLeast2List'
   , axiomType
+  , axiomValue
   , extract
   , extractAxioms
   , filterClassIRI
@@ -69,6 +70,16 @@ module Language.OWL2.Types
   , reorder
   , singleton
   , toList
+  , objectPropertyIRI
+  , datatype
+  , dataRange
+  , restriction
+  , dataRanges
+  , literals
+  , dvalue
+  , ivalue
+  , nLabel
+  , 
   )
 where
 
@@ -113,8 +124,8 @@ type Annotations = [Annotated Annotation]
 
 -- Data types --
 data ObjectPropertyExpression
-    = OPE { _objectPropertyIri :: ObjectPropertyIRI }
-    | InverseOPE { _objectPropertyIri :: ObjectPropertyIRI } deriving (Eq, Ord, Show, Typeable, Data)
+    = OPE { _objectPropertyIRI :: ObjectPropertyIRI }
+    | InverseOPE { _objectPropertyIRI :: ObjectPropertyIRI } deriving (Eq, Ord, Show, Typeable, Data)
 data DataRange
     = DatatypeDR { _datatype :: Datatype }
     | IntersectionDR { _dataRanges :: AtLeast2List DataRange }
@@ -249,7 +260,6 @@ data AnnotationValue
     | IriAT { _annotValueIRI :: IRI }
     | LiteralAT { _annotValuuLiteral :: Literal } deriving (Eq, Ord, Show, Typeable, Data)
 data Axiom = Axiom { _axiomAnnotations :: Annotations, _axiomValue :: AxiomValue } deriving (Eq, Ord, Show, Typeable, Data)
-
 data AxiomValue
     = DeclarationAxiom Entity
     | AnnotationAxiomDomain AnnotationProperty IRI
@@ -283,41 +293,6 @@ data AxiomValue
     | AssertionAxiomNegativeObjectProperty ObjectPropertyExpression Individual Individual 
     | AssertionAxiomDataProperty DataPropertyExpression Individual Literal
     | AssertionAxiomNegativeDataProperty DataPropertyExpression Individual Literal deriving (Eq, Ord, Show, Typeable, Data)
---data Axiom
---    = DeclarationAxiom Annotations Entity
---    | AnnotationAxiomDomain Annotations AnnotationProperty IRI
---    | AnnotationAxiomRange Annotations AnnotationProperty IRI
---    | AnnotationAxiomSubProperty Annotations AnnotationProperty AnnotationProperty
---    | AnnotationAxiomAssertion Annotations TotalIRI Annotation
---    | DatatypeAxiomDefinition Annotations Datatype DataRange
---    | ObjectPropAxiomDomain Annotations ObjectPropertyExpression ClassExpression
---    | ObjectPropAxiomRange Annotations ObjectPropertyExpression ClassExpression
---    | ObjectPropAxiomCharacteristics Annotations ObjectPropertyExpression ObjectPropertyCharacteristic
---    | ObjectPropAxiomSubProperty Annotations ObjectPropertyExpression ObjectPropertyExpression
---    | ObjectPropAxiomChainSubProperty Annotations ObjectPropertyChain ObjectPropertyExpression
---    | ObjectPropAxiomEquivalent Annotations ObjectPropertyExpression (NonEmpty ObjectPropertyExpression)
---    | ObjectPropAxiomDisjoint Annotations ObjectPropertyExpression (NonEmpty ObjectPropertyExpression)
---    | ObjectPropAxiomInverse Annotations ObjectPropertyExpression ObjectPropertyExpression
---    | DataPropAxiomDomain Annotations DataPropertyExpression ClassExpression
---    | DataPropAxiomRange Annotations DataPropertyExpression DataRange
---    | DataPropAxiomCharacteristics Annotations DataPropertyExpression DataPropertyCharacteristics
---    | DataPropAxiomSubProperty Annotations DataPropertyExpression DataPropertyExpression
---    | DataPropAxiomEquivalent Annotations DataPropertyExpression (NonEmpty DataPropertyExpression)
---    | DataPropAxiomDisjoint Annotations DataPropertyExpression (NonEmpty DataPropertyExpression)
---    | ClassAxiomSubClassOf Annotations ClassExpression ClassExpression
---    | ClassAxiomEquivalentClasses Annotations ClassExpression (NonEmpty ClassExpression)
---    | ClassAxiomDisjointClasses Annotations ClassExpression (NonEmpty ClassExpression)
---    | ClassAxiomDisjointUnion Annotations ClassIRI (AtLeast2List ClassExpression)
---    | ClassAxiomHasKey Annotations ClassExpression (NonEmpty ObjectOrDataPE)
---    | AssertionAxiomSameIndividuals Annotations Individual (NonEmpty Individual)
---    | AssertionAxiomDifferentIndividuals Annotations Individual (NonEmpty Individual)
---    | AssertionAxiomClass Annotations Individual ClassExpression
---    | AssertionAxiomObjectProperty Annotations ObjectPropertyExpression Individual Individual
---    | AssertionAxiomNegativeObjectProperty Annotations ObjectPropertyExpression Individual Individual 
---    | AssertionAxiomDataProperty Annotations DataPropertyExpression Individual Literal
---    | AssertionAxiomNegativeDataProperty Annotations DataPropertyExpression Individual Literal deriving (Eq, Ord, Show, Typeable, Data)
-
-
 data AxiomType
   = DeclarationAxiomType
   | AnnotationAxiomType
@@ -556,8 +531,34 @@ mapAxiomsOnIRI as = M.fromListWith (++) pairs
 --- Lenses Definition ---
 -------------------------
 
---makeLenses ''ObjectPropertyExpression
---makeLenses ''DataRange
---makeLenses ''DecimalLiteral
---makeLenses ''IntegerLiteral
-
+makeLenses ''ObjectPropertyExpression
+makeLenses ''DataRange
+makeLenses ''DecimalLiteral
+makeLenses ''IntegerLiteral
+makeLenses ''NodeID
+makeLenses ''ImportDeclaration
+makeLenses ''IRI
+makeLenses ''TypedLiteral
+makeLenses ''FloatPoint
+makeLenses ''LiteralWithLang
+makeLenses ''OntologyDocument
+makeLenses ''PrefixDeclaration
+makeLenses ''Ontology
+makeLenses ''OntologyVersionIRI
+makeLenses ''Annotation
+makeLenses ''Datatype
+makeLenses ''DatatypeRestriction
+makeLenses ''RestrictionExp
+makeLenses ''Facet
+makeLenses ''ObjectOrDataPE
+makeLenses ''ClassExpression
+makeLenses ''TotalIRI
+makeLenses ''ObjectPropertyChain
+makeLenses ''ObjectPropertyCharacteristic
+makeLenses ''DataPropertyCharacteristics
+makeLenses ''Literal
+makeLenses ''Entity
+makeLenses ''AnnotationValue
+makeLenses ''Axiom
+makeLenses ''AxiomValue
+makeLenses ''AxiomType
