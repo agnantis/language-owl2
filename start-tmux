@@ -23,7 +23,7 @@ tmux split-window -v
 tmux send-keys "nix-shell" C-m
 tmux send-keys "find . -type f -name \"*.hs\" | entr doctest src/" C-m
 
-# tmux select-pane -t:.0
+tmux select-pane -t:.0
 # tmux split-window -v
 # tmux send-keys "nvim res/example.owl" C-m
 # tmux resize-pane -D 8
