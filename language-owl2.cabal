@@ -18,23 +18,27 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     
+  exposed-modules: 
                        Language.OWL2.Functional.Parser
                      , Language.OWL2.Functional.Pretty
                      , Language.OWL2.Manchester.Parser
                      , Language.OWL2.Manchester.Pretty
+                     , Language.OWL2.TH.TH
                      , Language.OWL2.Types
   other-modules:
                        Language.OWL2.Import
                      , Language.OWL2.Internal.Parser
+                     , Language.OWL2.Examples.QuasiQ
   -- other-extensions:    
-  build-depends:       base >=4.11 && <4.12
+  build-depends:       base >= 4.7 && < 5
                      , containers
-                     , megaparsec >= 7.0
+                     , megaparsec
                      , microlens-platform
                      , mtl
                      , parser-combinators
                      , prettyprinter
+                     , syb
+                     , template-haskell
                      , text
   hs-source-dirs:      src
   default-language:    Haskell2010

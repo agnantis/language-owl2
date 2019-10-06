@@ -1,7 +1,7 @@
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Language.OWL2.Types
   ( Annotated(..)
@@ -52,11 +52,9 @@ module Language.OWL2.Types
   , RestrictionExp(..)
   , TotalIRI(..)
   , TypedLiteral(..)
-  --, WithNegation(..)
   , atLeast2List
   , atLeast2List'
   , axiomType
-  , axiomValue
   , extract
   , extractAxioms
   , filterClassIRI
@@ -70,21 +68,10 @@ module Language.OWL2.Types
   , reorder
   , singleton
   , toList
-  , objectPropertyIRI
-  , datatype
-  , dataRange
-  , restriction
-  , dataRanges
-  , literals
-  , dvalue
-  , ivalue
-  , nLabel
-  , 
   )
 where
 
 import           Control.Applicative                      ( (<|>) )
-import           Lens.Micro.Platform
 import           Control.Monad.State
 import           Data.Data                                ( Data, Typeable, toConstr )
 import           Data.Function                            ( on )
@@ -97,6 +84,7 @@ import           Data.Maybe                               ( fromMaybe )
 import           GHC.Exts                                 ( groupWith )
 
 import           Language.OWL2.Import                     ( Text )
+
 
 ---------------
 ---- TYPES ----
@@ -177,12 +165,6 @@ data Facet
 data ObjectOrDataPE
     = ObjectPE { _objectPropExpr :: ObjectPropertyExpression }
     | DataPE { _dataPropExpr :: DataPropertyExpression } deriving (Eq, Ord, Show, Typeable, Data)
---data WithNegation a
---    = Positive a
---    | Negative a deriving (Eq, Ord, Show, Functor, Typeable, Data)
---data WithInversion a
---    = Plain a
---    | Inverse a deriving (Eq, Ord, Show, Functor, Typeable, Data)
 data ClassExpression
     = CExpClass { _classIRI :: ClassIRI }
     | CExpObjectIntersectionOf { _objIntrxExprs :: AtLeast2List ClassExpression }
@@ -531,34 +513,34 @@ mapAxiomsOnIRI as = M.fromListWith (++) pairs
 --- Lenses Definition ---
 -------------------------
 
-makeLenses ''ObjectPropertyExpression
-makeLenses ''DataRange
-makeLenses ''DecimalLiteral
-makeLenses ''IntegerLiteral
-makeLenses ''NodeID
-makeLenses ''ImportDeclaration
-makeLenses ''IRI
-makeLenses ''TypedLiteral
-makeLenses ''FloatPoint
-makeLenses ''LiteralWithLang
-makeLenses ''OntologyDocument
-makeLenses ''PrefixDeclaration
-makeLenses ''Ontology
-makeLenses ''OntologyVersionIRI
-makeLenses ''Annotation
-makeLenses ''Datatype
-makeLenses ''DatatypeRestriction
-makeLenses ''RestrictionExp
-makeLenses ''Facet
-makeLenses ''ObjectOrDataPE
-makeLenses ''ClassExpression
-makeLenses ''TotalIRI
-makeLenses ''ObjectPropertyChain
-makeLenses ''ObjectPropertyCharacteristic
-makeLenses ''DataPropertyCharacteristics
-makeLenses ''Literal
-makeLenses ''Entity
-makeLenses ''AnnotationValue
-makeLenses ''Axiom
-makeLenses ''AxiomValue
-makeLenses ''AxiomType
+--makeLenses ''ObjectPropertyExpression
+--makeLenses ''DataRange
+--makeLenses ''DecimalLiteral
+--makeLenses ''IntegerLiteral
+--makeLenses ''NodeID
+--makeLenses ''ImportDeclaration
+--makeLenses ''IRI
+--makeLenses ''TypedLiteral
+--makeLenses ''FloatPoint
+--makeLenses ''LiteralWithLang
+--makeLenses ''OntologyDocument
+--makeLenses ''PrefixDeclaration
+--makeLenses ''Ontology
+--makeLenses ''OntologyVersionIRI
+--makeLenses ''Annotation
+--makeLenses ''Datatype
+--makeLenses ''DatatypeRestriction
+--makeLenses ''RestrictionExp
+--makeLenses ''Facet
+--makeLenses ''ObjectOrDataPE
+--makeLenses ''ClassExpression
+--makeLenses ''TotalIRI
+--makeLenses ''ObjectPropertyChain
+--makeLenses ''ObjectPropertyCharacteristic
+--makeLenses ''DataPropertyCharacteristics
+--makeLenses ''Literal
+--makeLenses ''Entity
+--makeLenses ''AnnotationValue
+--makeLenses ''Axiom
+--makeLenses ''AxiomValue
+--makeLenses ''AxiomType

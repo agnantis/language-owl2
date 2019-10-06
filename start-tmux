@@ -11,11 +11,11 @@ tmux send-keys "nvim" C-m
 tmux split-window -h
 tmux resize-pane -R 10
 tmux send-keys "nix-shell" C-m
-tmux send-keys "ghcid --command='cabal repl'" C-m
+tmux send-keys "ghcid --command='cabal new-repl'" C-m
 tmux split-window -v
 sleep 5
 tmux send-keys "nix-shell" C-m
-tmux send-keys "cabal repl" C-m
+tmux send-keys "cabal new-repl" C-m
 tmux split-window -v
 tmux send-keys "nix-shell" C-m
 tmux send-keys "find . -type f -name \"*.hs\" | entr hlint src/" C-m

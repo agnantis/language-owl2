@@ -4,6 +4,8 @@ module Language.OWL2.Functional.Parser
   ( exportOntologyDoc
   , exportOntologyDocToFile
   , parseOntologyDoc
+  , parseOntology
+  , parseNode
   )
 where
 
@@ -16,7 +18,7 @@ import           Text.Megaparsec
 
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import          as T
-import           Language.OWL2.Types             hiding   ( datatype, objectPropertyIRI, dataRange, restriction )
+import           Language.OWL2.Types
 
 import           Language.OWL2.Internal.Parser
 import           Language.OWL2.Functional.Pretty as FP
@@ -65,7 +67,7 @@ typedLiteral = TypedL <$> lexicalValue
                       <*> (symbol "^^" *> datatype)
 
 ontologyDocument :: Parser OntologyDocument
-ontologyDocument = OntologyD <$> many prefixDeclaration <*> ontologyP
+ontologyDocument = sc *> (OntologyD <$> many prefixDeclaration <*> ontologyP)
 
 -- | It parses a prefix declaration
 --
@@ -118,8 +120,8 @@ declaration = do
   parens $ do
     annots <- axiomAnnotations
     ent <- entity
-    let axiomValue = DeclarationAxiom ent
-    pure (Axiom annots axiomValue)
+    let aValue = DeclarationAxiom ent
+    pure (Axiom annots aValue)
 
 -- | It parses entities
 --
@@ -818,6 +820,13 @@ parseOntology text = case parse ontologyDocument "(stdin)" text of
   Left bundle -> Left . T.pack . errorBundlePretty $ bundle
   Right doc   -> Right doc
  
+-- | It tries to parse an ontology in Manchester format
+--
+parseNode :: String -- ^ the text to parse
+             -> Either String NodeID -- ^ the parse error message or the parse ontology doc 
+parseNode text = case parse nodeID "(stdin)" (T.pack text) of
+   Left bundle -> Left . errorBundlePretty $ bundle
+   Right doc   -> Right doc
 
 -- | It tries to parse an ontology file in functional format
 --

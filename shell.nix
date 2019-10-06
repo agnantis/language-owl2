@@ -1,1 +1,1 @@
-(import ./language-owl2.nix).project.env
+(import ./release.nix { }).language-owl2.env

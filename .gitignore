@@ -1,8 +1,10 @@
 .ghci
 dist/
+dist-newstyle/
 res/
 *.swp
 result
 *.hi
 *.o
 output
+.ghc*

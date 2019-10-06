@@ -21,6 +21,7 @@ module Language.OWL2.Internal.Parser
   , lexicalValue
   , listOfAtLeast2
   , namedIndividual
+  , nodeID
   , nonEmptyList
   , nonNegativeInteger
   , objectProperty

@@ -3,6 +3,7 @@
 module Language.OWL2.Manchester.Parser
   ( exportOntologyDoc
   , exportOntologyDocToFile
+  , parseOntology
   , parseOntologyDoc
   , predifinedPrefixes
   )
@@ -17,9 +18,8 @@ import           Text.Megaparsec
 import           Language.OWL2.Import                     ( Text )
 import qualified Language.OWL2.Import            as T
 
-import           Language.OWL2.Types             hiding   ( datatype, objectPropertyIRI, dataRange, restriction )
+import           Language.OWL2.Types
 import           Language.OWL2.Internal.Parser
-import           Language.OWL2.Manchester.Pretty as MP
 
 -- DocTest setup
 --
