@@ -245,6 +245,8 @@ dataPropertyExpression = dataProperty
 
 -- | It parses a data range
 --
+-- >>> parseTest (dataRange *> eof) "xsd:integer"
+-- ()
 --
 dataRange :: Parser DataRange
 dataRange =  DatatypeDR <$> datatype
@@ -380,19 +382,50 @@ objectMaxCardinality = objectCardinality "ObjectMaxCardinality" CExpObjectMaxCar
 objectExactCardinality :: Parser ClassExpression
 objectExactCardinality = objectCardinality "ObjectExactCardinality" CExpObjectMinCardinality
 
+-- | Parser for DataAllValuesFrom
+-- >>> parseTest (dataSomeValuesFrom *> eof) "DataSomeValuesFrom(a:hasAge a:hasWeight DatatypeRestriction(xsd:integer xsd:maxExclusive \"20\"^^xsd:integer))"
+-- ()
+--
+-- >>> parseTest (dataSomeValuesFrom *> eof) "DataSomeValuesFrom(a:hasAge a:hasWeight xsd:integer)"
+-- ()
+--
 -- TODO: Protege does not seem to support multiple data property expressions in a single "some"
--- e.g. Was not possible to parse: "EquivalentClasses(test-ont:Test1 DataSomeValuesFrom(test-ont:dataProp1 test-ont:dataPro2 xsd:integer)) 
+-- e.g. Was not possible to parse: "EquivalentClasses(test-ont:Test1 DataSomeValuesFrom(test-ont:dataProp1 test-ont:dataPro2 ...dataRange)) 
 dataSomeValuesFrom :: Parser ClassExpression
 dataSomeValuesFrom = do
   _ <- symbol "DataSomeValuesFrom"
-  parens $ CExpDataSomeValuesFrom <$> singleOrMany "" dataPropertyExpression <*> dataRange
+  dataValuesFrom CExpDataSomeValuesFrom
 
+-- | Parser for DataAllValuesFrom
+-- >>> parseTest (dataAllValuesFrom *> eof) "DataAllValuesFrom(a:hasAge a:hasWeight DatatypeRestriction(xsd:integer xsd:maxExclusive \"20\"^^xsd:integer))"
+-- ()
+--
+-- >>> parseTest (dataAllValuesFrom *> eof) "DataAllValuesFrom(a:hasAge a:hasWeight xsd:integer)"
+-- ()
+--
 -- TODO: Protege does not seem to support multiple data property expressions in a single "some"
 -- e.g. Was not possible to parse: "EquivalentClasses(test-ont:Test1 DataAllValuesFrom(test-ont:dataProp1 test-ont:dataPro2 xsd:integer)) 
 dataAllValuesFrom :: Parser ClassExpression
 dataAllValuesFrom = do
   _ <- symbol "DataAllValuesFrom"
-  parens $ CExpDataAllValuesFrom <$> singleOrMany "" dataPropertyExpression <*> dataRange
+  dataValuesFrom CExpDataAllValuesFrom
+
+-- | Helper parser to abrstract out the common structure of 'DataSomeValuesFrom' and 'DataAllValuesFrom'
+--
+dataValuesFrom :: (NE.NonEmpty DataPropertyExpression -> DataRange -> ClassExpression) -> Parser ClassExpression
+dataValuesFrom constr =
+  parens $ do
+    dpe <- singleOrMany "" dataPropertyExpression
+    mDR <- optional dataRange
+    case mDR of
+      Nothing -> do
+        let lst = NE.last dpe
+            rst = NE.init dpe
+        if null rst
+        then fail "DataPropertyExpression or DataRange expected"
+        else pure $ constr (NE.fromList rst) (DatatypeDR . Datatype $ lst)
+      Just dr -> pure $ constr dpe dr 
+
 
 dataHasValue :: Parser ClassExpression
 dataHasValue = do
@@ -449,6 +482,8 @@ subClassExpression = classExpression
 superClassExpression :: Parser ClassExpression
 superClassExpression = classExpression
 
+-- | Equivalent classes
+--
 equivalentClasses :: Parser Axiom
 equivalentClasses = do
   _ <- symbol "EquivalentClasses"
