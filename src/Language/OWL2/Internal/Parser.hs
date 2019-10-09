@@ -15,6 +15,7 @@ module Language.OWL2.Internal.Parser
   , floatingPointLiteral
   , fullIRI
   , individual
+  , initialState
   , integerLiteral
   , iri
   , lexeme
@@ -520,6 +521,28 @@ anonymousIndividual = nodeID
 -- | Reserved keywords
 allKeywords :: [Text]
 allKeywords = concat [manchesterKeywords, functionalKeywords]
+
+-- | Builds the initial state of a parser by setting:
+--   - the name of the file to be parsed
+--   - the line offset
+--   - the column offset
+--
+--   This utility function is used by Quasi parsers where we need to set the 
+--   offsets of the parser relative to the location of the text inside the source file
+--
+initialState :: (FilePath, Int, Int) -> s -> State s
+initialState (filename, line, column) s = State
+  { stateInput  = s
+  , stateOffset = 0
+  , statePosState = PosState
+    { pstateInput = s
+    , pstateOffset = 0
+    , pstateSourcePos = SourcePos filename (mkPos line) (mkPos column)
+    , pstateTabWidth = defaultTabWidth
+    , pstateLinePrefix = ""
+    }
+  }
+
 
 -----------------------
 --- Generic parsers ---

@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 --{-# LANGUAGE  QuasiQuotes #-}
 --test :: String
@@ -24,6 +25,7 @@ import qualified Language.OWL2.Manchester.Parser as MP
 
 -- | 'ontologydocf' quasi-quoatiation can be used for parsing ontology documents
 -- in functional format
+type SourcePos = (FilePath, Int, Int)
 
 ontologydoc :: QuasiQuoter
 ontologydoc = QuasiQuoter 
@@ -41,16 +43,16 @@ ontologydocm = QuasiQuoter
   , quoteType = error "Usage as a type is not supported"
   }
 
-quoteExpOntologyDoc :: (Text -> Either Text OntologyDocument) -> String -> Q Exp
+quoteExpOntologyDoc :: (SourcePos -> Text -> Either Text OntologyDocument) -> String -> Q Exp
 quoteExpOntologyDoc parser txt = do
-  -- pos <- location: currently not used
-  ontologyD <- pOntologyDoc parser txt
+  Loc{..} <- location
+  ontologyD <- pOntologyDoc parser (loc_filename, fst loc_start, snd loc_start) txt
   dataToExpQ (fmap liftText . cast) ontologyD
 
 
-pOntologyDoc :: Monad m => (Text -> Either Text OntologyDocument) -> String -> m OntologyDocument
-pOntologyDoc parser txt =
-  case parser (T.pack txt) of
+pOntologyDoc :: Monad m => (SourcePos -> Text -> Either Text OntologyDocument) -> SourcePos -> String -> m OntologyDocument
+pOntologyDoc parser pos txt =
+  case parser pos (T.pack txt) of
     Left errMsg -> fail $ T.unpack errMsg
     Right ontDoc -> return ontDoc
 

@@ -924,9 +924,16 @@ annotatedList p =
 
 -- | It tries to parse an ontology in Manchester format
 --
-parseOntology :: Text -- ^ the text to parse
+-- parseOntology :: Text -- ^ the text to parse
+--               -> Either Text OntologyDocument -- ^ the parse error message or the parse ontology doc 
+-- parseOntology text = case parse ontologyDocument "(stdin)" text of
+--   Left bundle -> Left . T.pack . errorBundlePretty $ bundle
+--   Right doc   -> Right doc
+ 
+parseOntology :: (FilePath, Int, Int)
+              -> Text -- ^ the text to parse
               -> Either Text OntologyDocument -- ^ the parse error message or the parse ontology doc 
-parseOntology text = case parse ontologyDocument "(stdin)" text of
+parseOntology pos text = case snd (runParser' ontologyDocument (initialState pos text)) of
   Left bundle -> Left . T.pack . errorBundlePretty $ bundle
   Right doc   -> Right doc
  
@@ -940,7 +947,7 @@ parseOntologyDoc file =
   T.readFile file >>= parseContent
   where
     parseContent content =
-      case parseOntology content of
+      case parseOntology (file, 1, 1) content of
         Left errorMsg -> do
           putStrLn "Unable to parse file. Reason: "
           putStrLn . T.unpack $ errorMsg

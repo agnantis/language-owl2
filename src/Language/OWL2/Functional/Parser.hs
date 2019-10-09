@@ -5,7 +5,6 @@ module Language.OWL2.Functional.Parser
   , exportOntologyDocToFile
   , parseOntologyDoc
   , parseOntology
-  , parseNode
   )
 where
 
@@ -849,20 +848,13 @@ negativeDataPropertyAssertion = do
 
 -- | It tries to parse an ontology in Manchester format
 --
-parseOntology :: Text -- ^ the text to parse
+parseOntology :: (FilePath, Int, Int)
+              -> Text -- ^ the text to parse
               -> Either Text OntologyDocument -- ^ the parse error message or the parse ontology doc 
-parseOntology text = case parse ontologyDocument "(stdin)" text of
+parseOntology pos text = case snd (runParser' ontologyDocument (initialState pos text)) of
   Left bundle -> Left . T.pack . errorBundlePretty $ bundle
   Right doc   -> Right doc
  
--- | It tries to parse an ontology in Manchester format
---
-parseNode :: String -- ^ the text to parse
-             -> Either String NodeID -- ^ the parse error message or the parse ontology doc 
-parseNode text = case parse nodeID "(stdin)" (T.pack text) of
-   Left bundle -> Left . errorBundlePretty $ bundle
-   Right doc   -> Right doc
-
 -- | It tries to parse an ontology file in functional format
 --
 parseOntologyDoc :: FilePath                    -- ^ the file path
@@ -872,7 +864,7 @@ parseOntologyDoc file =
   T.readFile file >>= parseContent
   where
     parseContent content =
-      case parseOntology content of
+      case parseOntology (file, 1, 1) content of
         Left errorMsg -> do
           putStrLn "Unable to parse file. Reason: "
           putStrLn . T.unpack $ errorMsg
